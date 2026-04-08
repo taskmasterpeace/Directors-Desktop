@@ -30,6 +30,11 @@ Explicitly **not** building in this spec:
 - Pause/resume mid-batch
 - Reading captions from existing `.json` sidecar files (captions come fresh from the vision model — deterministic, no schema guessing)
 - Parallelism beyond the existing GPU/API slot split in `QueueWorker`
+- **Per-tile video duration/fps override** — one duration/fps/camera-motion for the whole batch (matches existing single-prompt conventions)
+- **Mixed target video models in one batch** — one target (LTX Fast or Seedance) for the whole run
+- **Running each batch prompt through the prompt enhancer** — batch prompts are trusted as-is; users can enhance in single-prompt mode first if they want
+- **LTX-2 Pro** — Pro video is API-only, user does not want it in batch mode
+- **Partial-batch abort on error** — if one job fails, the rest keep going; final summary shows failures
 
 ## Architecture overview
 
@@ -90,7 +95,12 @@ Two tabs: **"Prompts → Images"** and **"Images → Videos"**.
 - Image model (Flux Dev / Flux Klein / Z-Image / Nano Banana)
 - LoRA path, weight, trigger phrase, trigger mode
 - Resolution, aspect ratio, steps
-- Seed behavior (locked or random — if locked, same seed used for all; if random, each prompt gets a different seed)
+- **Variations per prompt** (1 / 2 / 4) — matches the single-prompt UI. Total jobs = `prompts × variations`. The run button label reflects the total: *"Generate 92 images (23 prompts × 4)"*
+- **Seed behavior** (defaults to **locked**, user can override):
+  - **Locked** (default) — same seed used for every prompt and every variation. Reproducible sweeps.
+  - **Random** — each job gets a new random seed
+  - **Sequential** — base seed + job index (base, base+1, base+2...) — reproducible *and* varied
+- **"These images are for animation" toggle** — when on, the aspect ratio picker restricts to video-compatible ratios (9:16, 16:9) so the resulting images are guaranteed to flow cleanly into Tab 2 without flagging. Off by default.
 
 **Bottom:**
 - Run button: `"Generate 23 images"` — count in the button label so there's no accidental submission
@@ -104,7 +114,7 @@ Two tabs: **"Prompts → Images"** and **"Images → Videos"**.
 ### Tab 2 — Images → Videos
 
 **Top bar:**
-- **Target model selector:** `LTX-2 Fast` / `LTX-2 Pro` / `Seedance 1.5 Pro`
+- **Target model selector:** `LTX-2 Fast` / `Seedance 1.5 Pro` (only these two — LTX Pro is API-only and out of scope)
   - Changes which aspect ratios are considered "compatible"
   - Passed to the auto-captioner as context
 - **"Add images" button** — opens a file picker (multi-select) with an "Add folder" option
@@ -139,7 +149,6 @@ Two tabs: **"Prompts → Images"** and **"Images → Videos"**.
 | Model | Supported aspect ratios |
 |---|---|
 | LTX-2 Fast | 9:16, 16:9 |
-| LTX-2 Pro | 9:16, 16:9 |
 | Seedance 1.5 Pro | 16:9, 9:16, 1:1, 4:3, 3:4, 21:9 (verify against current Replicate model card during implementation) |
 
 **"Auto-crop" behavior:** Center-crop the source image to the nearest compatible ratio (prefer 16:9 or 9:16 depending on whether source is landscape or portrait). Uses the existing `_prepare_image` pattern from `video_generation_handler.py`.
@@ -164,7 +173,7 @@ Thin wrapper over existing OpenRouter vision path in `enhance_prompt_handler.py`
 ```python
 class CaptionImageRequest(BaseModel):
     image_path: str
-    target_model: Literal["ltx-fast", "ltx-pro", "seedance-1.5-pro"]
+    target_model: Literal["ltx-fast", "seedance-1.5-pro"]
 ```
 
 **Response:**
@@ -202,11 +211,11 @@ class BatchImageRequest(BaseModel):
     width: int
     height: int
     num_steps: int
-    num_images_per_prompt: int = 1
+    num_images_per_prompt: int = 1  # 1, 2, or 4 — matches single-prompt UI
     lora_path: str | None = None
     lora_weight: float = 1.0
-    seed_mode: Literal["locked", "random"]
-    locked_seed: int | None = None
+    seed_mode: Literal["locked", "random", "sequential"] = "locked"
+    base_seed: int  # used as-is for locked, as starting point for sequential, ignored for random
 
 class BatchVideoItem(BaseModel):
     image_path: str
@@ -215,7 +224,7 @@ class BatchVideoItem(BaseModel):
 
 class BatchVideoRequest(BaseModel):
     items: list[BatchVideoItem]
-    target_model: Literal["ltx-fast", "ltx-pro", "seedance-1.5-pro"]
+    target_model: Literal["ltx-fast", "seedance-1.5-pro"]
     duration: int
     fps: int
     camera_motion: str
@@ -240,6 +249,10 @@ class BatchSubmitResponse(BaseModel):
 ### Queue changes
 
 **None.** The queue already supports `batch_id` and `batch_index` on `Job`. Batch submission just generates one UUID and tags all N jobs with it.
+
+### Partial-failure behavior
+
+If any job in a batch errors, the remaining jobs **continue** — they are independent queue entries and the worker doesn't know about batch boundaries. The frontend polls `/api/queue/status`, filters by `batch_id`, and at the end shows a summary: *"22 complete, 1 failed"*, with the failing job's error surfaced inline. The user can click a failed tile to retry it as a single job.
 
 ### Existing handlers — no changes required
 
@@ -305,6 +318,11 @@ None currently exist in the repo. Skipping per existing convention.
 - [ ] Paste 5 multi-line prompts separated by blank lines → count shows 5
 - [ ] Load a `.txt` file with 20 prompts → textarea populates, count shows 20
 - [ ] Run batch with 3 prompts → 3 images appear
+- [ ] Run batch with 3 prompts × 4 variations → 12 images appear; run button label reflects `(3 prompts × 4)`
+- [ ] Seed mode "locked" → every output uses the same seed
+- [ ] Seed mode "sequential" with base 100 → outputs use seeds 100, 101, 102...
+- [ ] Seed mode "random" → every output gets a different seed
+- [ ] "These images are for animation" toggle on → aspect picker only shows 9:16 and 16:9
 - [ ] Click "Animate all" → lands on Tab 2 with 3 images pre-loaded
 - [ ] Click "Generate prompts for all" → all 3 get captions within ~10s
 - [ ] Edit one caption inline → persists when switching tabs
@@ -312,6 +330,8 @@ None currently exist in the repo. Skipping per existing convention.
 - [ ] Auto-crop a 1:1 image → cropped successfully to 16:9
 - [ ] Run batch video with 3 items → 3 video jobs appear in queue
 - [ ] Remove one tile mid-edit → count in run button updates
+- [ ] Force one job to fail mid-batch → remaining jobs keep running; final summary shows "N complete, 1 failed"
+- [ ] Target model = Seedance → LTX-only aspect ratios no longer flag as incompatible
 
 ## Risks and open questions
 
