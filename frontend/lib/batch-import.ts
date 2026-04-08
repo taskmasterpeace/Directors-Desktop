@@ -76,3 +76,16 @@ export function parseRange(input: string): number[] {
   const step = (end - start) / (count - 1)
   return Array.from({ length: count }, (_, i) => Math.round((start + i * step) * 1000) / 1000)
 }
+
+/**
+ * Parse a text file where each prompt is separated by one or more blank lines.
+ * Multi-line (paragraph) prompts are preserved as-is with internal newlines.
+ * Leading/trailing whitespace on each prompt is stripped. Empty prompts are dropped.
+ */
+export function parseBlankLineSeparated(text: string): string[] {
+  return text
+    .replace(/\r\n/g, '\n')
+    .split(/\n\s*\n+/)
+    .map(p => p.trim())
+    .filter(p => p.length > 0)
+}
