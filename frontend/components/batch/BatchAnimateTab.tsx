@@ -215,10 +215,11 @@ export function BatchAnimateTab({ target, onSubmit, isRunning, initialImagePaths
       {/* Grid */}
       {tiles.length === 0 ? (
         <div
-          className="h-48 rounded-lg border-dashed border-2 flex items-center justify-center text-sm"
+          className="h-48 rounded-lg border-dashed border-2 flex flex-col items-center justify-center gap-1 text-sm"
           style={{ borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.55 0.04 290)' }}
         >
-          Click "Add images" to get started
+          <span>Click "Add images" to get started</span>
+          <span className="text-[11px]">Tip: generate a batch in the Prompts tab first, then add those images here from the gallery</span>
         </div>
       ) : (
         <div className="grid grid-cols-4 gap-2 max-h-[50vh] overflow-y-auto pr-1">
