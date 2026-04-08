@@ -91,6 +91,7 @@ class AppSettings(SettingsBaseModel):
     auto_upload_to_r2: bool = False
     civitai_api_key: str = ""
     custom_video_model_path: str = ""
+    vision_captioner_model: str = "qwen/qwen-2.5-vl-72b-instruct"
     selected_video_model: str = ""
 
     @field_validator("ffn_chunk_count", mode="before")
@@ -180,6 +181,7 @@ class SettingsResponse(SettingsBaseModel):
     auto_upload_to_r2: bool = False
     has_civitai_api_key: bool = False
     custom_video_model_path: str = ""
+    vision_captioner_model: str = "qwen/qwen-2.5-vl-72b-instruct"
     selected_video_model: str = ""
 
 

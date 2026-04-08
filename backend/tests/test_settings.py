@@ -32,6 +32,7 @@ class TestGetSettings:
         assert data["seedLocked"] is False
         assert data["lockedSeed"] == 42
         assert data["batchSoundEnabled"] is True
+        assert data["visionCaptionerModel"] == "qwen/qwen-2.5-vl-72b-instruct"
         assert "ltxApiKey" not in data
         assert "replicateApiKey" not in data
         assert "geminiApiKey" not in data
@@ -172,6 +173,7 @@ class TestSettingsPersistence:
             nf4_video_pipeline_class=None,
             image_generation_pipeline_class=type(fake_services.image_generation_pipeline),
             flux_klein_pipeline_class=None,
+            flux_dev_pipeline_class=None,
             ic_lora_pipeline_class=type(fake_services.ic_lora_pipeline),
             a2v_pipeline_class=type(fake_services.a2v_pipeline),
             retake_pipeline_class=type(fake_services.retake_pipeline),
