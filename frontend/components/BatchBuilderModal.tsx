@@ -1,15 +1,17 @@
 import { useState, useRef } from 'react'
-import { X, Plus, Trash2, Copy, Upload, Grid3X3, List, FileText, Play, AlertCircle } from 'lucide-react'
+import { X, Plus, Trash2, Copy, Upload, Grid3X3, List, FileText, Play, AlertCircle, Layers, Film } from 'lucide-react'
 import type { BatchSubmitRequest, BatchJobItem, SweepAxis } from '@/types/batch'
 import { parseCSV, parseJSON, parseRange } from '@/lib/batch-import'
 import { useBatch } from '@/hooks/use-batch'
+import { BatchPromptsTab } from './batch/BatchPromptsTab'
+import { BatchAnimateTab } from './batch/BatchAnimateTab'
 
 interface BatchBuilderModalProps {
   isOpen: boolean
   onClose: () => void
 }
 
-type TabId = 'list' | 'import' | 'grid'
+type TabId = 'prompts' | 'animate' | 'list' | 'import' | 'grid'
 
 interface ListRow {
   id: string
@@ -41,7 +43,7 @@ function nextRowId(): string {
 }
 
 export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
-  const [activeTab, setActiveTab] = useState<TabId>('list')
+  const [activeTab, setActiveTab] = useState<TabId>('prompts')
   const [target, setTarget] = useState<'local' | 'cloud'>('local')
   const [pipelineEnabled, setPipelineEnabled] = useState(false)
   const batch = useBatch()
@@ -188,6 +190,8 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
   }
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
+    { id: 'prompts', label: 'Prompts → Images', icon: <Layers className="w-4 h-4" /> },
+    { id: 'animate', label: 'Images → Videos', icon: <Film className="w-4 h-4" /> },
     { id: 'list', label: 'List', icon: <List className="w-4 h-4" /> },
     { id: 'import', label: 'Import', icon: <FileText className="w-4 h-4" /> },
     { id: 'grid', label: 'Grid Sweep', icon: <Grid3X3 className="w-4 h-4" /> },
@@ -248,6 +252,26 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
 
         {/* Tab Content */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
+          {activeTab === 'prompts' && (
+            <BatchPromptsTab
+              target={target}
+              isRunning={batch.isRunning}
+              onSubmit={async (request) => {
+                await batch.submit(request)
+                onClose()
+              }}
+            />
+          )}
+          {activeTab === 'animate' && (
+            <BatchAnimateTab
+              target={target}
+              isRunning={batch.isRunning}
+              onSubmit={async (request) => {
+                await batch.submit(request)
+                onClose()
+              }}
+            />
+          )}
           {activeTab === 'list' && (
             <div className="space-y-3">
               {/* Table header */}
@@ -446,30 +470,32 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-4 border-t" style={{ borderColor: 'oklch(0.32 0.03 290)' }}>
-          <div className="text-sm" style={{ color: 'oklch(0.65 0.04 290)' }}>
-            {activeTab === 'list' && `${rows.filter(r => r.prompt.trim()).length} job${rows.filter(r => r.prompt.trim()).length !== 1 ? 's' : ''}${pipelineEnabled ? ' (x2 with pipeline)' : ''}`}
-            {activeTab === 'import' && `${importedItems.length} job${importedItems.length !== 1 ? 's' : ''}`}
-            {activeTab === 'grid' && `${getGridTotalJobs()} jobs`}
+        {(activeTab === 'list' || activeTab === 'import' || activeTab === 'grid') && (
+          <div className="flex items-center justify-between px-6 py-4 border-t" style={{ borderColor: 'oklch(0.32 0.03 290)' }}>
+            <div className="text-sm" style={{ color: 'oklch(0.65 0.04 290)' }}>
+              {activeTab === 'list' && `${rows.filter(r => r.prompt.trim()).length} job${rows.filter(r => r.prompt.trim()).length !== 1 ? 's' : ''}${pipelineEnabled ? ' (x2 with pipeline)' : ''}`}
+              {activeTab === 'import' && `${importedItems.length} job${importedItems.length !== 1 ? 's' : ''}`}
+              {activeTab === 'grid' && `${getGridTotalJobs()} jobs`}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 rounded-lg text-sm transition-colors hover:bg-white/10"
+                style={{ color: 'oklch(0.65 0.04 290)' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmit}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                style={{ background: 'oklch(0.6 0.2 290)', color: 'oklch(0.98 0.01 290)' }}
+              >
+                <Play className="w-4 h-4" />
+                Generate Batch
+              </button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 rounded-lg text-sm transition-colors hover:bg-white/10"
-              style={{ color: 'oklch(0.65 0.04 290)' }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSubmit}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-              style={{ background: 'oklch(0.6 0.2 290)', color: 'oklch(0.98 0.01 290)' }}
-            >
-              <Play className="w-4 h-4" />
-              Generate Batch
-            </button>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   )
