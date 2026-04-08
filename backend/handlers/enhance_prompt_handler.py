@@ -412,6 +412,84 @@ class EnhancePromptHandler(StateHandlerBase):
         enhanced = _extract_openrouter_text(response.json())
         return {"enhancedPrompt": enhanced}
 
+    def caption_image_for_video(
+        self,
+        image_path: str,
+        target_model: str,
+    ) -> str:
+        """Generate a short video animation prompt describing motion/camera for an image.
+
+        Uses OpenRouter with the configured vision_captioner_model. System prompt
+        is tailored per target video model (LTX vs Seedance).
+        """
+        openrouter_api_key = self.state.app_settings.openrouter_api_key
+        if not openrouter_api_key:
+            raise HTTPError(400, "OpenRouter API key is required for image captioning")
+
+        image_b64 = self._read_image_as_base64(image_path)
+        if not image_b64:
+            raise HTTPError(400, f"Could not read image: {image_path}")
+
+        captioner_model = self.state.app_settings.vision_captioner_model
+
+        if target_model == "ltx-fast":
+            system_text = (
+                "You are writing a short video animation prompt. Look at the image "
+                "and write 1-2 sentences (under 50 words) describing the motion, "
+                "camera movement, and action that should happen in the video. Use "
+                "cinematic language (e.g., dolly in, pan, push, tilt, slow reveal). "
+                "Do NOT describe what the image shows — describe what should move "
+                "and how the camera should behave."
+            )
+        else:  # seedance-1.5-pro
+            system_text = (
+                "You are writing a concise video prompt for the Seedance model. "
+                "Look at the image and write under 40 words describing the subject "
+                "motion and camera direction. Be specific about what moves and where "
+                "the camera goes. Do not describe the scene itself."
+            )
+
+        user_content: list[dict[str, JSONValue]] = [
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"},
+            },
+            {"type": "text", "text": "Write the video prompt for this image."},
+        ]
+
+        messages: JSONValue = [
+            {"role": "system", "content": system_text},
+            {"role": "user", "content": user_content},  # type: ignore[dict-item]
+        ]
+
+        payload: dict[str, JSONValue] = {
+            "model": captioner_model,
+            "messages": messages,
+            "temperature": 0.6,
+            "max_tokens": 120,
+        }
+
+        try:
+            response = self._http.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {openrouter_api_key}",
+                },
+                json_payload=payload,
+                timeout=30,
+            )
+        except HttpTimeoutError as exc:
+            raise HTTPError(504, "OpenRouter caption request timed out") from exc
+        except Exception as exc:
+            raise HTTPError(500, str(exc)) from exc
+
+        if response.status_code != 200:
+            raise HTTPError(response.status_code, f"OpenRouter caption error: {response.text}")
+
+        caption = _extract_openrouter_text(response.json())
+        return caption.strip()
+
     @staticmethod
     def _read_image_as_base64(image_path: str) -> str | None:
         """Read an image file and return base64-encoded string."""
