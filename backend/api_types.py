@@ -422,6 +422,15 @@ class BatchStatusResponse(BaseModel):
     report: BatchReport | None = None
 
 
+class CaptionImageRequest(BaseModel):
+    imagePath: str
+    targetModel: Literal["ltx-fast", "seedance-1.5-pro"]
+
+
+class CaptionImageResponse(BaseModel):
+    prompt: str
+
+
 class ModelDownloadRequest(BaseModel):
     skipTextEncoder: bool = False
 
