@@ -101,8 +101,10 @@ def test_logger_exception_usage_is_restricted_to_boundaries() -> None:
         Path("services/task_runner/threading_runner.py"),
     }
 
+    # Mirror pyrightconfig.json's exclusions: scripts and tests are ad-hoc/tooling,
+    # not production boundary code, so the traceback-ownership policy does not apply.
     for path in backend_dir.rglob("*.py"):
-        if "tests" in path.parts or ".venv" in path.parts:
+        if "tests" in path.parts or ".venv" in path.parts or "scripts" in path.parts:
             continue
         content = path.read_text(encoding="utf-8")
         if "logger.exception(" in content:

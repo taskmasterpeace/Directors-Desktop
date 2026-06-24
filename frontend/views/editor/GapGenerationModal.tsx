@@ -5,6 +5,10 @@ import {
 } from 'lucide-react'
 import { SettingsPanel } from '../../components/SettingsPanel'
 import type { GenerationSettings } from '../../components/SettingsPanel'
+import { ReferencePicker } from '../../components/ReferencePicker'
+import { AtAutocompleteDropdown } from '../../components/AtAutocompleteDropdown'
+import { useAtCaretAutocomplete } from '../../hooks/useAtCaretAutocomplete'
+import { useMentionOptions } from '../../hooks/useMentionOptions'
 import type { GenerationMode } from '../../components/ModeTabs'
 
 interface TimelineGap {
@@ -41,6 +45,8 @@ interface GapGenerationModalProps {
   setSelectedGap: (gap: TimelineGap | null) => void
   gapApplyAudioToTrack: boolean
   setGapApplyAudioToTrack: (v: boolean) => void
+  gapChunkLength: number
+  setGapChunkLength: (v: number) => void
   regenerateSuggestion: () => void
   gapSuggestionError?: boolean
   gapSuggestionNoApiKey?: boolean
@@ -56,6 +62,8 @@ export function GapGenerationModal({
   gapSuggestion,
   gapBeforeFrame,
   gapAfterFrame,
+  gapChunkLength,
+  setGapChunkLength,
   gapSettings,
   setGapSettings,
   gapImageFile,
@@ -109,6 +117,13 @@ export function GapGenerationModal({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [gapGenerateMode, setGapGenerateMode, regenReset, setSelectedGap])
 
+  const gapPromptRef = useRef<HTMLTextAreaElement>(null)
+  const mentionOptions = useMentionOptions()
+  const atAutocomplete = useAtCaretAutocomplete({
+    textareaRef: gapPromptRef,
+    onChange: setGapPrompt,
+    options: mentionOptions,
+  })
   const [startFrameEnabled, setStartFrameEnabled] = useState(true)
   const [endFrameEnabled, setEndFrameEnabled] = useState(false)
   const [startFrameOverride, setStartFrameOverride] = useState<string | null>(null)
@@ -351,9 +366,15 @@ export function GapGenerationModal({
                 </div>
                 <div className="relative">
                   <textarea
+                    ref={gapPromptRef}
                     value={gapPrompt}
-                    onChange={(e) => setGapPrompt(e.target.value)}
-                    onKeyDown={(e) => e.stopPropagation()}
+                    onChange={(e) => { setGapPrompt(e.target.value); atAutocomplete.sync() }}
+                    onKeyDown={(e) => {
+                      e.stopPropagation()
+                      if (atAutocomplete.onKeyDown(e)) e.preventDefault()
+                    }}
+                    onSelect={() => atAutocomplete.sync()}
+                    onBlur={() => atAutocomplete.close()}
                     placeholder={gapSuggesting
                       ? 'Analyzing surrounding shots for context...'
                       : isImageMode
@@ -366,6 +387,16 @@ export function GapGenerationModal({
                     }`}
                     rows={3}
                   />
+                  {atAutocomplete.isOpen && (
+                    <AtAutocompleteDropdown
+                      className="absolute left-0 right-0 top-full mt-1"
+                      caret={atAutocomplete.caret}
+                      options={atAutocomplete.options}
+                      activeIndex={atAutocomplete.activeIndex}
+                      onPick={atAutocomplete.accept}
+                      onHover={atAutocomplete.setActiveIndex}
+                    />
+                  )}
                   {gapSuggestion && gapPrompt !== gapSuggestion && !gapSuggesting && (
                     <button
                       onClick={() => setGapPrompt(gapSuggestion)}
@@ -377,6 +408,44 @@ export function GapGenerationModal({
                     </button>
                   )}
                 </div>
+
+                {/* Director's Palette characters + section chunking */}
+                <div className="mt-2 flex items-center justify-between gap-2 flex-wrap">
+                  <span className="text-[10px] text-zinc-500 leading-snug">
+                    Tip: type <span className="text-teal-300 font-medium">@CharacterName</span> to use a Director&apos;s Palette character, and{' '}
+                    <span className="text-zinc-300">[dolly in]</span> for camera moves.
+                  </span>
+                  {isVideoMode && (
+                    <label className="flex items-center gap-1.5 text-[10px] text-zinc-400 whitespace-nowrap">
+                      Chunk into
+                      <select
+                        value={gapChunkLength}
+                        onChange={(e) => setGapChunkLength(Number(e.target.value))}
+                        onKeyDown={(e) => e.stopPropagation()}
+                        className="bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 text-[10px] text-white focus:outline-none focus:border-blue-500/50"
+                      >
+                        <option value={0}>1 clip (whole gap)</option>
+                        <option value={3}>3s clips</option>
+                        <option value={4}>4s clips</option>
+                        <option value={5}>5s clips</option>
+                        <option value={8}>8s clips</option>
+                        <option value={10}>10s clips</option>
+                      </select>
+                    </label>
+                  )}
+                </div>
+                {isVideoMode && (
+                  <div className="mt-2">
+                    <ReferencePicker
+                      model={gapSettings.model}
+                      referenceImagePaths={gapSettings.referenceImagePaths ?? []}
+                      audioReferencePaths={gapSettings.audioReferencePaths ?? []}
+                      onChange={({ referenceImagePaths, audioReferencePaths }) =>
+                        setGapSettings({ ...gapSettings, referenceImagePaths, audioReferencePaths })
+                      }
+                    />
+                  </div>
+                )}
                 {gapSuggestionNoApiKey && (
                   <div className="mt-1.5 space-y-1.5">
                     <p className="text-[10px] text-zinc-500">

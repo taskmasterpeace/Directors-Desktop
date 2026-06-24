@@ -21,7 +21,7 @@ interface SettingsModalProps {
 type TabId = 'general' | 'apiKeys' | 'inference' | 'promptEnhancer' | 'models' | 'about'
 
 export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProps) {
-  const { settings, updateSettings, saveLtxApiKey, saveReplicateApiKey, saveGeminiApiKey, saveCivitaiApiKey, refreshSettings, forceApiGenerations } = useAppSettings()
+  const { settings, updateSettings, saveLtxApiKey, saveReplicateApiKey, saveFalApiKey, saveGeminiApiKey, saveOpenrouterApiKey, saveCivitaiApiKey, refreshSettings, forceApiGenerations } = useAppSettings()
   const onSettingsChange = (next: AppSettings) => updateSettings(next)
   const [activeTab, setActiveTab] = useState<TabId>('general')
   const [ltxApiKeyInput, setLtxApiKeyInput] = useState('')
@@ -29,8 +29,10 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
   const [focusLtxApiKeyInputOnTabChange, setFocusLtxApiKeyInputOnTabChange] = useState(false)
   const [replicateApiKeyInput, setReplicateApiKeyInput] = useState('')
   const replicateApiKeyInputRef = useRef<HTMLInputElement>(null)
+  const [falApiKeyInput, setFalApiKeyInput] = useState('')
   const [geminiApiKeyInput, setGeminiApiKeyInput] = useState('')
   const geminiApiKeyInputRef = useRef<HTMLInputElement>(null)
+  const [openrouterApiKeyInput, setOpenrouterApiKeyInput] = useState('')
   const [paletteApiKeyInput, setPaletteApiKeyInput] = useState('')
   const [paletteStatus, setPaletteStatus] = useState<{ connected: boolean; user: { email: string; name: string } | null; error?: string } | null>(null)
   const [paletteCredits, setPaletteCredits] = useState<number | null>(null)
@@ -942,11 +944,22 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       onChange={(e) => updateSettings({ imageModel: e.target.value })}
                       className="w-full bg-zinc-900 text-white text-sm rounded-lg px-3 py-2 border border-zinc-700 focus:border-blue-500 focus:outline-none"
                     >
-                      <option value="flux-klein-9b">FLUX.2 Klein 9B</option>
-                      <option value="z-image-turbo">Z-Image Turbo</option>
-                      <option value="nano-banana-2">Nano Banana 2 (Cloud)</option>
+                      <optgroup label="Director's Palette (your DP account)">
+                        <option value="dp-nano-banana-2">Director&apos;s Palette · Nano Banana 2</option>
+                        <option value="dp-flux-2-klein-9b">Director&apos;s Palette · Flux Klein</option>
+                      </optgroup>
+                      <optgroup label="Local (your GPU)">
+                        <option value="flux-dev">FLUX.1 Dev 12B</option>
+                        <option value="flux-klein-9b">FLUX.2 Klein 9B</option>
+                        <option value="z-image-turbo">Z-Image Turbo</option>
+                      </optgroup>
+                      <optgroup label="Other cloud (Replicate key)">
+                        <option value="nano-banana-2">Nano Banana 2 (Replicate)</option>
+                      </optgroup>
                     </select>
                     <p className="text-[11px] text-zinc-500 mt-1.5 leading-relaxed">
+                      {settings.imageModel?.startsWith('dp-') && 'Generates on your Director’s Palette account and credits — no GPU, no Replicate/fal keys. Just connect Director’s Palette below.'}
+                      {settings.imageModel === 'flux-dev' && 'Best quality. Standard LoRA target — most community LoRAs are trained on this. ~34s/image.'}
                       {settings.imageModel === 'flux-klein-9b' && 'High quality images with LoRA support. Reloads each generation (~5s extra).'}
                       {settings.imageModel === 'z-image-turbo' && 'Fast single-step generation. Stays in memory between runs for quick back-to-back images.'}
                       {settings.imageModel === 'nano-banana-2' && 'Runs in the cloud — no GPU needed. Requires a Replicate API key.'}
@@ -962,8 +975,66 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       className="w-full bg-zinc-900 text-white text-sm rounded-lg px-3 py-2 border border-zinc-700 focus:border-blue-500 focus:outline-none"
                     >
                       <option value="ltx-fast">LTX Fast</option>
-                      <option value="seedance-1.5-pro">Seedance 1.5 Pro</option>
+                      <option value="seedance-1.5-pro">Seedance 1.5 Pro (Replicate)</option>
+                      <option value="seedance-2.0">Seedance 2.0 (fal)</option>
+                      <option value="seedance-2.0-fast">Seedance 2.0 Fast (fal)</option>
                     </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* fal API Key Section (Seedance 2.0) */}
+              <div className="space-y-4 pt-4 border-t border-zinc-800">
+                <div className="flex items-center gap-2">
+                  <KeyRound className="h-4 w-4 text-teal-400" />
+                  <h3 className="text-sm font-semibold text-white">fal</h3>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400">Optional</span>
+                </div>
+
+                <p className="text-xs text-zinc-500 leading-relaxed">
+                  Your fal key powers Seedance 2.0 cloud video (start/end frame, native audio).
+                </p>
+
+                <div className="bg-zinc-800/50 rounded-lg p-4 space-y-3">
+                  <div className="flex gap-2">
+                    <LtxApiKeyInput
+                      value={falApiKeyInput}
+                      onChange={(e) => setFalApiKeyInput(e.target.value)}
+                      placeholder={settings.hasFalApiKey ? 'Enter new key to replace...' : 'Enter your fal API key...'}
+                      stopPropagation
+                      className="flex-1"
+                    />
+                    <button
+                      onClick={() => {
+                        const trimmed = falApiKeyInput.trim()
+                        if (!trimmed) return
+                        void saveFalApiKey(trimmed)
+                        setFalApiKeyInput('')
+                      }}
+                      disabled={!falApiKeyInput.trim()}
+                      className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-500 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                    >
+                      Save Key
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className={`text-xs px-2 py-1 rounded inline-flex items-center gap-1.5 ${
+                      settings.hasFalApiKey
+                        ? 'bg-green-500/10 text-green-400'
+                        : 'bg-zinc-800 text-zinc-500'
+                    }`}>
+                      {settings.hasFalApiKey ? (
+                        <>
+                          <Check className="h-3 w-3" />
+                          Key configured
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle className="h-3 w-3" />
+                          Optional
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1031,6 +1102,73 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       onClick={(e) => e.stopPropagation()}
                     >
                       Get Gemini API key →
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              {/* OpenRouter API Key Section */}
+              <div className="space-y-4 pt-4 border-t border-zinc-800">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-teal-400" />
+                  <h3 className="text-sm font-semibold text-white">OpenRouter API</h3>
+                </div>
+
+                <p className="text-xs text-zinc-500 leading-relaxed">
+                  Used for prompt enhancement and the story-aware transcript prompts. A good alternative to Gemini — one key covers many models.
+                </p>
+
+                <div className="bg-zinc-800/50 rounded-lg p-4 space-y-3">
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      value={openrouterApiKeyInput}
+                      onChange={(e) => setOpenrouterApiKeyInput(e.target.value)}
+                      placeholder={settings.hasOpenrouterApiKey ? 'Enter new key to replace...' : 'Enter your OpenRouter API key...'}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <button
+                      onClick={() => {
+                        const trimmed = openrouterApiKeyInput.trim()
+                        if (!trimmed) return
+                        void saveOpenrouterApiKey(trimmed)
+                        setOpenrouterApiKeyInput('')
+                      }}
+                      disabled={!openrouterApiKeyInput.trim()}
+                      className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-500 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                    >
+                      Save Key
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className={`text-xs px-2 py-1 rounded inline-flex items-center gap-1.5 ${
+                      settings.hasOpenrouterApiKey
+                        ? 'bg-green-500/10 text-green-400'
+                        : 'bg-amber-500/10 text-amber-400'
+                    }`}>
+                      {settings.hasOpenrouterApiKey ? (
+                        <>
+                          <Check className="h-3 w-3" />
+                          Key configured
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle className="h-3 w-3" />
+                          Optional
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    <a
+                      href="https://openrouter.ai/keys"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-400 hover:text-blue-300 transition-colors underline underline-offset-2"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Get OpenRouter API key →
                     </a>
                   </div>
                 </div>

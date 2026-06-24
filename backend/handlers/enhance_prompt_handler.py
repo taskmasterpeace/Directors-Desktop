@@ -20,7 +20,7 @@ from state.app_state_types import AppState
 
 logger = logging.getLogger(__name__)
 
-PALETTE_BASE_URL = "https://directorspalette.com"
+PALETTE_BASE_URL = "https://directorspal.com"  # live domain ("directorspalette.com" is dead)
 
 # ---------------------------------------------------------------------------
 # Gemini response parsing
@@ -146,8 +146,17 @@ def _get_system_prompt(*, model: str, mode: str, is_generate: bool, has_image: b
     is_i2v = mode in ("image-to-video", "i2v") or has_image
     is_ltx = model.startswith("ltx")
     is_seedance = "seedance" in model
+    is_transcript = mode == "transcript"
 
-    if is_generate and has_image:
+    if is_transcript:
+        action = (
+            "The user message is a spoken-word excerpt from a video transcript "
+            "(it may be wrapped in an instruction like 'Enhance this prompt:' — ignore that wrapper "
+            "and treat the remaining text as the transcript excerpt). Convert the spoken content into "
+            "a single vivid, cinematic visual generation prompt depicting what the words describe or "
+            "evoke. Do not quote or transcribe the words — visualize them. Write only the prompt.\n\n"
+        )
+    elif is_generate and has_image:
         action = (
             "The user has provided a starting image. Analyze what you see in the image — "
             "the subjects, setting, lighting, mood, composition — and create a motion-aware "
@@ -196,6 +205,78 @@ def _get_system_prompt(*, model: str, mode: str, is_generate: bool, has_image: b
     )
 
 
+_MAX_STORY_CONTEXT_CHARS = 6000
+
+
+def _transcript_system_prompt(
+    *, mode: str, full_story: str, lyrics: str, media_type: str, model: str
+) -> str:
+    """System prompt for turning a transcript excerpt into an image/video generation prompt.
+
+    ``mode`` selects the context supplied alongside the excerpt:
+    - ``story``  — the whole transcript (``full_story``) is supplied for narrative continuity.
+    - ``music``  — the song's ``lyrics`` are supplied; the shot should match the song's energy
+      and recurring visual motifs (music-video), not literally depict the words.
+    - ``plain``  — no extra context.
+    ``media_type`` ('image' | 'video') tailors the guidance.
+    """
+    is_video = media_type == "video"
+    is_seedance = "seedance" in model
+    medium = "short cinematic video" if is_video else "single still image"
+
+    base = (
+        "You are a creative director's assistant. Convert a spoken-word excerpt from a video "
+        f"transcript into ONE vivid {medium} generation prompt. The user message holds the "
+        "excerpt (ignore any 'Enhance this prompt:' wrapper). Visualize what the words describe "
+        "or evoke — do NOT quote or transcribe them.\n\n"
+    )
+
+    context = ""
+    if mode == "story" and full_story.strip():
+        story = full_story.strip()
+        if len(story) > _MAX_STORY_CONTEXT_CHARS:
+            story = story[:_MAX_STORY_CONTEXT_CHARS] + " …"
+        context = (
+            "FULL STORY (the entire transcript, for context only):\n"
+            f'"""\n{story}\n"""\n\n'
+            "You are depicting ONE moment from THIS story. Keep the setting, characters, "
+            "wardrobe, lighting, time of day, and visual continuity consistent with the whole "
+            "story.\n\n"
+        )
+    elif mode == "music" and lyrics.strip():
+        song = lyrics.strip()
+        if len(song) > _MAX_STORY_CONTEXT_CHARS:
+            song = song[:_MAX_STORY_CONTEXT_CHARS] + " …"
+        context = (
+            "SONG LYRICS (the whole song, for mood/context only):\n"
+            f'"""\n{song}\n"""\n\n'
+            "This is a MUSIC VIDEO shot for the selected lyric. Capture the song's energy, mood, "
+            "and recurring visual motifs rather than literally illustrating the words. Bold, "
+            "stylized, performance- or concept-driven imagery is welcome.\n\n"
+        )
+
+    guidance = (
+        "Describe camera and motion — what moves and how the camera moves.\n\n"
+        if is_video
+        else "Describe a strong static composition, framing, lens, and lighting.\n\n"
+    )
+
+    if is_seedance:
+        rules = _SEEDANCE_RULES
+    elif is_video:
+        rules = _LTX_VIDEO_RULES
+    else:
+        rules = _IMAGE_RULES
+
+    return (
+        base
+        + context
+        + guidance
+        + rules
+        + "\nOutput: ONLY the prompt, 2-4 sentences, no labels or quotation marks.\n"
+    )
+
+
 # ---------------------------------------------------------------------------
 # Handler
 # ---------------------------------------------------------------------------
@@ -224,6 +305,52 @@ class EnhancePromptHandler(StateHandlerBase):
         openrouter_api_key = self.state.app_settings.openrouter_api_key
         if openrouter_api_key:
             return self._enhance_via_openrouter(prompt, mode, model, openrouter_api_key, image_path=image_path)
+
+        raise HTTPError(400, "NO_AI_SERVICE_CONFIGURED")
+
+    def transcript_to_prompt(
+        self,
+        text: str,
+        target_model: str = "ltx-fast",
+        *,
+        full_story: str | None = None,
+        story_aware: bool = False,
+        media_type: str = "image",
+        mode: str | None = None,
+        lyrics: str | None = None,
+    ) -> dict[str, str]:
+        """Convert a spoken transcript excerpt into a generation prompt (Phase 3 bridge).
+
+        ``mode`` ('story' | 'music' | 'plain') selects the context: 'story' uses the whole
+        transcript (``full_story``); 'music' uses the song ``lyrics`` for a music-video shot;
+        'plain' uses none. ``story_aware`` is the legacy boolean (True→'story', False→'plain')
+        used when ``mode`` is omitted. ``media_type`` ('image' | 'video') tailors the guidance.
+        Skips Palette (no transcript mode) and goes straight to Gemini → OpenRouter.
+        """
+        excerpt = text.strip()
+        if not excerpt:
+            raise HTTPError(400, "EMPTY_TRANSCRIPT_SPAN")
+
+        resolved_mode = mode or ("story" if story_aware else "plain")
+        system_text = _transcript_system_prompt(
+            mode=resolved_mode,
+            full_story=full_story or "",
+            lyrics=lyrics or "",
+            media_type=media_type,
+            model=target_model,
+        )
+
+        gemini_api_key = self.state.app_settings.gemini_api_key
+        if gemini_api_key:
+            return self._enhance_via_gemini(
+                excerpt, "transcript", target_model, gemini_api_key, system_text_override=system_text
+            )
+
+        openrouter_api_key = self.state.app_settings.openrouter_api_key
+        if openrouter_api_key:
+            return self._enhance_via_openrouter(
+                excerpt, "transcript", target_model, openrouter_api_key, system_text_override=system_text
+            )
 
         raise HTTPError(400, "NO_AI_SERVICE_CONFIGURED")
 
@@ -283,11 +410,12 @@ class EnhancePromptHandler(StateHandlerBase):
         gemini_api_key: str,
         *,
         image_path: str | None = None,
+        system_text_override: str | None = None,
     ) -> dict[str, str]:
         """Enhance or generate prompt using Gemini API (supports multimodal with image)."""
         has_image = bool(image_path)
         is_generate = not prompt.strip()
-        system_text = _get_system_prompt(
+        system_text = system_text_override or _get_system_prompt(
             model=model, mode=mode, is_generate=is_generate, has_image=has_image,
         )
 
@@ -348,11 +476,12 @@ class EnhancePromptHandler(StateHandlerBase):
         openrouter_api_key: str,
         *,
         image_path: str | None = None,
+        system_text_override: str | None = None,
     ) -> dict[str, str]:
         """Enhance or generate prompt using OpenRouter (OpenAI chat completions API)."""
         has_image = bool(image_path)
         is_generate = not prompt.strip()
-        system_text = _get_system_prompt(
+        system_text = system_text_override or _get_system_prompt(
             model=model, mode=mode, is_generate=is_generate, has_image=has_image,
         )
 
@@ -376,8 +505,9 @@ class EnhancePromptHandler(StateHandlerBase):
         else:
             content.append({"type": "text", "text": f"Enhance this prompt: {prompt}"})
 
-        # Use a vision model when image is provided, otherwise a fast text model
-        or_model = "google/gemini-2.0-flash-001" if has_image else "google/gemini-2.0-flash-001"
+        # Gemini 2.5 Flash via OpenRouter (it is multimodal, so it covers the image case too).
+        # NB: the old "google/gemini-2.0-flash-001" id was de-listed from OpenRouter (404).
+        or_model = "google/gemini-2.5-flash"
 
         user_msg_content: JSONValue = content  # type: ignore[assignment]
         messages: JSONValue = [

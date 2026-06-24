@@ -1,8 +1,9 @@
 import { ChildProcess, spawn } from 'child_process'
+import crypto from 'crypto'
 import fs from 'fs'
 import path from 'path'
 import { getAppDataDir } from './app-paths'
-import { BACKEND_BASE_URL, getCurrentDir, isDev, PYTHON_PORT } from './config'
+import { BACKEND_BASE_URL, getCurrentDir, isDev } from './config'
 import { logger } from './logger'
 import { getCurrentLogFilename } from './logging-management'
 import { getPythonDir } from './python-setup'
@@ -14,6 +15,25 @@ let lastCrashTime = 0
 const CRASH_DEBOUNCE_MS = 10_000
 let startPromise: Promise<void> | null = null
 let takeoverInFlight: Promise<void> | null = null
+
+// Discovered at runtime: the backend picks a free port and we generate a per-session
+// auth token. Both default to null until the backend reports it's ready.
+let backendUrl: string | null = null
+let authToken: string | null = null
+
+/** The discovered backend URL (free port), falling back to the dev default. */
+export function getBackendUrl(): string {
+  return backendUrl ?? BACKEND_BASE_URL
+}
+
+/** The per-session auth token the renderer must send to the backend ('' if none). */
+export function getAuthToken(): string {
+  return authToken ?? ''
+}
+
+function authHeaders(): Record<string, string> {
+  return authToken ? { Authorization: `Bearer ${authToken}` } : {}
+}
 
 type BackendOwnership = 'managed' | 'adopted' | null
 
@@ -55,8 +75,9 @@ async function probeBackendHealth(timeoutMs = 1500): Promise<boolean> {
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const response = await fetch(`${BACKEND_BASE_URL}/health`, {
+    const response = await fetch(`${getBackendUrl()}/health`, {
       signal: controller.signal,
+      headers: authHeaders(),
     })
     return response.ok
   } catch {
@@ -70,9 +91,10 @@ async function requestAdoptedBackendShutdown(timeoutMs = 2000): Promise<boolean>
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const response = await fetch(`${BACKEND_BASE_URL}/api/system/shutdown`, {
+    const response = await fetch(`${getBackendUrl()}/api/system/shutdown`, {
       method: 'POST',
       signal: controller.signal,
+      headers: authHeaders(),
     })
     return response.ok
   } catch {
@@ -217,13 +239,19 @@ export async function startPythonBackend(): Promise<void> {
       pythonArgs = isDev ? ['-Xfrozen_modules=off', '-u', mainPy] : ['-u', mainPy]
     }
 
+    // Fresh per-session auth token guarding the backend<->frontend channel.
+    authToken = crypto.randomBytes(32).toString('base64url')
+
     pythonProcess = spawn(pythonPath, pythonArgs, {
       cwd: backendPath,
       env: {
         ...process.env,
         PYTHONUNBUFFERED: '1',
         PYTHONNOUSERSITE: '1',
-        LTX_PORT: String(PYTHON_PORT),
+        // Only pin LTX_PORT when a developer explicitly set it; otherwise the
+        // backend binds a free port and reports it on the "Server running on" line.
+        ...(process.env.LTX_PORT ? { LTX_PORT: process.env.LTX_PORT } : {}),
+        LTX_AUTH_TOKEN: authToken,
         LTX_LOG_FILE: getCurrentLogFilename(),
         LTX_APP_DATA_DIR: getAppDataDir(),
         PYTORCH_ENABLE_MPS_FALLBACK: '1',
@@ -256,12 +284,22 @@ export async function startPythonBackend(): Promise<void> {
         sawPortConflict = true
       }
 
-      // Check if server has started
-      if (!started && (output.includes('Server running on') || output.includes('Uvicorn running'))) {
-        started = true
-        backendOwnership = 'managed'
-        publishBackendHealthStatus({ status: 'alive' })
-        settleResolve()
+      // Check if server has started — parse the actual URL (free port) from the
+      // machine-readable ready line, with a legacy fallback for dev uvicorn output.
+      if (!started) {
+        const readyMatch = output.match(/Server running on (http:\/\/\S+)/)
+        if (readyMatch) {
+          backendUrl = readyMatch[1].replace(/\/+$/, '')
+          started = true
+          backendOwnership = 'managed'
+          publishBackendHealthStatus({ status: 'alive' })
+          settleResolve()
+        } else if (output.includes('Uvicorn running')) {
+          started = true
+          backendOwnership = 'managed'
+          publishBackendHealthStatus({ status: 'alive' })
+          settleResolve()
+        }
       }
     }
 
@@ -289,6 +327,8 @@ export async function startPythonBackend(): Promise<void> {
     pythonProcess.on('exit', async (code) => {
       logger.info(`Python backend exited with code ${code}`)
       pythonProcess = null
+      backendUrl = null
+      authToken = null
 
       if (!started) {
         if (isIntentionalShutdown) {
@@ -298,7 +338,9 @@ export async function startPythonBackend(): Promise<void> {
           return
         }
 
-        if (sawPortConflict) {
+        // Adopting an already-running backend only makes sense on a fixed port
+        // (dev). With a free port each session has its own port + token.
+        if (sawPortConflict && process.env.LTX_PORT) {
           const healthyExistingBackend = await probeBackendHealth()
           if (healthyExistingBackend) {
             backendOwnership = 'adopted'

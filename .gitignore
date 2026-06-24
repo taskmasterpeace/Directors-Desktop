@@ -66,9 +66,15 @@ models/*
 backend/models/
 
 # Generated outputs (videos and images)
-backend/outputs/*.mp4
-backend/outputs/*.png
+backend/outputs/
 backend/generated/
+
+# Local dev/live test artifacts under scripts/ (keep the .py scripts, drop the binaries)
+backend/scripts/live_out/
+backend/scripts/flux_dev_outputs/
+backend/scripts/*.mp4
+backend/scripts/*.png
+backend/scripts/*.pt
 
 # Build artifacts
 release/

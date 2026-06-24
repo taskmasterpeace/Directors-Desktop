@@ -68,6 +68,25 @@ export function useGapGeneration({
   const [gapImageFile, setGapImageFile] = useState<File | null>(null)
   const gapImageInputRef = useRef<HTMLInputElement>(null)
   const [gapApplyAudioToTrack, setGapApplyAudioToTrack] = useState(true)
+  // Chunk length (seconds) used to split a section into multiple clips. 0 = fill the whole gap as one clip.
+  const [gapChunkLength, setGapChunkLength] = useState(0)
+
+  // A single chunk to generate, with its pre-placed placeholder clip id.
+  interface GapChunk {
+    clipId: string
+    trackIndex: number
+    startTime: number
+    endTime: number
+    mode: 'text-to-video' | 'image-to-video' | 'text-to-image'
+    prompt: string
+    settings: GenerationSettings
+    imagePath: string | null
+    applyAudio: boolean
+  }
+  // Chunks still waiting after the one currently generating (sequential queue).
+  const pendingChunksRef = useRef<GapChunk[]>([])
+  // All placeholder clip ids for the current fill, so we can clean them up on cancel/fail.
+  const fillPlaceholderIdsRef = useRef<Set<string>>(new Set())
 
   useEffect(() => {
     if (gapGenerateMode === 'text-to-image' && gapImageFile) {
@@ -75,12 +94,13 @@ export function useGapGeneration({
     }
   }, [gapGenerateMode, gapImageFile])
 
-  // Tracks the gap currently being generated in the background (after modal closes)
+  // Tracks the chunk currently being generated in the background (after modal closes)
   const [generatingGap, setGeneratingGap] = useState<{
+    clipId: string
     trackIndex: number; startTime: number; endTime: number
     mode: 'text-to-video' | 'image-to-video' | 'text-to-image'
     prompt: string; settings: GenerationSettings
-    imageFile: File | null; applyAudio: boolean
+    imagePath: string | null; applyAudio: boolean
   } | null>(null)
 
   // Gap context-aware prompt suggestion
@@ -143,83 +163,135 @@ export function useGapGeneration({
     setSelectedGap(null)
   }, [])
 
-  // Handle starting generation in a gap
+  // Resolve the optional input image (File) to a filesystem path the backend can read.
+  const resolveGapImagePath = useCallback(async (imageFile: File | null): Promise<string | null> => {
+    if (!imageFile) return null
+    const electronPath = (imageFile as { path?: string }).path
+    if (electronPath) return electronPath
+    // In-memory file (e.g. canvas capture) — save to a temp file
+    const buf = await imageFile.arrayBuffer()
+    const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)))
+    const modelsPath = await window.electronAPI.getModelsPath()
+    const tmpDir = modelsPath.replace(/[/\\]models$/, '')
+    const tmpPath = `${tmpDir}/tmp_gap_image_${Date.now()}.png`
+    await window.electronAPI.saveFile(tmpPath, b64, 'base64')
+    return tmpPath
+  }, [])
+
+  // Build an empty, duration-sized placeholder clip shown while a chunk generates.
+  const makePlaceholderClip = useCallback((chunk: GapChunk): TimelineClip => ({
+    id: chunk.clipId,
+    assetId: null,
+    type: chunk.mode === 'text-to-image' ? 'image' : 'video',
+    startTime: chunk.startTime,
+    duration: chunk.endTime - chunk.startTime,
+    trimStart: 0,
+    trimEnd: 0,
+    speed: 1,
+    reversed: false,
+    muted: false,
+    volume: 1,
+    trackIndex: chunk.trackIndex,
+    asset: null,
+    flipH: false,
+    flipV: false,
+    transitionIn: { type: 'none', duration: 0 },
+    transitionOut: { type: 'none', duration: 0 },
+    colorCorrection: { ...DEFAULT_COLOR_CORRECTION },
+    opacity: 100,
+    isGenerating: true,
+    generatingLabel: chunk.prompt,
+  }), [])
+
+  // Kick off generation for a single chunk (its placeholder is already on the timeline).
+  const startChunk = useCallback((chunk: GapChunk) => {
+    setGeneratingGap({
+      clipId: chunk.clipId,
+      trackIndex: chunk.trackIndex,
+      startTime: chunk.startTime,
+      endTime: chunk.endTime,
+      mode: chunk.mode,
+      prompt: chunk.prompt,
+      settings: chunk.settings,
+      imagePath: chunk.imagePath,
+      applyAudio: chunk.applyAudio,
+    })
+    if (chunk.mode === 'text-to-image') {
+      void regenGenerateImage(chunk.prompt, chunk.settings)
+    } else {
+      void regenGenerate(chunk.prompt, chunk.imagePath, chunk.settings)
+    }
+  }, [regenGenerate, regenGenerateImage])
+
+  // Handle starting generation in a gap (optionally chunked into multiple clips by length).
   const handleGapGenerate = useCallback(async () => {
     if (!selectedGap || !gapGenerateMode || !gapPrompt.trim() || !currentProjectId) return
-    
+
     const gap = selectedGap
     const mode = gapGenerateMode
     const gapDuration = gap.endTime - gap.startTime
-    
     const finalPrompt = gapPrompt.trim()
-    
-    const settings: GenerationSettings = {
-      ...gapSettings,
-      duration: Math.min(Math.max(1, Math.round(gapDuration)), gapSettings.model === 'pro' ? 10 : 20),
-    }
+    const maxDur = gapSettings.model === 'pro' ? 10 : 20
 
-    // Save generating gap state so we can show indicator and place result later
-    setGeneratingGap({
-      trackIndex: gap.trackIndex,
-      startTime: gap.startTime,
-      endTime: gap.endTime,
-      mode,
-      prompt: finalPrompt,
-      settings,
-      imageFile: gapImageFile,
-      applyAudio: gapApplyAudioToTrack,
-    })
-
-    // Close the modal immediately so user can keep editing
+    // Close the modal immediately so the user can keep editing.
     setSelectedGap(null)
     setGapGenerateMode(null)
-    
-    try {
-      if (mode === 'text-to-image') {
-        await regenGenerateImage(finalPrompt, settings)
-      } else {
-        // Convert File to filesystem path for the JSON-based generate API
-        let imagePath: string | null = null
-        if (gapImageFile) {
-          const electronPath = (gapImageFile as any).path as string | undefined
-          if (electronPath) {
-            imagePath = electronPath
-          } else {
-            // In-memory file (e.g. canvas capture) — save to temp file
-            const buf = await gapImageFile.arrayBuffer()
-            const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)))
-            const modelsPath = await window.electronAPI.getModelsPath()
-            const tmpDir = modelsPath.replace(/[/\\]models$/, '')
-            const tmpPath = `${tmpDir}/tmp_gap_image_${Date.now()}.png`
-            await window.electronAPI.saveFile(tmpPath, b64, 'base64')
-            imagePath = tmpPath
-          }
-        }
-        await regenGenerate(finalPrompt, imagePath, settings)
-      }
-    } catch (err) {
-      console.error('Gap generation failed:', err)
-      setGeneratingGap(null)
-    }
-  }, [selectedGap, gapGenerateMode, gapPrompt, gapSettings, gapImageFile, gapApplyAudioToTrack, currentProjectId, regenGenerate, regenGenerateImage])
 
-  // When generation completes, place the result in the gap
+    const imagePath = await resolveGapImagePath(gapImageFile)
+
+    // Split the gap into chunks of ~gapChunkLength seconds (or one clip if disabled).
+    const chunkLen = gapChunkLength > 0 ? Math.min(gapChunkLength, maxDur) : gapDuration
+    const numChunks = Math.max(1, Math.ceil(gapDuration / chunkLen - 1e-6))
+    const chunks: GapChunk[] = []
+    for (let i = 0; i < numChunks; i++) {
+      const startTime = gap.startTime + i * chunkLen
+      const endTime = Math.min(gap.endTime, startTime + chunkLen)
+      if (endTime - startTime < 0.05) continue
+      const dur = Math.min(Math.max(1, Math.round(endTime - startTime)), maxDur)
+      chunks.push({
+        clipId: `clip-gen-${Date.now()}-${i}-${Math.random().toString(36).substr(2, 6)}`,
+        trackIndex: gap.trackIndex,
+        startTime,
+        endTime,
+        mode,
+        prompt: finalPrompt,
+        settings: { ...gapSettings, duration: dur },
+        imagePath,
+        applyAudio: gapApplyAudioToTrack,
+      })
+    }
+    if (chunks.length === 0) return
+
+    // Place all placeholders up-front so the whole section visibly "fills".
+    fillPlaceholderIdsRef.current = new Set(chunks.map(c => c.clipId))
+    setClips(prev => [...prev, ...chunks.map(makePlaceholderClip)])
+
+    // Generate sequentially: the first chunk now, the rest queued.
+    pendingChunksRef.current = chunks.slice(1)
+    startChunk(chunks[0])
+  }, [selectedGap, gapGenerateMode, gapPrompt, gapSettings, gapImageFile, gapApplyAudioToTrack, gapChunkLength, currentProjectId, resolveGapImagePath, makePlaceholderClip, startChunk, setClips])
+
+  // When the current chunk completes, replace its placeholder with the finished clip,
+  // then advance to the next chunk (or finish the section).
   useEffect(() => {
     if (!generatingGap || isRegenerating) return
-    
-    const isImageResult = generatingGap.mode === 'text-to-image'
+
+    const gap = generatingGap
+    const isImageResult = gap.mode === 'text-to-image'
     const origUrl = isImageResult ? regenImageUrl : regenVideoUrl
     const origPath = regenVideoPath
+
     if (!origUrl || !currentProjectId) {
-      // Generation ended with no result (cancelled or failed) - clean up
-      if (!isRegenerating && generatingGap) {
-        setGeneratingGap(null)
-        if (!regenError) regenReset()
-      }
+      // Generation ended with no result (cancelled or failed) — drop the placeholders.
+      const ids = fillPlaceholderIdsRef.current
+      setClips(prev => prev.filter(c => !(c.isGenerating && ids.has(c.id))))
+      pendingChunksRef.current = []
+      fillPlaceholderIdsRef.current = new Set()
+      setGeneratingGap(null)
+      if (!regenError) regenReset()
       return
     }
 
-    const gap = generatingGap
     const gapDuration = gap.endTime - gap.startTime
     const type = isImageResult ? 'image' : 'video'
 
@@ -234,7 +306,7 @@ export function useGapGeneration({
         resolution: isImageResult ? gap.settings.imageResolution : gap.settings.videoResolution,
         duration: type === 'video' ? gapDuration : undefined,
         generationParams: {
-          mode: (isImageResult ? 'text-to-image' : (gap.imageFile ? 'image-to-video' : 'text-to-video')) as 'text-to-video' | 'image-to-video' | 'text-to-image',
+          mode: (isImageResult ? 'text-to-image' : (gap.imagePath ? 'image-to-video' : 'text-to-video')) as 'text-to-video' | 'image-to-video' | 'text-to-image',
           prompt: gap.prompt,
           model: gap.settings.model,
           duration: Math.min(Math.max(1, Math.round(gapDuration)), gap.settings.model === 'pro' ? 10 : 20),
@@ -245,21 +317,13 @@ export function useGapGeneration({
           imageAspectRatio: gap.settings.imageAspectRatio,
           imageSteps: gap.settings.imageSteps,
         },
-        takes: [{
-          url: finalUrl,
-          path: finalPath,
-          createdAt: Date.now(),
-        }],
+        takes: [{ url: finalUrl, path: finalPath, createdAt: Date.now() }],
         activeTakeIndex: 0,
       })
-      
-      const videoClipId = `clip-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+
+      const shouldCreateAudio = type === 'video' && gap.applyAudio && gap.settings.audio
       const audioClipId = `clip-${Date.now()}-a-${Math.random().toString(36).substr(2, 9)}`
 
-      // Determine if we should create a linked audio clip
-      const shouldCreateAudio = type === 'video' && gap.applyAudio && gap.settings.audio
-
-      // Find or create an audio track for the linked audio clip
       let audioTrackIndex = -1
       if (shouldCreateAudio) {
         audioTrackIndex = tracks.findIndex(t => t.kind === 'audio' && !t.locked && t.sourcePatched !== false)
@@ -277,8 +341,9 @@ export function useGapGeneration({
         }
       }
 
-      const newClip: TimelineClip = {
-        id: videoClipId,
+      // Replace the placeholder (same clip id) with the finished clip.
+      const realClip: TimelineClip = {
+        id: gap.clipId,
         assetId: asset.id,
         type: type === 'image' ? 'image' : 'video',
         startTime: gap.startTime,
@@ -300,42 +365,49 @@ export function useGapGeneration({
         ...(shouldCreateAudio && audioTrackIndex >= 0 ? { linkedClipIds: [audioClipId] } : {}),
       }
 
-      const newClips: TimelineClip[] = [newClip]
+      setClips(prev => {
+        const replaced = prev.map(c => (c.id === gap.clipId ? realClip : c))
+        if (shouldCreateAudio && audioTrackIndex >= 0) {
+          replaced.push({
+            id: audioClipId,
+            assetId: asset.id,
+            type: 'audio',
+            startTime: gap.startTime,
+            duration: gapDuration,
+            trimStart: 0,
+            trimEnd: 0,
+            speed: 1,
+            reversed: false,
+            muted: false,
+            volume: 1,
+            trackIndex: audioTrackIndex,
+            asset,
+            flipH: false,
+            flipV: false,
+            transitionIn: { type: 'none', duration: 0 },
+            transitionOut: { type: 'none', duration: 0 },
+            colorCorrection: { ...DEFAULT_COLOR_CORRECTION },
+            opacity: 100,
+            linkedClipIds: [gap.clipId],
+          })
+        }
+        return replaced
+      })
 
-      if (shouldCreateAudio && audioTrackIndex >= 0) {
-        newClips.push({
-          id: audioClipId,
-          assetId: asset.id,
-          type: 'audio',
-          startTime: gap.startTime,
-          duration: gapDuration,
-          trimStart: 0,
-          trimEnd: 0,
-          speed: 1,
-          reversed: false,
-          muted: false,
-          volume: 1,
-          trackIndex: audioTrackIndex,
-          asset,
-          flipH: false,
-          flipV: false,
-          transitionIn: { type: 'none', duration: 0 },
-          transitionOut: { type: 'none', duration: 0 },
-          colorCorrection: { ...DEFAULT_COLOR_CORRECTION },
-          opacity: 100,
-          linkedClipIds: [videoClipId],
-        })
-      }
-      
-      setClips(prev => [...prev, ...newClips])
-      
-      // Clean up generating state
-      setGeneratingGap(null)
-      setGapPrompt('')
-      setGapImageFile(null)
+      fillPlaceholderIdsRef.current.delete(gap.clipId)
+
+      // Advance to the next chunk, or finish the section.
+      const next = pendingChunksRef.current.shift()
       regenReset()
+      if (next) {
+        startChunk(next)
+      } else {
+        setGeneratingGap(null)
+        setGapPrompt('')
+        setGapImageFile(null)
+      }
     })()
-    
+
   }, [regenVideoUrl, regenImageUrl, isRegenerating, generatingGap, regenError])
 
   // --- Gap context-aware prompt suggestion ---
@@ -550,12 +622,16 @@ export function useGapGeneration({
     runSuggestion(true)
   }, [runSuggestion])
 
-  // Cancel an in-progress gap generation
+  // Cancel an in-progress gap generation (removes any remaining placeholders).
   const cancelGapGeneration = useCallback(() => {
     regenCancel()
     regenReset()
+    const ids = fillPlaceholderIdsRef.current
+    setClips(prev => prev.filter(c => !(c.isGenerating && ids.has(c.id))))
+    pendingChunksRef.current = []
+    fillPlaceholderIdsRef.current = new Set()
     setGeneratingGap(null)
-  }, [regenCancel, regenReset])
+  }, [regenCancel, regenReset, setClips])
 
   return {
     // State
@@ -579,6 +655,8 @@ export function useGapGeneration({
     gapAfterFrame,
     gapApplyAudioToTrack,
     setGapApplyAudioToTrack,
+    gapChunkLength,
+    setGapChunkLength,
     regenerateSuggestion,
     // Background generation tracking
     generatingGap,

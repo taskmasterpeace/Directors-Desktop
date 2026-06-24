@@ -25,6 +25,10 @@ import { logger } from '../lib/logger'
 import { RetakePanel } from '../components/RetakePanel'
 import { FreeApiKeyBubble } from '../components/FreeApiKeyBubble'
 import { BatchBuilderModal } from '../components/BatchBuilderModal'
+import { ReferencePicker } from '../components/ReferencePicker'
+import { AtAutocompleteDropdown } from '../components/AtAutocompleteDropdown'
+import { useAtCaretAutocomplete } from '../hooks/useAtCaretAutocomplete'
+import { useMentionOptions } from '../hooks/useMentionOptions'
 
 // Asset card with hover overlays
 function AssetCard({
@@ -348,6 +352,7 @@ function PromptBar({
   editStrength,
   onEditStrengthChange,
   hasReplicateApiKey,
+  hasFalApiKey,
   onEditImageFile,
   onBatchClick,
 }: {
@@ -373,6 +378,7 @@ function PromptBar({
   editStrength: number
   onEditStrengthChange: (strength: number) => void
   hasReplicateApiKey: boolean
+  hasFalApiKey: boolean
   onBatchClick: () => void
   onEditImageFile: (fileUrl: string) => void
   settings: {
@@ -384,6 +390,8 @@ function PromptBar({
     imageResolution: string
     variations: number
     audio?: boolean
+    referenceImagePaths?: string[]
+    audioReferencePaths?: string[]
   }
   onSettingsChange: (settings: any) => void
   shouldVideoGenerateWithLtxApi: boolean
@@ -392,6 +400,13 @@ function PromptBar({
   const audioInputRef = useRef<HTMLInputElement>(null)
   const editImageInputRef = useRef<HTMLInputElement>(null)
   const lastFrameInputRef = useRef<HTMLInputElement>(null)
+  const promptRef = useRef<HTMLTextAreaElement>(null)
+  const mentionOptions = useMentionOptions()
+  const atAutocomplete = useAtCaretAutocomplete({
+    textareaRef: promptRef,
+    onChange: onPromptChange,
+    options: mentionOptions,
+  })
   const [isDragOver, setIsDragOver] = useState(false)
   const [isAudioDragOver, setIsAudioDragOver] = useState(false)
   const [isLastFrameDragOver, setIsLastFrameDragOver] = useState(false)
@@ -687,9 +702,12 @@ function PromptBar({
         {/* Prompt input - fills remaining width */}
         <div className="flex-1 min-w-0 py-1 relative">
           <textarea
+            ref={promptRef}
             value={prompt}
-            onChange={(e) => onPromptChange(e.target.value)}
-            onKeyDown={handleKeyDown}
+            onChange={(e) => { onPromptChange(e.target.value); atAutocomplete.sync() }}
+            onKeyDown={(e) => { if (atAutocomplete.onKeyDown(e)) { e.preventDefault(); return } handleKeyDown(e) }}
+            onSelect={() => atAutocomplete.sync()}
+            onBlur={() => atAutocomplete.close()}
             placeholder={mode === 'retake'
               ? "Describe what should happen in the selected section..."
               : mode === 'image'
@@ -700,6 +718,15 @@ function PromptBar({
             }
             className="w-full bg-transparent text-white text-sm placeholder:text-zinc-500 focus:outline-none pl-2 pr-8 py-2 resize-none overflow-y-auto h-[70px] leading-5"
           />
+          {atAutocomplete.isOpen && (
+            <AtAutocompleteDropdown
+              className="absolute left-0 right-0 bottom-full mb-1"
+              options={atAutocomplete.options}
+              activeIndex={atAutocomplete.activeIndex}
+              onPick={atAutocomplete.accept}
+              onHover={atAutocomplete.setActiveIndex}
+            />
+          )}
           <button
             onClick={onEnhancePrompt}
             disabled={isEnhancing || isGenerating}
@@ -711,7 +738,20 @@ function PromptBar({
         </div>
 
       </div>
-      
+
+      {mode === 'video' && (
+        <div className="px-1.5 pb-1">
+          <ReferencePicker
+            model={settings.model}
+            referenceImagePaths={settings.referenceImagePaths ?? []}
+            audioReferencePaths={settings.audioReferencePaths ?? []}
+            onChange={({ referenceImagePaths, audioReferencePaths }) =>
+              onSettingsChange({ ...settings, referenceImagePaths, audioReferencePaths })
+            }
+          />
+        </div>
+      )}
+
       {/* Bottom row: Mode selector + Settings */}
       <div className="flex items-center gap-0.5 px-1.5 py-1.5 border-t border-zinc-800/60 text-xs text-zinc-400">
         {/* Mode dropdown */}
@@ -851,13 +891,17 @@ function PromptBar({
                   : [
                       { value: 'fast', label: 'LTX 2.3 Fast' },
                     ]),
-                { value: 'seedance-1.5-pro', label: `Seedance 1.5 Pro (Cloud)${!hasReplicateApiKey ? ' — needs API key' : ''}`, disabled: !hasReplicateApiKey },
+                { value: 'seedance-1.5-pro', label: `Seedance 1.5 Pro (Replicate)${!hasReplicateApiKey ? ' — needs API key' : ''}`, disabled: !hasReplicateApiKey },
+                { value: 'seedance-2.0', label: `Seedance 2.0 (fal)${!hasFalApiKey ? ' — needs fal key' : ''}`, disabled: !hasFalApiKey },
+                { value: 'seedance-2.0-fast', label: `Seedance 2.0 Fast (fal)${!hasFalApiKey ? ' — needs fal key' : ''}`, disabled: !hasFalApiKey },
               ]}
               trigger={
                 <>
                   <LightricksIcon className="h-3.5 w-3.5" />
                   <span className="text-zinc-300 font-medium">
                     {settings.model === 'seedance-1.5-pro' ? 'Seedance 1.5 Pro'
+                      : settings.model === 'seedance-2.0' ? 'Seedance 2.0'
+                      : settings.model === 'seedance-2.0-fast' ? 'Seedance 2.0 Fast'
                       : shouldVideoGenerateWithLtxApi
                         ? (settings.model === 'pro' ? 'LTX-2.3 Pro (API)' : 'LTX-2.3 Fast (API)')
                         : 'LTX 2.3 Fast'}
@@ -1434,7 +1478,7 @@ export function GenSpace() {
         prompt,
         imagePath,
         {
-          model: videoSettings.model as 'fast' | 'pro' | 'seedance-1.5-pro',
+          model: videoSettings.model as 'fast' | 'pro' | 'seedance-1.5-pro' | 'seedance-2.0' | 'seedance-2.0-fast',
           duration: videoSettings.duration,
           videoResolution: videoSettings.videoResolution,
           fps: videoSettings.fps,
@@ -1503,7 +1547,7 @@ export function GenSpace() {
     if (!credits.pricing || isRetakeMode) return null
     if (mode === 'image') return credits.pricing.image
     if (editSourceImage) return credits.pricing.image_edit
-    if (settings.model === 'seedance-1.5-pro' || settings.model === 'seedance') return credits.pricing.video_seedance
+    if (String(settings.model).startsWith('seedance')) return credits.pricing.video_seedance
     if (inputImage) return credits.pricing.video_i2v
     return credits.pricing.video_t2v
   })()
@@ -1745,6 +1789,7 @@ export function GenSpace() {
           editStrength={editStrength}
           onEditStrengthChange={setEditStrength}
           hasReplicateApiKey={appSettings.hasReplicateApiKey}
+          hasFalApiKey={appSettings.hasFalApiKey}
           onEditImageFile={handleEditImageFile}
           onBatchClick={() => setShowBatchModal(true)}
         />

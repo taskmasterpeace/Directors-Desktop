@@ -26,6 +26,8 @@ from services.text_encoder.text_encoder import TextEncoder
 from services.model_scanner.model_scanner import ModelScanner
 from services.palette_sync_client.palette_sync_client import PaletteSyncClient
 from services.video_api_client.video_api_client import VideoAPIClient
+from services.upload_client.upload_client import UploadClient
+from services.palette_image_client.palette_image_client import PaletteImageClient
 from services.video_processor.video_processor import VideoInfoPayload, VideoProcessor
 
 VideoPipelineModelType = Literal["fast"]
@@ -58,4 +60,6 @@ __all__ = [
     "RetakePipeline",
     "TextEncoder",
     "VideoAPIClient",
+    "UploadClient",
+    "PaletteImageClient",
 ]

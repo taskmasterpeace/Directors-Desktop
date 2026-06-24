@@ -278,6 +278,7 @@ class FakeImageAPIClient:
         height: int,
         seed: int,
         num_inference_steps: int,
+        reference_image_urls: list[str] | None = None,
     ) -> bytes:
         self.text_to_image_calls.append(
             {
@@ -288,6 +289,7 @@ class FakeImageAPIClient:
                 "height": height,
                 "seed": seed,
                 "num_inference_steps": num_inference_steps,
+                "reference_image_urls": reference_image_urls,
             }
         )
         if self.raise_on_text_to_image is not None:
@@ -296,12 +298,12 @@ class FakeImageAPIClient:
 
 
 class FakeVideoAPIClient:
-    def __init__(self) -> None:
-        self.text_to_video_calls: list[dict[str, Any]] = []
-        self.raise_on_text_to_video: Exception | None = None
-        self.text_to_video_result = b"fake-seedance-video"
+    def __init__(self, result: bytes = b"fake-seedance-video") -> None:
+        self.video_calls: list[dict[str, Any]] = []
+        self.raise_on_video: Exception | None = None
+        self.video_result = result
 
-    def generate_text_to_video(
+    def generate_video(
         self,
         *,
         api_key: str,
@@ -311,9 +313,14 @@ class FakeVideoAPIClient:
         resolution: str,
         aspect_ratio: str,
         generate_audio: bool,
+        first_frame: str | None = None,
         last_frame: str | None = None,
+        reference_images: list[str] | None = None,
+        reference_audio: list[str] | None = None,
+        seed: int | None = None,
+        camera_fixed: bool = False,
     ) -> bytes:
-        self.text_to_video_calls.append({
+        self.video_calls.append({
             "api_key": api_key,
             "model": model,
             "prompt": prompt,
@@ -321,11 +328,53 @@ class FakeVideoAPIClient:
             "resolution": resolution,
             "aspect_ratio": aspect_ratio,
             "generate_audio": generate_audio,
+            "first_frame": first_frame,
             "last_frame": last_frame,
+            "reference_images": reference_images,
+            "reference_audio": reference_audio,
+            "seed": seed,
+            "camera_fixed": camera_fixed,
         })
-        if self.raise_on_text_to_video is not None:
-            raise self.raise_on_text_to_video
-        return self.text_to_video_result
+        if self.raise_on_video is not None:
+            raise self.raise_on_video
+        return self.video_result
+
+
+class FakeUploadClient:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
+
+    def upload(self, *, api_key: str, data: bytes, content_type: str, file_name: str) -> str:
+        self.calls.append(
+            {"api_key": api_key, "content_type": content_type, "file_name": file_name, "size": len(data)}
+        )
+        return f"https://fake.fal/uploads/{file_name}"
+
+
+class FakePaletteImageClient:
+    def __init__(self, result: bytes = b"fake-dp-image") -> None:
+        self.result = result
+        self.calls: list[dict[str, Any]] = []
+
+    def generate_image(
+        self,
+        *,
+        api_key: str,
+        model: str,
+        prompt: str,
+        aspect_ratio: str = "16:9",
+        reference_image_urls: list[str] | None = None,
+    ) -> bytes:
+        self.calls.append(
+            {
+                "api_key": api_key,
+                "model": model,
+                "prompt": prompt,
+                "aspect_ratio": aspect_ratio,
+                "reference_image_urls": reference_image_urls,
+            }
+        )
+        return self.result
 
 
 class FakePaletteSyncClient:
@@ -917,6 +966,11 @@ class FakeServices:
     ltx_api_client: FakeLTXAPIClient = field(default_factory=FakeLTXAPIClient)
     image_api_client: FakeImageAPIClient = field(default_factory=FakeImageAPIClient)
     video_api_client: FakeVideoAPIClient = field(default_factory=FakeVideoAPIClient)
+    fal_video_client: FakeVideoAPIClient = field(
+        default_factory=lambda: FakeVideoAPIClient(result=b"fake-fal-video")
+    )
+    fal_upload_client: FakeUploadClient = field(default_factory=FakeUploadClient)
+    palette_image_client: FakePaletteImageClient = field(default_factory=FakePaletteImageClient)
     palette_sync_client: FakePaletteSyncClient = field(default_factory=FakePaletteSyncClient)
     fast_video_pipeline: FakeFastVideoPipeline = field(default_factory=FakeFastVideoPipeline)
     image_generation_pipeline: FakeImageGenerationPipeline = field(default_factory=FakeImageGenerationPipeline)

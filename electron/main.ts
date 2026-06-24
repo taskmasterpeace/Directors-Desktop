@@ -14,6 +14,16 @@ import { createWindow, getMainWindow } from './window'
 import { sendAnalyticsEvent } from './analytics'
 import { logger } from './logger'
 
+// --- GPU crash resilience (Windows) ---
+// A transient GPU-process fault (driver/ANGLE) — most reliably reproduced right as the home
+// view's hardware-decoded hero video starts — was taking the whole app down with exit
+// 0xC0000005, because Chromium kills the browser process once GPU-process crashes exceed a
+// small limit. In dev that exit also tripped the vite-electron relaunch loop. Lifting the
+// crash limit lets the GPU process restart transparently; the renderer recovery handler in
+// window.ts reloads the page if a render/GPU crash does surface. These switches MUST be set
+// before app 'ready'.
+app.commandLine.appendSwitch('disable-gpu-process-crash-limit')
+
 // Register directorsdesktop:// protocol for auth callbacks
 if (process.defaultApp) {
   // Dev mode: pass the app path so Electron can find us
@@ -64,6 +74,14 @@ if (!gotLock) {
   registerExportHandlers()
   registerVideoProcessingHandlers()
 
+  // Surface (but don't die from) GPU/utility child-process crashes — see the crash-limit
+  // switch above and the renderer recovery in window.ts.
+  app.on('child-process-gone', (_event, details) => {
+    logger.error(
+      `[child-process-gone] type=${details.type} reason=${details.reason} exitCode=${details.exitCode}`,
+    )
+  })
+
   app.on('second-instance', (_event, commandLine) => {
     const mainWindow = getMainWindow()
     if (mainWindow) {
@@ -95,7 +113,11 @@ if (!gotLock) {
 
     // Allow file:// URLs to load when the page is served from http://localhost (dev mode).
     // Without this, Chromium blocks file:// resources on http:// origins.
-    protocol.handle('file', (request) => net.fetch(request))
+    // CRITICAL: bypassCustomProtocolHandlers MUST be set — without it net.fetch re-invokes this
+    // very handler for the file:// request, recursing infinitely until the stack overflows and
+    // Electron dies with an access violation (0xC0000005). That was the intermittent startup
+    // crash (it fired whenever a file:// resource — e.g. a gallery thumbnail — loaded).
+    protocol.handle('file', (request) => net.fetch(request, { bypassCustomProtocolHandlers: true }))
 
     createWindow()
     initAutoUpdater()

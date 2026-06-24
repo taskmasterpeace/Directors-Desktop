@@ -17,6 +17,10 @@ import { useRetake } from '../hooks/use-retake'
 import { useBackend } from '../hooks/use-backend'
 import { useProjects } from '../contexts/ProjectContext'
 import { useAppSettings } from '../contexts/AppSettingsContext'
+import { ReferencePicker } from '../components/ReferencePicker'
+import { AtAutocompleteDropdown } from '../components/AtAutocompleteDropdown'
+import { useAtCaretAutocomplete } from '../hooks/useAtCaretAutocomplete'
+import { useMentionOptions } from '../hooks/useMentionOptions'
 import { fileUrlToPath } from '../lib/url-to-path'
 import { sanitizeForcedApiVideoSettings } from '../lib/api-video-options'
 import { RetakePanel } from '../components/RetakePanel'
@@ -37,9 +41,16 @@ const DEFAULT_SETTINGS: GenerationSettings = {
 
 export function Playground() {
   const { goHome } = useProjects()
-  const { forceApiGenerations, shouldVideoGenerateWithLtxApi, credits } = useAppSettings()
+  const { settings: appSettings, forceApiGenerations, shouldVideoGenerateWithLtxApi, credits } = useAppSettings()
   const [mode, setMode] = useState<GenerationMode>('text-to-video')
   const [prompt, setPrompt] = useState('')
+  const promptRef = useRef<HTMLTextAreaElement>(null)
+  const mentionOptions = useMentionOptions()
+  const atAutocomplete = useAtCaretAutocomplete({
+    textareaRef: promptRef,
+    onChange: setPrompt,
+    options: mentionOptions,
+  })
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [selectedAudio, setSelectedAudio] = useState<string | null>(null)
   const [settings, setSettings] = useState<GenerationSettings>(() => ({ ...DEFAULT_SETTINGS }))
@@ -229,7 +240,7 @@ export function Playground() {
     if (!credits.pricing) return null
     if (mode === 'text-to-image') return credits.pricing.image
     const m = settings.model as string
-    if (m === 'seedance-1.5-pro' || m === 'seedance') return credits.pricing.video_seedance
+    if (m.startsWith('seedance')) return credits.pricing.video_seedance
     if (selectedImage || mode === 'image-to-video') return credits.pricing.video_i2v
     return credits.pricing.video_t2v
   })()
@@ -331,10 +342,14 @@ export function Playground() {
             {/* Prompt Input */}
             <div className="relative">
               <Textarea
+                ref={promptRef}
                 label="Prompt"
-                placeholder="Write a prompt..."
+                placeholder="Write a prompt... (type @ to mention a character or reference)"
                 value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
+                onChange={(e) => { setPrompt(e.target.value); atAutocomplete.sync() }}
+                onKeyDown={(e) => { if (atAutocomplete.onKeyDown(e)) e.preventDefault() }}
+                onSelect={() => atAutocomplete.sync()}
+                onBlur={() => atAutocomplete.close()}
                 helperText="Longer, detailed prompts lead to better, more accurate results."
                 charCount={prompt.length}
                 maxChars={5000}
@@ -348,6 +363,16 @@ export function Playground() {
               >
                 <Wand2 className={`h-4 w-4 ${isEnhancing ? 'animate-spin' : ''}`} />
               </button>
+              {atAutocomplete.isOpen && (
+                <AtAutocompleteDropdown
+                  className="absolute left-0 right-0 top-full mt-1"
+                  caret={atAutocomplete.caret}
+                  options={atAutocomplete.options}
+                  activeIndex={atAutocomplete.activeIndex}
+                  onPick={atAutocomplete.accept}
+                  onHover={atAutocomplete.setActiveIndex}
+                />
+              )}
             </div>
 
             {/* Settings */}
@@ -359,6 +384,19 @@ export function Playground() {
                 mode={mode}
                 forceApiGenerations={shouldVideoGenerateWithLtxApi}
                 hasAudio={!!selectedAudio}
+                hasReplicateApiKey={appSettings.hasReplicateApiKey}
+                hasFalApiKey={appSettings.hasFalApiKey}
+              />
+            )}
+
+            {mode !== 'text-to-image' && (
+              <ReferencePicker
+                model={settings.model}
+                referenceImagePaths={settings.referenceImagePaths ?? []}
+                audioReferencePaths={settings.audioReferencePaths ?? []}
+                onChange={({ referenceImagePaths, audioReferencePaths }) =>
+                  setSettings((prev) => ({ ...prev, referenceImagePaths, audioReferencePaths }))
+                }
               />
             )}
 

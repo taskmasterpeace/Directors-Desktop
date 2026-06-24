@@ -25,11 +25,12 @@ from server_utils.media_validation import (
     validate_image_file,
 )
 from server_utils.output_naming import make_output_path
-from services.interfaces import LTXAPIClient, VideoAPIClient
+from services.interfaces import LTXAPIClient, UploadClient, VideoAPIClient
 from state.app_state_types import AppState
 from state.app_settings import should_video_generate_with_ltx_api
 
 REPLICATE_VIDEO_MODELS = {"seedance-1.5-pro"}
+FAL_VIDEO_MODELS = {"seedance-2.0", "seedance-2.0-fast"}
 
 if TYPE_CHECKING:
     from runtime_config.runtime_config import RuntimeConfig
@@ -66,6 +67,8 @@ class VideoGenerationHandler(StateHandlerBase):
         text_handler: TextHandler,
         ltx_api_client: LTXAPIClient,
         video_api_client: VideoAPIClient,
+        fal_video_client: VideoAPIClient,
+        upload_client: UploadClient,
         outputs_dir: Path,
         config: RuntimeConfig,
         camera_motion_prompts: dict[str, str],
@@ -77,6 +80,8 @@ class VideoGenerationHandler(StateHandlerBase):
         self._text = text_handler
         self._ltx_api_client = ltx_api_client
         self._video_api_client = video_api_client
+        self._fal_video_client = fal_video_client
+        self._upload_client = upload_client
         self._outputs_dir = outputs_dir
         self._config = config
         self._camera_motion_prompts = camera_motion_prompts
@@ -85,6 +90,9 @@ class VideoGenerationHandler(StateHandlerBase):
     def generate(self, req: GenerateVideoRequest) -> GenerateVideoResponse:
         if req.model in REPLICATE_VIDEO_MODELS:
             return self._generate_via_replicate(req)
+
+        if req.model in FAL_VIDEO_MODELS:
+            return self._generate_via_fal(req)
 
         if should_video_generate_with_ltx_api(
             force_api_generations=self._config.force_api_generations,
@@ -228,11 +236,13 @@ class VideoGenerationHandler(StateHandlerBase):
         if last_frame_image is not None:
             temp_last_frame_path = tempfile.NamedTemporaryFile(suffix=".png", delete=False).name
             last_frame_image.save(temp_last_frame_path)
-            # Use frame_idx=0 (first-frame conditioning) for extend.
-            # The distilled pipeline doesn't support last-frame conditioning
-            # (frame_idx=num_frames-1), but first-frame works identically —
-            # the new video continues from this frame.
-            images.append(ImageConditioningInput(path=temp_last_frame_path, frame_idx=0, strength=1.0))
+            # Condition the last frame of the generated video on this image.
+            # frame_idx is a latent frame index. The VAE temporal compression is
+            # 8x, so latent_frames = (num_frames - 1) // 8 + 1. We want the
+            # start of the last latent frame: latent_frames - 1.
+            latent_frames = (num_frames - 1) // 8 + 1
+            last_latent_idx = latent_frames - 1
+            images.append(ImageConditioningInput(path=temp_last_frame_path, frame_idx=last_latent_idx, strength=1.0))
 
         output_path = self._make_output_path(model="ltx-fast", prompt=prompt)
 
@@ -599,6 +609,77 @@ class VideoGenerationHandler(StateHandlerBase):
             return settings.locked_seed
         return int(time.time()) % 2147483647
 
+    @staticmethod
+    def _image_to_data_uri(image_path: str | None) -> str | None:
+        """Validate a local image and encode it as a base64 data URI for cloud APIs."""
+        normalized = normalize_optional_path(image_path)
+        if normalized is None:
+            return None
+        validated = validate_image_file(normalized)
+        import base64
+
+        raw = validated.read_bytes()
+        b64 = base64.b64encode(raw).decode("ascii")
+        ext = validated.suffix.lstrip(".").lower()
+        mime = "image/png" if ext == "png" else "image/jpeg"
+        return f"data:{mime};base64,{b64}"
+
+    @staticmethod
+    def _audio_to_data_uri(audio_path: str | None) -> str | None:
+        """Encode a local audio file as a base64 data URI for cloud audio references."""
+        normalized = normalize_optional_path(audio_path)
+        if normalized is None:
+            return None
+        audio_file = Path(normalized)
+        if not audio_file.exists():
+            return None
+        import base64
+
+        raw = audio_file.read_bytes()
+        b64 = base64.b64encode(raw).decode("ascii")
+        ext = audio_file.suffix.lstrip(".").lower()
+        mime = {
+            "mp3": "audio/mpeg",
+            "wav": "audio/wav",
+            "m4a": "audio/mp4",
+            "ogg": "audio/ogg",
+            "flac": "audio/flac",
+        }.get(ext, "audio/mpeg")
+        return f"data:{mime};base64,{b64}"
+
+    _AUDIO_MIME = {
+        "mp3": "audio/mpeg",
+        "wav": "audio/wav",
+        "m4a": "audio/mp4",
+        "ogg": "audio/ogg",
+        "flac": "audio/flac",
+    }
+
+    def _upload_reference(self, api_key: str, path: str, *, is_audio: bool) -> str | None:
+        """Upload a local reference image/audio to fal storage and return its hosted URL.
+
+        References are hosted (not inlined as base64) so the request body stays small —
+        critical for audio, which can be megabytes each.
+        """
+        normalized = normalize_optional_path(path)
+        if normalized is None:
+            return None
+        file = Path(normalized)
+        if not file.exists():
+            return None
+        ext = file.suffix.lstrip(".").lower()
+        if is_audio:
+            content_type = self._AUDIO_MIME.get(ext, "audio/mpeg")
+        else:
+            validate_image_file(normalized)  # security: confirm it's a real image
+            content_type = "image/png" if ext == "png" else "image/jpeg"
+        return self._upload_client.upload(
+            api_key=api_key,
+            data=file.read_bytes(),
+            content_type=content_type,
+            file_name=file.name,
+        )
+
     def _make_output_path(self, *, model: str, prompt: str) -> Path:
         return make_output_path(self._outputs_dir, model=model, prompt=prompt, ext="mp4")
 
@@ -624,20 +705,12 @@ class VideoGenerationHandler(StateHandlerBase):
             if self._generation.is_generation_cancelled():
                 raise RuntimeError("Generation was cancelled")
 
-            # Support image-to-video for Seedance via last_frame
-            last_frame_url: str | None = None
-            image_path = normalize_optional_path(req.imagePath)
-            if image_path is not None:
-                validated = validate_image_file(image_path)
-                import base64
-                raw = validated.read_bytes()
-                b64 = base64.b64encode(raw).decode("ascii")
-                ext = validated.suffix.lstrip(".")
-                mime = "image/png" if ext == "png" else "image/jpeg"
-                last_frame_url = f"data:{mime};base64,{b64}"
+            # Seedance 1.5 image-to-video: start frame -> image, end frame -> last_frame_image.
+            first_frame_uri = self._image_to_data_uri(req.imagePath)
+            last_frame_uri = self._image_to_data_uri(req.lastFramePath)
 
             self._generation.update_progress("inference", 20, None, None)
-            video_bytes = self._video_api_client.generate_text_to_video(
+            video_bytes = self._video_api_client.generate_video(
                 api_key=api_key,
                 model=req.model,
                 prompt=req.prompt,
@@ -645,7 +718,89 @@ class VideoGenerationHandler(StateHandlerBase):
                 resolution=resolution,
                 aspect_ratio=aspect_ratio,
                 generate_audio=generate_audio,
-                last_frame=last_frame_url,
+                first_frame=first_frame_uri,
+                last_frame=last_frame_uri,
+                seed=self._resolve_seed(),
+                camera_fixed=(req.cameraMotion == "static"),
+            )
+            self._generation.update_progress("downloading_output", 85, None, None)
+
+            if self._generation.is_generation_cancelled():
+                raise RuntimeError("Generation was cancelled")
+
+            output_path = self._write_forced_api_video(video_bytes, model=req.model, prompt=req.prompt)
+            self._generation.update_progress("complete", 100, None, None)
+            self._generation.complete_generation(str(output_path))
+            return GenerateVideoResponse(status="complete", video_path=str(output_path))
+        except HTTPError as e:
+            self._generation.fail_generation(e.detail)
+            raise
+        except Exception as e:
+            self._generation.fail_generation(str(e))
+            if "cancelled" in str(e).lower():
+                logger.info("Generation cancelled by user")
+                return GenerateVideoResponse(status="cancelled")
+            raise HTTPError(500, str(e)) from e
+
+    def _generate_via_fal(self, req: GenerateVideoRequest) -> GenerateVideoResponse:
+        if self._generation.is_generation_running():
+            raise HTTPError(409, "Generation already in progress")
+
+        generation_id = self._make_generation_id()
+        self._generation.start_api_generation(generation_id)
+
+        try:
+            self._generation.update_progress("validating_request", 5, None, None)
+
+            api_key = self.state.app_settings.fal_api_key.strip()
+            if not api_key:
+                raise HTTPError(400, "FAL_API_KEY_NOT_CONFIGURED")
+
+            duration = self._parse_forced_numeric_field(req.duration, "INVALID_FORCED_API_DURATION")
+            aspect_ratio = req.aspectRatio.strip() if req.aspectRatio else "16:9"
+            resolution = req.resolution or "720p"
+            generate_audio = self._parse_audio_flag(req.audio)
+
+            if self._generation.is_generation_cancelled():
+                raise RuntimeError("Generation was cancelled")
+
+            first_frame_uri = self._image_to_data_uri(req.imagePath)
+            last_frame_uri = self._image_to_data_uri(req.lastFramePath)
+
+            # Omni-reference validation (mirror fal's rules; never silently drop).
+            if req.audioReferencePaths and not req.referenceImagePaths:
+                raise HTTPError(400, "Add at least one reference image to use audio references.")
+            if len(req.referenceImagePaths) > 9:
+                raise HTTPError(400, "Seedance 2.0 supports at most 9 reference images.")
+            if len(req.audioReferencePaths) > 3:
+                raise HTTPError(400, "Seedance 2.0 supports at most 3 audio references.")
+
+            # Reference arrays are uploaded to hosted URLs (never inlined as base64).
+            reference_images: list[str] = []
+            for path in req.referenceImagePaths:
+                url = self._upload_reference(api_key, path, is_audio=False)
+                if url is not None:
+                    reference_images.append(url)
+            reference_audio: list[str] = []
+            for path in req.audioReferencePaths:
+                url = self._upload_reference(api_key, path, is_audio=True)
+                if url is not None:
+                    reference_audio.append(url)
+
+            self._generation.update_progress("inference", 20, None, None)
+            video_bytes = self._fal_video_client.generate_video(
+                api_key=api_key,
+                model=req.model,
+                prompt=req.prompt,
+                duration=duration,
+                resolution=resolution,
+                aspect_ratio=aspect_ratio,
+                generate_audio=generate_audio,
+                first_frame=first_frame_uri,
+                last_frame=last_frame_uri,
+                reference_images=reference_images or None,
+                reference_audio=reference_audio or None,
+                seed=self._resolve_seed(),
             )
             self._generation.update_progress("downloading_output", 85, None, None)
 

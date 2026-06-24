@@ -113,16 +113,16 @@ export function BatchPromptsTab({ target, onSubmit, isRunning }: BatchPromptsTab
     <div className="space-y-4">
       {/* Load from file */}
       <div className="flex items-center justify-between">
-        <label className="text-sm font-medium" style={{ color: 'oklch(0.75 0.05 290)' }}>
+        <label className="text-sm font-medium" style={{ color: 'oklch(0.75 0.05 250)' }}>
           Prompts (separate with blank lines)
         </label>
         <button
           onClick={() => fileInputRef.current?.click()}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
           style={{
-            background: 'oklch(0.22 0.025 290)',
-            color: 'oklch(0.75 0.05 290)',
-            border: '1px solid oklch(0.32 0.03 290)',
+            background: 'oklch(0.22 0.025 250)',
+            color: 'oklch(0.75 0.05 250)',
+            border: '1px solid oklch(0.32 0.03 250)',
           }}
         >
           <Upload className="w-3.5 h-3.5" />
@@ -144,13 +144,13 @@ export function BatchPromptsTab({ target, onSubmit, isRunning }: BatchPromptsTab
         placeholder={'A cinematic wide shot of...\n\nA close-up of...\n\nA gritty noir detective...'}
         className="w-full rounded-lg px-3 py-2 text-sm font-mono border"
         style={{
-          background: 'oklch(0.22 0.025 290)',
-          borderColor: 'oklch(0.32 0.03 290)',
-          color: 'oklch(0.92 0.02 290)',
+          background: 'oklch(0.22 0.025 250)',
+          borderColor: 'oklch(0.32 0.03 250)',
+          color: 'oklch(0.92 0.02 250)',
         }}
       />
 
-      <div className="text-xs" style={{ color: 'oklch(0.65 0.04 290)' }}>
+      <div className="text-xs" style={{ color: 'oklch(0.65 0.04 250)' }}>
         {prompts.length === 0
           ? 'No prompts yet — paste some text above'
           : `${prompts.length} prompt${prompts.length === 1 ? '' : 's'} detected`}
@@ -159,55 +159,55 @@ export function BatchPromptsTab({ target, onSubmit, isRunning }: BatchPromptsTab
       {/* Settings grid */}
       <div className="grid grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 290)' }}>Model</label>
+          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 250)' }}>Model</label>
           <select
             value={model}
             onChange={e => setModel(e.target.value)}
             className="w-full rounded-lg px-2 py-1.5 text-sm border"
-            style={{ background: 'oklch(0.22 0.025 290)', borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.92 0.02 290)' }}
+            style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}
           >
             {IMAGE_MODELS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 290)' }}>Resolution</label>
+          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 250)' }}>Resolution</label>
           <select
             value={resolution}
             onChange={e => setResolution(e.target.value)}
             className="w-full rounded-lg px-2 py-1.5 text-sm border"
-            style={{ background: 'oklch(0.22 0.025 290)', borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.92 0.02 290)' }}
+            style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}
           >
             {RESOLUTIONS.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 290)' }}>Aspect ratio</label>
+          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 250)' }}>Aspect ratio</label>
           <select
             value={aspectRatio}
             onChange={e => setAspectRatio(e.target.value)}
             className="w-full rounded-lg px-2 py-1.5 text-sm border"
-            style={{ background: 'oklch(0.22 0.025 290)', borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.92 0.02 290)' }}
+            style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}
           >
             {availableAspects.map(a => <option key={a} value={a}>{a}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 290)' }}>Steps</label>
+          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 250)' }}>Steps</label>
           <input
             type="number"
             value={steps}
             onChange={e => setSteps(Math.max(1, Math.min(100, Number(e.target.value))))}
             className="w-full rounded-lg px-2 py-1.5 text-sm border"
-            style={{ background: 'oklch(0.22 0.025 290)', borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.92 0.02 290)' }}
+            style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}
           />
         </div>
         <div>
-          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 290)' }}>Variations per prompt</label>
+          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 250)' }}>Variations per prompt</label>
           <select
             value={variations}
             onChange={e => setVariations(Number(e.target.value) as Variations)}
             className="w-full rounded-lg px-2 py-1.5 text-sm border"
-            style={{ background: 'oklch(0.22 0.025 290)', borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.92 0.02 290)' }}
+            style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}
           >
             <option value={1}>1</option>
             <option value={2}>2</option>
@@ -215,12 +215,12 @@ export function BatchPromptsTab({ target, onSubmit, isRunning }: BatchPromptsTab
           </select>
         </div>
         <div>
-          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 290)' }}>Seed mode</label>
+          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 250)' }}>Seed mode</label>
           <select
             value={seedMode}
             onChange={e => setSeedMode(e.target.value as SeedMode)}
             className="w-full rounded-lg px-2 py-1.5 text-sm border"
-            style={{ background: 'oklch(0.22 0.025 290)', borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.92 0.02 290)' }}
+            style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}
           >
             <option value="locked">Locked (same every job)</option>
             <option value="sequential">Sequential (base+i)</option>
@@ -228,7 +228,7 @@ export function BatchPromptsTab({ target, onSubmit, isRunning }: BatchPromptsTab
           </select>
         </div>
         <div>
-          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 290)' }}>
+          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 250)' }}>
             {seedMode === 'sequential' ? 'Base seed' : seedMode === 'locked' ? 'Seed' : 'Seed (ignored)'}
           </label>
           <input
@@ -237,23 +237,23 @@ export function BatchPromptsTab({ target, onSubmit, isRunning }: BatchPromptsTab
             onChange={e => setBaseSeed(Math.max(0, Math.min(2_147_483_647, Number(e.target.value))))}
             disabled={seedMode === 'random'}
             className="w-full rounded-lg px-2 py-1.5 text-sm border disabled:opacity-50"
-            style={{ background: 'oklch(0.22 0.025 290)', borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.92 0.02 290)' }}
+            style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}
           />
         </div>
         <div>
-          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 290)' }}>LoRA path (optional)</label>
+          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 250)' }}>LoRA path (optional)</label>
           <input
             value={loraPath}
             onChange={e => setLoraPath(e.target.value)}
             placeholder="E:\fluxdev\my_lora.safetensors"
             className="w-full rounded-lg px-2 py-1.5 text-sm border"
-            style={{ background: 'oklch(0.22 0.025 290)', borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.92 0.02 290)' }}
+            style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}
           />
         </div>
       </div>
 
       {/* Animation lock toggle */}
-      <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'oklch(0.75 0.05 290)' }}>
+      <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'oklch(0.75 0.05 250)' }}>
         <input
           type="checkbox"
           checked={forAnimation}
@@ -268,8 +268,8 @@ export function BatchPromptsTab({ target, onSubmit, isRunning }: BatchPromptsTab
         disabled={prompts.length === 0 || isRunning}
         className="w-full py-2.5 rounded-lg text-sm font-semibold transition-colors disabled:opacity-50"
         style={{
-          background: 'oklch(0.6 0.2 290)',
-          color: 'oklch(0.98 0.01 290)',
+          background: 'oklch(0.6 0.2 250)',
+          color: 'oklch(0.98 0.01 250)',
         }}
       >
         {variations > 1

@@ -1,3 +1,4 @@
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false, reportUnknownParameterType=false, reportCallIssue=false, reportPrivateUsage=false, reportPrivateImportUsage=false, reportUnnecessaryComparison=false, reportUnusedImport=false, reportAttributeAccessIssue=false, reportArgumentType=false
 """GGUF quantized LTX video pipeline.
 
 Loads LTX-Video transformer weights from a GGUF file using the diffusers

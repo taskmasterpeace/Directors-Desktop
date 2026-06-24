@@ -40,7 +40,7 @@ Run a single test function: `cd backend && uv run pytest tests/test_generation.p
 
 ## CI Checks
 
-PRs must pass: `pnpm typecheck` + `pnpm backend:test` + frontend Vite build.
+PRs must pass: `pnpm typecheck` + `pnpm test:frontend` (vitest pure-function suites) + `pnpm backend:test` + frontend Vite build.
 
 ## Frontend Architecture
 

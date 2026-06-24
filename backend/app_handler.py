@@ -26,6 +26,7 @@ from handlers.library_handler import LibraryHandler
 from runtime_config.runtime_config import RuntimeConfig
 from handlers.contact_sheet_handler import ContactSheetHandler
 from handlers.enhance_prompt_handler import EnhancePromptHandler
+from handlers.transcription_handler import TranscriptionHandler
 from handlers.prompt_handler import PromptHandler
 from handlers.receive_job_handler import ReceiveJobHandler
 from handlers.style_guide_handler import StyleGuideHandler
@@ -37,6 +38,8 @@ from services.interfaces import (
     ImageGenerationPipeline,
     PaletteSyncClient,
     VideoAPIClient,
+    UploadClient,
+    PaletteImageClient,
     GpuCleaner,
     GpuInfo,
     HTTPClient,
@@ -70,12 +73,16 @@ class AppHandler:
         ltx_api_client: LTXAPIClient,
         image_api_client: ImageAPIClient,
         video_api_client: VideoAPIClient,
+        fal_video_client: VideoAPIClient,
+        fal_upload_client: UploadClient,
+        palette_image_client: PaletteImageClient,
         palette_sync_client: PaletteSyncClient,
         fast_video_pipeline_class: type[FastVideoPipeline],
         gguf_video_pipeline_class: type[FastVideoPipeline] | None,
         nf4_video_pipeline_class: type[FastVideoPipeline] | None,
         image_generation_pipeline_class: type[ImageGenerationPipeline],
         flux_klein_pipeline_class: type[ImageGenerationPipeline] | None,
+        flux_dev_pipeline_class: type[ImageGenerationPipeline] | None,
         ic_lora_pipeline_class: type[IcLoraPipeline],
         a2v_pipeline_class: type[A2VPipeline],
         retake_pipeline_class: type[RetakePipeline],
@@ -94,12 +101,15 @@ class AppHandler:
         self.ltx_api_client = ltx_api_client
         self.image_api_client = image_api_client
         self.video_api_client = video_api_client
+        self.fal_video_client = fal_video_client
+        self.fal_upload_client = fal_upload_client
         self.palette_sync_client = palette_sync_client
         self.fast_video_pipeline_class = fast_video_pipeline_class
         self.gguf_video_pipeline_class = gguf_video_pipeline_class
         self.nf4_video_pipeline_class = nf4_video_pipeline_class
         self.image_generation_pipeline_class = image_generation_pipeline_class
         self.flux_klein_pipeline_class = flux_klein_pipeline_class
+        self.flux_dev_pipeline_class = flux_dev_pipeline_class
         self.ic_lora_pipeline_class = ic_lora_pipeline_class
         self.a2v_pipeline_class = a2v_pipeline_class
         self.retake_pipeline_class = retake_pipeline_class
@@ -114,6 +124,7 @@ class AppHandler:
                 "text_encoder": None,
                 "zit": None,
                 "flux_klein": None,
+                "flux_dev": None,
             },
             downloading_session=None,
             gpu_slot=None,
@@ -168,6 +179,7 @@ class AppHandler:
             nf4_video_pipeline_class=nf4_video_pipeline_class,
             image_generation_pipeline_class=image_generation_pipeline_class,
             flux_klein_pipeline_class=flux_klein_pipeline_class,
+            flux_dev_pipeline_class=flux_dev_pipeline_class,
             ic_lora_pipeline_class=ic_lora_pipeline_class,
             a2v_pipeline_class=a2v_pipeline_class,
             retake_pipeline_class=retake_pipeline_class,
@@ -186,6 +198,8 @@ class AppHandler:
             text_handler=self.text,
             ltx_api_client=ltx_api_client,
             video_api_client=video_api_client,
+            fal_video_client=fal_video_client,
+            upload_client=fal_upload_client,
             outputs_dir=config.outputs_dir,
             config=config,
             camera_motion_prompts=config.camera_motion_prompts,
@@ -200,6 +214,7 @@ class AppHandler:
             outputs_dir=config.outputs_dir,
             config=config,
             image_api_client=image_api_client,
+            palette_image_client=palette_image_client,
         )
 
         self.health = HealthHandler(
@@ -225,6 +240,8 @@ class AppHandler:
             lock=self._lock,
             http=http,
         )
+
+        self.transcription = TranscriptionHandler(state=self.state, http=http)
 
         self.retake = RetakeHandler(
             state=self.state,
@@ -323,7 +340,7 @@ class AppHandler:
 
     def determine_slot(self, model: str) -> str:
         """Determine whether a job should use the gpu or api slot."""
-        always_api_models = {"seedance-1.5-pro", "nano-banana-2"}
+        always_api_models = {"seedance-1.5-pro", "seedance-2.0", "seedance-2.0-fast", "nano-banana-2"}
         if model in always_api_models:
             return "api"
         if self.config.force_api_generations:
@@ -343,12 +360,16 @@ class ServiceBundle:
     ltx_api_client: LTXAPIClient
     image_api_client: ImageAPIClient
     video_api_client: VideoAPIClient
+    fal_video_client: VideoAPIClient
+    fal_upload_client: UploadClient
+    palette_image_client: PaletteImageClient
     palette_sync_client: PaletteSyncClient
     fast_video_pipeline_class: type[FastVideoPipeline]
     gguf_video_pipeline_class: type[FastVideoPipeline] | None
     nf4_video_pipeline_class: type[FastVideoPipeline] | None
     image_generation_pipeline_class: type[ImageGenerationPipeline]
     flux_klein_pipeline_class: type[ImageGenerationPipeline] | None
+    flux_dev_pipeline_class: type[ImageGenerationPipeline] | None
     ic_lora_pipeline_class: type[IcLoraPipeline]
     a2v_pipeline_class: type[A2VPipeline]
     retake_pipeline_class: type[RetakePipeline]
@@ -363,6 +384,9 @@ def build_default_service_bundle(config: RuntimeConfig) -> ServiceBundle:
     from services.fast_video_pipeline.nf4_fast_video_pipeline import NF4FastVideoPipeline
     from services.image_api_client.replicate_client_impl import ReplicateImageClientImpl
     from services.video_api_client.replicate_video_client_impl import ReplicateVideoClientImpl
+    from services.fal_video_client.fal_video_client_impl import FalVideoClientImpl
+    from services.upload_client.fal_upload_client_impl import FalUploadClientImpl
+    from services.palette_image_client.palette_image_client_impl import PaletteImageClientImpl
     from services.gpu_cleaner.torch_cleaner import TorchCleaner
     from services.gpu_info.gpu_info_impl import GpuInfoImpl
     from services.http_client.http_client_impl import HTTPClientImpl
@@ -371,6 +395,7 @@ def build_default_service_bundle(config: RuntimeConfig) -> ServiceBundle:
     from services.ic_lora_pipeline.ltx_ic_lora_pipeline import LTXIcLoraPipeline
     from services.image_generation_pipeline.zit_image_generation_pipeline import ZitImageGenerationPipeline
     from services.image_generation_pipeline.flux_klein_pipeline import FluxKleinImagePipeline
+    from services.image_generation_pipeline.flux_dev_pipeline import FluxDevImagePipeline
     from services.ltx_api_client.ltx_api_client_impl import LTXAPIClientImpl
     from services.model_downloader.hugging_face_downloader import HuggingFaceDownloader
     from services.model_scanner.model_scanner_impl import ModelScannerImpl
@@ -397,12 +422,16 @@ def build_default_service_bundle(config: RuntimeConfig) -> ServiceBundle:
         ltx_api_client=LTXAPIClientImpl(http=http, ltx_api_base_url=config.ltx_api_base_url),
         image_api_client=ReplicateImageClientImpl(http=http),
         video_api_client=ReplicateVideoClientImpl(http=http),
+        fal_video_client=FalVideoClientImpl(http=http),
+        fal_upload_client=FalUploadClientImpl(http=http),
+        palette_image_client=PaletteImageClientImpl(http=http),
         palette_sync_client=PaletteSyncClientImpl(http=http),
         fast_video_pipeline_class=LTXFastVideoPipeline,
         gguf_video_pipeline_class=GGUFFastVideoPipeline,
         nf4_video_pipeline_class=NF4FastVideoPipeline,
         image_generation_pipeline_class=ZitImageGenerationPipeline,
         flux_klein_pipeline_class=FluxKleinImagePipeline,
+        flux_dev_pipeline_class=FluxDevImagePipeline,
         ic_lora_pipeline_class=LTXIcLoraPipeline,
         a2v_pipeline_class=LTXa2vPipeline,
         retake_pipeline_class=LTXRetakePipeline,
@@ -431,12 +460,16 @@ def build_initial_state(
         ltx_api_client=bundle.ltx_api_client,
         image_api_client=bundle.image_api_client,
         video_api_client=bundle.video_api_client,
+        fal_video_client=bundle.fal_video_client,
+        fal_upload_client=bundle.fal_upload_client,
+        palette_image_client=bundle.palette_image_client,
         palette_sync_client=bundle.palette_sync_client,
         fast_video_pipeline_class=bundle.fast_video_pipeline_class,
         gguf_video_pipeline_class=bundle.gguf_video_pipeline_class,
         nf4_video_pipeline_class=bundle.nf4_video_pipeline_class,
         image_generation_pipeline_class=bundle.image_generation_pipeline_class,
         flux_klein_pipeline_class=bundle.flux_klein_pipeline_class,
+        flux_dev_pipeline_class=bundle.flux_dev_pipeline_class,
         ic_lora_pipeline_class=bundle.ic_lora_pipeline_class,
         a2v_pipeline_class=bundle.a2v_pipeline_class,
         retake_pipeline_class=bundle.retake_pipeline_class,

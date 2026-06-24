@@ -15,6 +15,8 @@ _MODEL_ROUTES: dict[str, str] = {
     "nano-banana-2": "google/nano-banana-2",
 }
 
+_MAX_NANO_BANANA_REFERENCES = 14
+
 _NANO_BANANA_ASPECT_RATIOS = [
     (1, 1),
     (2, 3),
@@ -70,6 +72,7 @@ class ReplicateImageClientImpl:
         height: int,
         seed: int,
         num_inference_steps: int,
+        reference_image_urls: list[str] | None = None,
     ) -> bytes:
         replicate_model = _MODEL_ROUTES.get(model)
         if replicate_model is None:
@@ -82,6 +85,7 @@ class ReplicateImageClientImpl:
             height=height,
             seed=seed,
             num_inference_steps=num_inference_steps,
+            reference_image_urls=reference_image_urls,
         )
 
         prediction = self._create_prediction(
@@ -102,15 +106,21 @@ class ReplicateImageClientImpl:
         height: int,
         seed: int,
         num_inference_steps: int,
+        reference_image_urls: list[str] | None = None,
     ) -> dict[str, JSONValue]:
         if model == "nano-banana-2":
-            return {
+            payload: dict[str, JSONValue] = {
                 "prompt": prompt,
                 "aspect_ratio": _closest_aspect_ratio(width, height),
                 "resolution": _resolution_bucket(width, height),
                 "output_format": "png",
                 "seed": seed,
             }
+            if reference_image_urls:
+                payload["image_input"] = cast(
+                    "list[JSONValue]", list(reference_image_urls)[:_MAX_NANO_BANANA_REFERENCES]
+                )
+            return payload
         return {
             "prompt": prompt,
             "width": width,

@@ -5,7 +5,10 @@ const { contextBridge, ipcRenderer } = require('electron')
 contextBridge.exposeInMainWorld('electronAPI', {
   // Get the backend URL
   getBackendUrl: (): Promise<string> => ipcRenderer.invoke('get-backend-url'),
-  
+
+  // Get the per-session auth token the renderer must send to the backend
+  getBackendToken: (): Promise<string> => ipcRenderer.invoke('get-backend-token'),
+
   // Get the path where models are stored
   getModelsPath: (): Promise<string> => ipcRenderer.invoke('get-models-path'),
   
@@ -68,6 +71,23 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Check multiple files at once
   checkFilesExist: (filePaths: string[]): Promise<Record<string, boolean>> =>
     ipcRenderer.invoke('check-files-exist', filePaths),
+
+  // --- Story file bridge (AIOBR "living medium") ---
+  readTextFile: (filePath: string): Promise<{ success: boolean; content?: string; error?: string }> =>
+    ipcRenderer.invoke('read-text-file', filePath),
+  watchFile: (filePath: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('watch-file', filePath),
+  unwatchFile: (filePath: string): Promise<{ success: boolean; error?: string }> =>
+    ipcRenderer.invoke('unwatch-file', filePath),
+  onStoryFileChanged: (cb: (data: { path: string }) => void) => {
+    const listener = (_: unknown, data: { path: string }) => cb(data)
+    ipcRenderer.on('story-file-changed', listener)
+    return () => {
+      ipcRenderer.removeListener('story-file-changed', listener)
+    }
+  },
+  runStoryExport: (storyPath: string): Promise<{ success: boolean; stage?: string; xmlPath?: string; output?: string; error?: string }> =>
+    ipcRenderer.invoke('run-story-export', storyPath),
   
   // Show open file dialog
   showOpenFileDialog: (options: { title?: string; filters?: { name: string; extensions: string[] }[]; properties?: string[] }): Promise<string[] | null> =>
@@ -148,6 +168,7 @@ declare global {
   interface Window {
     electronAPI: {
       getBackendUrl: () => Promise<string>
+      getBackendToken: () => Promise<string>
       getModelsPath: () => Promise<string>
       readLocalFile: (filePath: string) => Promise<{ data: string; mimeType: string }>
       checkGpu: () => Promise<{ available: boolean; name?: string; vram?: number }>
@@ -173,6 +194,11 @@ declare global {
       searchDirectoryForFiles: (dir: string, filenames: string[]) => Promise<Record<string, string>>
       copyFile: (src: string, dest: string) => Promise<{ success: boolean; error?: string }>
       checkFilesExist: (filePaths: string[]) => Promise<Record<string, boolean>>
+      readTextFile: (filePath: string) => Promise<{ success: boolean; content?: string; error?: string }>
+      watchFile: (filePath: string) => Promise<{ success: boolean; error?: string }>
+      unwatchFile: (filePath: string) => Promise<{ success: boolean; error?: string }>
+      onStoryFileChanged: (cb: (data: { path: string }) => void) => (() => void)
+      runStoryExport: (storyPath: string) => Promise<{ success: boolean; stage?: string; xmlPath?: string; output?: string; error?: string }>
       showOpenFileDialog: (options: { title?: string; filters?: { name: string; extensions: string[] }[]; properties?: string[] }) => Promise<string[] | null>
       exportNative: (data: {
         clips: { url: string; type: string; startTime: number; duration: number; trimStart: number; speed: number; reversed: boolean; flipH: boolean; flipV: boolean; opacity: number; trackIndex: number; muted: boolean; volume: number }[];

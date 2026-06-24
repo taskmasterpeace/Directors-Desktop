@@ -202,20 +202,20 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
       <div
         className="w-[900px] max-h-[85vh] rounded-xl border flex flex-col overflow-hidden"
         style={{
-          background: 'oklch(0.18 0.02 290)',
-          borderColor: 'oklch(0.32 0.03 290)',
+          background: 'oklch(0.18 0.02 250)',
+          borderColor: 'oklch(0.32 0.03 250)',
         }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'oklch(0.32 0.03 290)' }}>
-          <h2 className="text-lg font-semibold" style={{ color: 'oklch(0.92 0.02 290)' }}>Batch Generation</h2>
+        <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'oklch(0.32 0.03 250)' }}>
+          <h2 className="text-lg font-semibold" style={{ color: 'oklch(0.92 0.02 250)' }}>Batch Generation</h2>
           <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
-            <X className="w-5 h-5" style={{ color: 'oklch(0.65 0.04 290)' }} />
+            <X className="w-5 h-5" style={{ color: 'oklch(0.65 0.04 250)' }} />
           </button>
         </div>
 
         {/* Tabs + Target */}
-        <div className="flex items-center justify-between px-6 py-3 border-b" style={{ borderColor: 'oklch(0.32 0.03 290)' }}>
+        <div className="flex items-center justify-between px-6 py-3 border-b" style={{ borderColor: 'oklch(0.32 0.03 250)' }}>
           <div className="flex gap-1">
             {tabs.map(tab => (
               <button
@@ -223,8 +223,8 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
                 onClick={() => setActiveTab(tab.id)}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors"
                 style={{
-                  background: activeTab === tab.id ? 'oklch(0.6 0.2 290 / 0.2)' : 'transparent',
-                  color: activeTab === tab.id ? 'oklch(0.75 0.15 290)' : 'oklch(0.65 0.04 290)',
+                  background: activeTab === tab.id ? 'oklch(0.6 0.2 250 / 0.2)' : 'transparent',
+                  color: activeTab === tab.id ? 'oklch(0.75 0.15 250)' : 'oklch(0.65 0.04 250)',
                 }}
               >
                 {tab.icon}
@@ -233,15 +233,15 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xs" style={{ color: 'oklch(0.65 0.04 290)' }}>Target:</span>
+            <span className="text-xs" style={{ color: 'oklch(0.65 0.04 250)' }}>Target:</span>
             <select
               value={target}
               onChange={e => setTarget(e.target.value as 'local' | 'cloud')}
               className="text-sm rounded-lg px-2 py-1 border"
               style={{
-                background: 'oklch(0.22 0.025 290)',
-                borderColor: 'oklch(0.32 0.03 290)',
-                color: 'oklch(0.92 0.02 290)',
+                background: 'oklch(0.22 0.025 250)',
+                borderColor: 'oklch(0.32 0.03 250)',
+                color: 'oklch(0.92 0.02 250)',
               }}
             >
               <option value="local">Local GPU</option>
@@ -275,7 +275,7 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
           {activeTab === 'list' && (
             <div className="space-y-3">
               {/* Table header */}
-              <div className="grid grid-cols-[80px_120px_1fr_180px_80px_60px] gap-2 text-xs font-medium" style={{ color: 'oklch(0.65 0.04 290)' }}>
+              <div className="grid grid-cols-[80px_120px_1fr_180px_80px_60px] gap-2 text-xs font-medium" style={{ color: 'oklch(0.65 0.04 250)' }}>
                 <span>Type</span>
                 <span>Model</span>
                 <span>Prompt</span>
@@ -289,7 +289,7 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
                     value={row.type}
                     onChange={e => updateRow(row.id, 'type', e.target.value)}
                     className="text-sm rounded-lg px-2 py-1.5 border"
-                    style={{ background: 'oklch(0.22 0.025 290)', borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.92 0.02 290)' }}
+                    style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}
                   >
                     <option value="image">Image</option>
                     <option value="video">Video</option>
@@ -298,21 +298,21 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
                     value={row.model}
                     onChange={e => updateRow(row.id, 'model', e.target.value)}
                     className="text-sm rounded-lg px-2 py-1.5 border"
-                    style={{ background: 'oklch(0.22 0.025 290)', borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.92 0.02 290)' }}
+                    style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}
                   />
                   <input
                     value={row.prompt}
                     onChange={e => updateRow(row.id, 'prompt', e.target.value)}
                     placeholder="Enter prompt..."
                     className="text-sm rounded-lg px-2 py-1.5 border"
-                    style={{ background: 'oklch(0.22 0.025 290)', borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.92 0.02 290)' }}
+                    style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}
                   />
                   <input
                     value={row.loraPath}
                     onChange={e => updateRow(row.id, 'loraPath', e.target.value)}
                     placeholder="Optional"
                     className="text-sm rounded-lg px-2 py-1.5 border"
-                    style={{ background: 'oklch(0.22 0.025 290)', borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.92 0.02 290)' }}
+                    style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}
                   />
                   <input
                     type="number"
@@ -322,14 +322,14 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
                     min={0}
                     max={2}
                     className="text-sm rounded-lg px-2 py-1.5 border"
-                    style={{ background: 'oklch(0.22 0.025 290)', borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.92 0.02 290)' }}
+                    style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}
                   />
                   <div className="flex gap-1">
                     <button onClick={() => duplicateRow(row.id)} className="p-1 rounded hover:bg-white/10" title="Duplicate">
-                      <Copy className="w-3.5 h-3.5" style={{ color: 'oklch(0.65 0.04 290)' }} />
+                      <Copy className="w-3.5 h-3.5" style={{ color: 'oklch(0.65 0.04 250)' }} />
                     </button>
                     <button onClick={() => removeRow(row.id)} className="p-1 rounded hover:bg-white/10" title="Remove">
-                      <Trash2 className="w-3.5 h-3.5" style={{ color: 'oklch(0.65 0.04 290)' }} />
+                      <Trash2 className="w-3.5 h-3.5" style={{ color: 'oklch(0.65 0.04 250)' }} />
                     </button>
                   </div>
                 </div>
@@ -337,7 +337,7 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
               <button
                 onClick={addRow}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors hover:bg-white/10"
-                style={{ color: 'oklch(0.75 0.15 290)' }}
+                style={{ color: 'oklch(0.75 0.15 250)' }}
               >
                 <Plus className="w-4 h-4" />
                 Add Row
@@ -351,7 +351,7 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
                   onChange={e => setPipelineEnabled(e.target.checked)}
                   className="rounded"
                 />
-                <span className="text-sm" style={{ color: 'oklch(0.75 0.04 290)' }}>
+                <span className="text-sm" style={{ color: 'oklch(0.75 0.04 250)' }}>
                   Also generate video from each image (i2v pipeline)
                 </span>
               </label>
@@ -364,13 +364,13 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm border transition-colors hover:bg-white/10"
-                  style={{ borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.75 0.15 290)' }}
+                  style={{ borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.75 0.15 250)' }}
                 >
                   <Upload className="w-4 h-4" />
                   Upload CSV/JSON
                 </button>
                 <input ref={fileInputRef} type="file" accept=".csv,.json" className="hidden" onChange={handleFileUpload} />
-                <span className="text-xs" style={{ color: 'oklch(0.65 0.04 290)' }}>
+                <span className="text-xs" style={{ color: 'oklch(0.65 0.04 250)' }}>
                   Or paste below
                 </span>
               </div>
@@ -380,7 +380,7 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
                 placeholder={'prompt,type,model,loraWeight\n"a cute cat",image,flux-klein-9b,0.8\n"a happy dog",image,flux-klein-9b,1.0'}
                 rows={8}
                 className="w-full text-sm rounded-lg px-3 py-2 border font-mono resize-none"
-                style={{ background: 'oklch(0.22 0.025 290)', borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.92 0.02 290)' }}
+                style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}
               />
               {importError && (
                 <div className="flex items-center gap-2 text-sm px-3 py-2 rounded-lg" style={{ background: 'oklch(0.25 0.08 25)', color: 'oklch(0.75 0.15 25)' }}>
@@ -389,7 +389,7 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
                 </div>
               )}
               {importedItems.length > 0 && (
-                <div className="text-sm" style={{ color: 'oklch(0.75 0.15 290)' }}>
+                <div className="text-sm" style={{ color: 'oklch(0.75 0.15 250)' }}>
                   Parsed {importedItems.length} job{importedItems.length !== 1 ? 's' : ''}
                 </div>
               )}
@@ -400,35 +400,35 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
             <div className="space-y-4">
               {/* Base settings */}
               <div className="space-y-2">
-                <label className="text-sm font-medium" style={{ color: 'oklch(0.75 0.04 290)' }}>Base Prompt</label>
+                <label className="text-sm font-medium" style={{ color: 'oklch(0.75 0.04 250)' }}>Base Prompt</label>
                 <input
                   value={gridBasePrompt}
                   onChange={e => setGridBasePrompt(e.target.value)}
                   placeholder="Enter base prompt..."
                   className="w-full text-sm rounded-lg px-3 py-2 border"
-                  style={{ background: 'oklch(0.22 0.025 290)', borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.92 0.02 290)' }}
+                  style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium" style={{ color: 'oklch(0.75 0.04 290)' }}>Model</label>
+                <label className="text-sm font-medium" style={{ color: 'oklch(0.75 0.04 250)' }}>Model</label>
                 <input
                   value={gridBaseModel}
                   onChange={e => setGridBaseModel(e.target.value)}
                   className="w-48 text-sm rounded-lg px-3 py-2 border"
-                  style={{ background: 'oklch(0.22 0.025 290)', borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.92 0.02 290)' }}
+                  style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}
                 />
               </div>
 
               {/* Axes */}
               <div className="space-y-3">
-                <label className="text-sm font-medium" style={{ color: 'oklch(0.75 0.04 290)' }}>Sweep Axes</label>
+                <label className="text-sm font-medium" style={{ color: 'oklch(0.75 0.04 250)' }}>Sweep Axes</label>
                 {gridAxes.map(axis => (
                   <div key={axis.id} className="flex items-center gap-2">
                     <select
                       value={axis.param}
                       onChange={e => updateAxis(axis.id, 'param', e.target.value)}
                       className="text-sm rounded-lg px-2 py-1.5 border w-40"
-                      style={{ background: 'oklch(0.22 0.025 290)', borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.92 0.02 290)' }}
+                      style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}
                     >
                       {PARAM_OPTIONS.map(opt => (
                         <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -439,10 +439,10 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
                       onChange={e => updateAxis(axis.id, 'valuesInput', e.target.value)}
                       placeholder="0.3-1.0:8 or 4, 8, 12"
                       className="flex-1 text-sm rounded-lg px-2 py-1.5 border"
-                      style={{ background: 'oklch(0.22 0.025 290)', borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.92 0.02 290)' }}
+                      style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}
                     />
                     <button onClick={() => removeAxis(axis.id)} className="p-1 rounded hover:bg-white/10">
-                      <Trash2 className="w-3.5 h-3.5" style={{ color: 'oklch(0.65 0.04 290)' }} />
+                      <Trash2 className="w-3.5 h-3.5" style={{ color: 'oklch(0.65 0.04 250)' }} />
                     </button>
                   </div>
                 ))}
@@ -450,7 +450,7 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
                   <button
                     onClick={addAxis}
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors hover:bg-white/10"
-                    style={{ color: 'oklch(0.75 0.15 290)' }}
+                    style={{ color: 'oklch(0.75 0.15 250)' }}
                   >
                     <Plus className="w-4 h-4" />
                     Add Axis
@@ -461,7 +461,7 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
               {/* Preview */}
               <div
                 className="px-3 py-2 rounded-lg text-sm"
-                style={{ background: 'oklch(0.22 0.025 290)', color: 'oklch(0.75 0.15 290)' }}
+                style={{ background: 'oklch(0.22 0.025 250)', color: 'oklch(0.75 0.15 250)' }}
               >
                 {gridAxes.map(a => `${a.param}: ${parseRange(a.valuesInput).length} values`).join(' x ')} = <strong>{getGridTotalJobs()} jobs</strong>
               </div>
@@ -471,8 +471,8 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
 
         {/* Footer */}
         {(activeTab === 'list' || activeTab === 'import' || activeTab === 'grid') && (
-          <div className="flex items-center justify-between px-6 py-4 border-t" style={{ borderColor: 'oklch(0.32 0.03 290)' }}>
-            <div className="text-sm" style={{ color: 'oklch(0.65 0.04 290)' }}>
+          <div className="flex items-center justify-between px-6 py-4 border-t" style={{ borderColor: 'oklch(0.32 0.03 250)' }}>
+            <div className="text-sm" style={{ color: 'oklch(0.65 0.04 250)' }}>
               {activeTab === 'list' && `${rows.filter(r => r.prompt.trim()).length} job${rows.filter(r => r.prompt.trim()).length !== 1 ? 's' : ''}${pipelineEnabled ? ' (x2 with pipeline)' : ''}`}
               {activeTab === 'import' && `${importedItems.length} job${importedItems.length !== 1 ? 's' : ''}`}
               {activeTab === 'grid' && `${getGridTotalJobs()} jobs`}
@@ -481,14 +481,14 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
               <button
                 onClick={onClose}
                 className="px-4 py-2 rounded-lg text-sm transition-colors hover:bg-white/10"
-                style={{ color: 'oklch(0.65 0.04 290)' }}
+                style={{ color: 'oklch(0.65 0.04 250)' }}
               >
                 Cancel
               </button>
               <button
                 onClick={handleSubmit}
                 className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-                style={{ background: 'oklch(0.6 0.2 290)', color: 'oklch(0.98 0.01 290)' }}
+                style={{ background: 'oklch(0.6 0.2 250)', color: 'oklch(0.98 0.01 250)' }}
               >
                 <Play className="w-4 h-4" />
                 Generate Batch

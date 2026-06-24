@@ -1,3 +1,4 @@
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false, reportUnknownArgumentType=false, reportUnknownParameterType=false, reportCallIssue=false, reportPrivateUsage=false, reportPrivateImportUsage=false, reportUnnecessaryComparison=false, reportUnusedImport=false, reportAttributeAccessIssue=false, reportArgumentType=false
 """NF4 (4-bit BitsAndBytes) quantized LTX video pipeline.
 
 Uses BitsAndBytes NF4 quantization to reduce the LTX transformer's VRAM

@@ -311,7 +311,7 @@ export function useGeneration(): UseGenerationReturn {
     audioPath?: string | null,
     lastFramePath?: string | null,
   ) => {
-    // Seedance requires Replicate API key
+    // Seedance 1.5 Pro requires a Replicate API key
     if (settings.model === 'seedance-1.5-pro' && !appSettings.hasReplicateApiKey) {
       window.dispatchEvent(new CustomEvent('open-api-gateway', {
         detail: {
@@ -324,9 +324,25 @@ export function useGeneration(): UseGenerationReturn {
       return
     }
 
+    // Seedance 2.0 runs on fal and requires a fal API key
+    const isSeedance2 = settings.model === 'seedance-2.0' || settings.model === 'seedance-2.0-fast'
+    if (isSeedance2 && !appSettings.hasFalApiKey) {
+      window.dispatchEvent(new CustomEvent('open-api-gateway', {
+        detail: {
+          requiredKeys: ['fal'],
+          title: 'Connect fal',
+          description: 'A fal API key is required to use Seedance 2.0.',
+          blocking: false,
+        },
+      }))
+      return
+    }
+
+    const isSeedance = settings.model === 'seedance-1.5-pro' || isSeedance2
+
     const statusMsg = settings.model === 'pro'
       ? 'Loading Pro model & generating...'
-      : settings.model === 'seedance-1.5-pro'
+      : isSeedance
         ? 'Generating video with Seedance...'
         : 'Generating video...'
 
@@ -348,8 +364,9 @@ export function useGeneration(): UseGenerationReturn {
     try {
       const backendUrl = await window.electronAPI.getBackendUrl()
 
-      // Use long_video pipeline for durations > 8s with a source image
-      const useLongVideo = settings.duration > 8 && imagePath && !audioPath && !lastFramePath
+      // Use the local long_video pipeline for durations > 8s with a source image.
+      // Cloud Seedance models handle long durations themselves, so never route them here.
+      const useLongVideo = !isSeedance && settings.duration > 8 && imagePath && !audioPath && !lastFramePath
 
       const params: Record<string, unknown> = useLongVideo
         ? {
@@ -374,6 +391,8 @@ export function useGeneration(): UseGenerationReturn {
             ...(imagePath ? { imagePath } : {}),
             ...(audioPath ? { audioPath } : {}),
             ...(lastFramePath ? { lastFramePath } : {}),
+            ...(settings.referenceImagePaths?.length ? { referenceImagePaths: settings.referenceImagePaths } : {}),
+            ...(isSeedance2 && settings.audioReferencePaths?.length ? { audioReferencePaths: settings.audioReferencePaths } : {}),
             ...(settings.loraPath ? { loraPath: settings.loraPath, loraWeight: settings.loraWeight ?? 1.0 } : {}),
           }
 
@@ -402,7 +421,7 @@ export function useGeneration(): UseGenerationReturn {
         error: error instanceof Error ? error.message : 'Unknown error',
       }))
     }
-  }, [appSettings.hasReplicateApiKey, startPolling])
+  }, [appSettings.hasReplicateApiKey, appSettings.hasFalApiKey, startPolling])
 
   const cancel = useCallback(async () => {
     const jobId = activeJobIdRef.current

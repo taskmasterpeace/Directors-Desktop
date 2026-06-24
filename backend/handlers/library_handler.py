@@ -2,8 +2,25 @@
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 from _routes._errors import HTTPError
-from state.library_store import Character, LibraryStore, Reference, ReferenceCategory, Style
+from state.library_store import (
+    AudioReference,
+    AudioSource,
+    Character,
+    LibraryStore,
+    Reference,
+    ReferenceCategory,
+    Style,
+)
+
+
+def _safe_filename(filename: str) -> str:
+    """Strip directory components and unsafe characters from an uploaded filename."""
+    base = Path(filename).name
+    return re.sub(r"[^A-Za-z0-9._-]", "_", base).strip("._")
 
 
 class LibraryHandler:
@@ -18,6 +35,28 @@ class LibraryHandler:
 
     def list_characters(self) -> list[Character]:
         return self._store.list_characters()
+
+    def resolve_reference_paths(
+        self,
+        *,
+        character_id: str | None = None,
+        reference_id: str | None = None,
+    ) -> list[str]:
+        """Resolve a character (ALL its images) or a reference to local image paths.
+
+        Used to attach a Director's Palette character/reference as reference images
+        (Seedance 2.0 omni-reference / image-gen likeness) — never as a start frame.
+        """
+        paths: list[str] = []
+        if character_id:
+            character = self._store.get_character(character_id)
+            if character:
+                paths.extend(p for p in character.reference_image_paths if p)
+        if reference_id:
+            reference = self._store.get_reference(reference_id)
+            if reference and reference.image_path:
+                paths.append(reference.image_path)
+        return paths
 
     def create_character(
         self,
@@ -116,3 +155,51 @@ class LibraryHandler:
         deleted = self._store.delete_reference(reference_id)
         if not deleted:
             raise HTTPError(404, f"Reference {reference_id} not found")
+
+    # ------------------------------------------------------------------
+    # Audio references
+    # ------------------------------------------------------------------
+
+    def list_audio(self) -> list[AudioReference]:
+        return self._store.list_audio()
+
+    def create_audio(
+        self,
+        *,
+        name: str,
+        file_path: str,
+        source: AudioSource = "upload",
+        duration_seconds: float = 0.0,
+    ) -> AudioReference:
+        if not name.strip():
+            raise HTTPError(400, "Audio reference name must not be empty")
+        if not file_path.strip():
+            raise HTTPError(400, "Audio reference file_path must not be empty")
+        return self._store.create_audio(
+            name=name,
+            file_path=file_path,
+            source=source,
+            duration_seconds=duration_seconds,
+        )
+
+    def upload_audio(self, *, filename: str, data: bytes, duration_seconds: float = 0.0) -> AudioReference:
+        """Save uploaded audio bytes under the library and register it as a reference."""
+        if not data:
+            raise HTTPError(400, "Audio upload is empty")
+        safe = _safe_filename(filename)
+        if not safe:
+            raise HTTPError(400, "Invalid audio filename")
+        dest = self._store.audio_storage_dir() / safe
+        dest.write_bytes(data)
+        name = Path(filename).stem or safe
+        return self._store.create_audio(
+            name=name,
+            file_path=str(dest),
+            source="upload",
+            duration_seconds=duration_seconds,
+        )
+
+    def delete_audio(self, audio_id: str) -> None:
+        deleted = self._store.delete_audio(audio_id)
+        if not deleted:
+            raise HTTPError(404, f"Audio reference {audio_id} not found")

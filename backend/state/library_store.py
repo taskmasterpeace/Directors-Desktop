@@ -43,6 +43,19 @@ class Reference:
     created_at: str = ""
 
 
+AudioSource = Literal["upload", "timeline", "library"]
+
+
+@dataclass
+class AudioReference:
+    id: str
+    name: str
+    file_path: str = ""
+    source: AudioSource = "upload"
+    duration_seconds: float = 0.0
+    created_at: str = ""
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -76,10 +89,12 @@ class LibraryStore:
         self._characters_file = self._dir / "characters.json"
         self._styles_file = self._dir / "styles.json"
         self._references_file = self._dir / "references.json"
+        self._audio_file = self._dir / "audio.json"
 
         self._characters: list[Character] = _load_json_list(self._characters_file, Character)
         self._styles: list[Style] = _load_json_list(self._styles_file, Style)
         self._references: list[Reference] = _load_json_list(self._references_file, Reference)
+        self._audio: list[AudioReference] = _load_json_list(self._audio_file, AudioReference)
 
     # ------------------------------------------------------------------
     # Characters
@@ -226,6 +241,54 @@ class LibraryStore:
         return False
 
     # ------------------------------------------------------------------
+    # Audio references (Seedance 2.0 audio refs / lip-sync; sources: upload,
+    # timeline clip, or voiceover/music library)
+    # ------------------------------------------------------------------
+
+    def audio_storage_dir(self) -> Path:
+        """Directory where uploaded audio files are saved (created on demand)."""
+        directory = self._dir / "audio"
+        directory.mkdir(parents=True, exist_ok=True)
+        return directory
+
+    def list_audio(self) -> list[AudioReference]:
+        return list(self._audio)
+
+    def get_audio(self, audio_id: str) -> AudioReference | None:
+        for a in self._audio:
+            if a.id == audio_id:
+                return a
+        return None
+
+    def create_audio(
+        self,
+        *,
+        name: str,
+        file_path: str,
+        source: AudioSource = "upload",
+        duration_seconds: float = 0.0,
+    ) -> AudioReference:
+        audio = AudioReference(
+            id=_new_id(),
+            name=name,
+            file_path=file_path,
+            source=source,
+            duration_seconds=duration_seconds,
+            created_at=_now_iso(),
+        )
+        self._audio.append(audio)
+        self._save_audio()
+        return audio
+
+    def delete_audio(self, audio_id: str) -> bool:
+        before = len(self._audio)
+        self._audio = [a for a in self._audio if a.id != audio_id]
+        if len(self._audio) < before:
+            self._save_audio()
+            return True
+        return False
+
+    # ------------------------------------------------------------------
     # Persistence helpers
     # ------------------------------------------------------------------
 
@@ -237,3 +300,6 @@ class LibraryStore:
 
     def _save_references(self) -> None:
         _write_json(self._references_file, [asdict(r) for r in self._references])
+
+    def _save_audio(self) -> None:
+        _write_json(self._audio_file, [asdict(a) for a in self._audio])

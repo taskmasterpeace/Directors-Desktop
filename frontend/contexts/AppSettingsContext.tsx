@@ -30,10 +30,12 @@ export interface AppSettings {
   hasLtxApiKey: boolean
   userPrefersLtxApiVideoGenerations: boolean
   hasReplicateApiKey: boolean
+  hasFalApiKey: boolean
   hasPaletteApiKey: boolean
   imageModel: string
   videoModel: string
   hasGeminiApiKey: boolean
+  hasOpenrouterApiKey: boolean
   useLocalTextEncoder: boolean
   fastModel: FastModelSettings
   proModel: InferenceSettings
@@ -53,10 +55,12 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   hasLtxApiKey: false,
   userPrefersLtxApiVideoGenerations: false,
   hasReplicateApiKey: false,
+  hasFalApiKey: false,
   hasPaletteApiKey: false,
   imageModel: 'flux-klein-9b',
   videoModel: 'ltx-fast',
   hasGeminiApiKey: false,
+  hasOpenrouterApiKey: false,
   useLocalTextEncoder: false,
   fastModel: { useUpscaler: true },
   proModel: { steps: 20, useUpscaler: true },
@@ -80,7 +84,9 @@ interface AppSettingsContextValue {
   refreshSettings: () => Promise<void>
   saveLtxApiKey: (value: string) => Promise<void>
   saveReplicateApiKey: (value: string) => Promise<void>
+  saveFalApiKey: (value: string) => Promise<void>
   saveGeminiApiKey: (value: string) => Promise<void>
+  saveOpenrouterApiKey: (value: string) => Promise<void>
   savePaletteApiKey: (value: string) => Promise<void>
   saveCivitaiApiKey: (value: string) => Promise<void>
   forceApiGenerations: boolean
@@ -110,10 +116,12 @@ function normalizeAppSettings(data: Partial<AppSettings>): AppSettings {
     hasLtxApiKey: data.hasLtxApiKey ?? DEFAULT_APP_SETTINGS.hasLtxApiKey,
     userPrefersLtxApiVideoGenerations: data.userPrefersLtxApiVideoGenerations ?? DEFAULT_APP_SETTINGS.userPrefersLtxApiVideoGenerations,
     hasReplicateApiKey: data.hasReplicateApiKey ?? DEFAULT_APP_SETTINGS.hasReplicateApiKey,
+    hasFalApiKey: data.hasFalApiKey ?? DEFAULT_APP_SETTINGS.hasFalApiKey,
     hasPaletteApiKey: data.hasPaletteApiKey ?? DEFAULT_APP_SETTINGS.hasPaletteApiKey,
     imageModel: data.imageModel ?? DEFAULT_APP_SETTINGS.imageModel,
     videoModel: data.videoModel ?? DEFAULT_APP_SETTINGS.videoModel,
     hasGeminiApiKey: data.hasGeminiApiKey ?? DEFAULT_APP_SETTINGS.hasGeminiApiKey,
+    hasOpenrouterApiKey: data.hasOpenrouterApiKey ?? DEFAULT_APP_SETTINGS.hasOpenrouterApiKey,
     useLocalTextEncoder: data.useLocalTextEncoder ?? DEFAULT_APP_SETTINGS.useLocalTextEncoder,
     fastModel: data.fastModel ?? DEFAULT_APP_SETTINGS.fastModel,
     proModel: data.proModel ?? DEFAULT_APP_SETTINGS.proModel,
@@ -138,9 +146,13 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
   const [credits, setCredits] = useState<CreditInfo>({ balance_cents: null, pricing: null })
   const creditsPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // Re-resolve the backend URL whenever the backend process status changes. At mount the
+  // backend hasn't reported its free port yet, so getBackendUrl() returns the stale fallback
+  // (localhost:8000); once the backend is 'alive' the real port is known. Without this, settings
+  // and runtime-policy fetched a dead port forever → the app hung on "Loading settings".
   useEffect(() => {
     window.electronAPI.getBackendUrl().then(setBackendUrl).catch(() => setBackendUrl(null))
-  }, [])
+  }, [backendProcessStatus])
 
   useEffect(() => {
     if (!backendUrl || backendProcessStatus !== 'alive') return
@@ -251,7 +263,7 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
     if (!backendUrl || !isLoaded || backendProcessStatus !== 'alive') return
     const syncTimer = setTimeout(async () => {
       try {
-        const { hasLtxApiKey: _a, hasReplicateApiKey: _b, hasGeminiApiKey: _c, hasPaletteApiKey: _d, ...syncPayload } = settings
+        const { hasLtxApiKey: _a, hasReplicateApiKey: _b, hasGeminiApiKey: _c, hasPaletteApiKey: _d, hasFalApiKey: _e, hasOpenrouterApiKey: _f, ...syncPayload } = settings
         await fetch(`${backendUrl}/api/settings`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -300,6 +312,20 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
     await refreshSettings()
   }, [backendUrl, refreshSettings])
 
+  const saveOpenrouterApiKey = useCallback(async (value: string) => {
+    if (!backendUrl) return
+    const response = await fetch(`${backendUrl}/api/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ openrouterApiKey: value }),
+    })
+    if (!response.ok) {
+      const detail = await response.text()
+      throw new Error(detail || 'Failed to save OpenRouter API key.')
+    }
+    await refreshSettings()
+  }, [backendUrl, refreshSettings])
+
   const saveCivitaiApiKey = useCallback(async (value: string) => {
     if (!backendUrl) return
     const response = await fetch(`${backendUrl}/api/settings`, {
@@ -324,6 +350,20 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
     if (!response.ok) {
       const detail = await response.text()
       throw new Error(detail || 'Failed to save Replicate API key.')
+    }
+    await refreshSettings()
+  }, [backendUrl, refreshSettings])
+
+  const saveFalApiKey = useCallback(async (value: string) => {
+    if (!backendUrl) return
+    const response = await fetch(`${backendUrl}/api/settings`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ falApiKey: value }),
+    })
+    if (!response.ok) {
+      const detail = await response.text()
+      throw new Error(detail || 'Failed to save fal API key.')
     }
     await refreshSettings()
   }, [backendUrl, refreshSettings])
@@ -392,7 +432,9 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
       refreshSettings,
       saveLtxApiKey,
       saveReplicateApiKey,
+      saveFalApiKey,
       saveGeminiApiKey,
+      saveOpenrouterApiKey,
       savePaletteApiKey,
       saveCivitaiApiKey,
       forceApiGenerations,
@@ -400,7 +442,7 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
       credits,
       refreshCredits,
     }),
-    [credits, forceApiGenerations, isLoaded, refreshCredits, refreshSettings, runtimePolicyLoaded, saveCivitaiApiKey, savePaletteApiKey, saveReplicateApiKey, saveGeminiApiKey, saveLtxApiKey, settings, shouldVideoGenerateWithLtxApi, updateSettings],
+    [credits, forceApiGenerations, isLoaded, refreshCredits, refreshSettings, runtimePolicyLoaded, saveCivitaiApiKey, savePaletteApiKey, saveReplicateApiKey, saveFalApiKey, saveGeminiApiKey, saveOpenrouterApiKey, saveLtxApiKey, settings, shouldVideoGenerateWithLtxApi, updateSettings],
   )
 
   return <AppSettingsContext.Provider value={contextValue}>{children}</AppSettingsContext.Provider>

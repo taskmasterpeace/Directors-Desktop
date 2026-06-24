@@ -65,6 +65,7 @@ class AppSettings(SettingsBaseModel):
     ltx_api_key: str = ""
     user_prefers_ltx_api_video_generations: bool = False
     replicate_api_key: str = ""
+    fal_api_key: str = ""
     palette_api_key: str = ""
     palette_refresh_token: str = ""
     image_model: str = "flux-klein-9b"
@@ -160,6 +161,7 @@ class SettingsResponse(SettingsBaseModel):
     has_ltx_api_key: bool = False
     user_prefers_ltx_api_video_generations: bool = False
     has_replicate_api_key: bool = False
+    has_fal_api_key: bool = False
     has_palette_api_key: bool = False
     image_model: str = "flux-klein-9b"
     video_model: str = "ltx-fast"
@@ -189,12 +191,14 @@ def to_settings_response(settings: AppSettings) -> SettingsResponse:
     data = settings.model_dump(by_alias=False)
     ltx_key = data.pop("ltx_api_key", "")
     replicate_key = data.pop("replicate_api_key", "")
+    fal_key = data.pop("fal_api_key", "")
     palette_key = data.pop("palette_api_key", "")
     data.pop("palette_refresh_token", "")
     gemini_key = data.pop("gemini_api_key", "")
     openrouter_key = data.pop("openrouter_api_key", "")
     data["has_ltx_api_key"] = bool(ltx_key)
     data["has_replicate_api_key"] = bool(replicate_key)
+    data["has_fal_api_key"] = bool(fal_key)
     data["has_palette_api_key"] = bool(palette_key)
     data["has_gemini_api_key"] = bool(gemini_key)
     data["has_openrouter_api_key"] = bool(openrouter_key)

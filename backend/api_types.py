@@ -263,6 +263,52 @@ class QueueSubmitResponse(BaseModel):
     status: str
 
 
+class GenerationRecord(BaseModel):
+    """Agent-native view of a generation: the prompt + inputs + results an agent can read."""
+    id: str
+    type: str
+    model: str
+    prompt: str
+    status: str
+    result_paths: list[str]
+    reference_image_paths: list[str] = Field(default_factory=list)
+    audio_reference_paths: list[str] = Field(default_factory=list)
+    created_at: str
+
+
+class GenerationsResponse(BaseModel):
+    generations: list[GenerationRecord]
+
+
+class TranscriptWordModel(BaseModel):
+    text: str
+    start: float
+    end: float
+
+
+class TranscribeRequest(BaseModel):
+    audioPath: str
+
+
+class TranscribeResponse(BaseModel):
+    words: list[TranscriptWordModel]
+    language: str | None = None
+
+
+class TranscriptToPromptRequest(BaseModel):
+    text: str
+    targetModel: str = "ltx-fast"
+    storyAware: bool = False
+    fullStory: str | None = None
+    mediaType: Literal["image", "video"] = "image"
+    mode: Literal["story", "music", "plain"] | None = None
+    lyrics: str | None = None
+
+
+class TranscriptToPromptResponse(BaseModel):
+    prompt: str
+
+
 # ============================================================
 # Gallery Models
 # ============================================================
@@ -309,6 +355,9 @@ class GenerateVideoRequest(BaseModel):
     aspectRatio: Literal["16:9", "9:16"] = "16:9"
     loraPath: str | None = None
     loraWeight: float = 1.0
+    # Omni-reference (Seedance 2.0): local image/audio paths attached as references, NOT start frames.
+    referenceImagePaths: list[str] = Field(default_factory=list)
+    audioReferencePaths: list[str] = Field(default_factory=list)
 
 
 class GenerateLongVideoRequest(BaseModel):
@@ -341,6 +390,8 @@ class GenerateImageRequest(BaseModel):
     loraWeight: float = 1.0
     sourceImagePath: str | None = None
     strength: float = 0.65
+    # Reference images for character/likeness (nano-banana image_input / flux-2 input_images).
+    referenceImagePaths: list[str] = Field(default_factory=list)
 
 
 class QueueSubmitRequest(BaseModel):
@@ -615,6 +666,29 @@ class ReferenceResponse(BaseModel):
 
 class ReferenceListResponse(BaseModel):
     references: list[ReferenceResponse]
+
+
+LibraryAudioSource = Literal["upload", "timeline", "library"]
+
+
+class AudioReferenceCreate(BaseModel):
+    name: str
+    file_path: str
+    source: LibraryAudioSource = "upload"
+    duration_seconds: float = 0.0
+
+
+class AudioReferenceResponse(BaseModel):
+    id: str
+    name: str
+    file_path: str
+    source: LibraryAudioSource
+    duration_seconds: float
+    created_at: str
+
+
+class AudioReferenceListResponse(BaseModel):
+    audio: list[AudioReferenceResponse]
 
 
 # ============================================================

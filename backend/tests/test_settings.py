@@ -62,6 +62,21 @@ class TestPostSettings:
         assert test_state.state.app_settings.use_torch_compile is True
         assert test_state.state.app_settings.load_on_startup is True
 
+    def test_save_openrouter_api_key_persists_and_masks(self, client, test_state):
+        r = client.post("/api/settings", json={"openrouterApiKey": "or-secret-key"})
+        assert r.status_code == 200
+        assert test_state.state.app_settings.openrouter_api_key == "or-secret-key"
+        data = client.get("/api/settings").json()
+        assert data["hasOpenrouterApiKey"] is True
+        assert "openrouterApiKey" not in data  # the raw key is never returned
+
+    def test_empty_openrouter_key_does_not_clobber_saved_one(self, client, test_state):
+        test_state.state.app_settings.openrouter_api_key = "keep-me"
+        # an empty value (e.g. from a masked settings sync) must not wipe the saved key
+        r = client.post("/api/settings", json={"openrouterApiKey": ""})
+        assert r.status_code == 200
+        assert test_state.state.app_settings.openrouter_api_key == "keep-me"
+
     def test_update_fast_model(self, client, test_state):
         r = client.post("/api/settings", json={"fastModel": {"useUpscaler": False}})
         assert r.status_code == 200
@@ -153,6 +168,21 @@ class TestVideoModel:
         assert get_resp.json()["videoModel"] == "seedance-1.5-pro"
 
 
+class TestFalApiKey:
+    def test_fal_api_key_roundtrips_and_is_masked(self, client, test_state):
+        resp = client.post("/api/settings", json={"falApiKey": "fal-secret-key"})
+        assert resp.status_code == 200
+        assert test_state.state.app_settings.fal_api_key == "fal-secret-key"
+
+        data = client.get("/api/settings").json()
+        assert data["hasFalApiKey"] is True
+        assert "falApiKey" not in data
+
+    def test_fal_api_key_absent_by_default(self, client):
+        data = client.get("/api/settings").json()
+        assert data["hasFalApiKey"] is False
+
+
 class TestSettingsPersistence:
     def _new_state(self, test_state, default_app_settings):
         fake_services = FakeServices()
@@ -167,6 +197,9 @@ class TestSettingsPersistence:
             ltx_api_client=fake_services.ltx_api_client,
             image_api_client=fake_services.image_api_client,
             video_api_client=fake_services.video_api_client,
+            fal_video_client=fake_services.fal_video_client,
+            fal_upload_client=fake_services.fal_upload_client,
+            palette_image_client=fake_services.palette_image_client,
             palette_sync_client=fake_services.palette_sync_client,
             fast_video_pipeline_class=type(fake_services.fast_video_pipeline),
             gguf_video_pipeline_class=None,

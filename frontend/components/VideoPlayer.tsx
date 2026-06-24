@@ -26,6 +26,8 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   'ltx-fast': 'LTX Fast',
   'ltx-pro': 'LTX Pro',
   'seedance-1.5-pro': 'Seedance 1.5 Pro',
+  'seedance-2.0': 'Seedance 2.0',
+  'seedance-2.0-fast': 'Seedance 2.0 Fast',
 }
 
 export function VideoPlayer({ videoUrl, videoPath, videoResolution, isGenerating, progress, statusMessage, elapsedSeconds, estimatedSeconds, modelName, onExtendVideo }: VideoPlayerProps) {

@@ -16,14 +16,35 @@ from api_types import GenerateImageRequest, GenerateImageResponse
 from handlers.base import StateHandlerBase
 from handlers.generation_handler import GenerationHandler
 from handlers.pipelines_handler import PipelinesHandler
+from server_utils.media_validation import validate_image_file
 from server_utils.output_naming import make_output_path
-from services.interfaces import ImageAPIClient
+from services.interfaces import ImageAPIClient, PaletteImageClient
 from state.app_state_types import AppState
 
 if TYPE_CHECKING:
     from runtime_config.runtime_config import RuntimeConfig
 
 logger = logging.getLogger(__name__)
+
+
+_DP_ASPECT_RATIOS: dict[str, float] = {
+    "1:1": 1.0,
+    "16:9": 16 / 9,
+    "9:16": 9 / 16,
+    "4:3": 4 / 3,
+    "3:4": 3 / 4,
+    "21:9": 21 / 9,
+    "3:2": 3 / 2,
+    "2:3": 2 / 3,
+}
+
+
+def _aspect_ratio_for(width: int, height: int) -> str:
+    """Snap pixel dimensions to the nearest aspect-ratio string Director's Palette accepts."""
+    if width <= 0 or height <= 0:
+        return "1:1"
+    ratio = width / height
+    return min(_DP_ASPECT_RATIOS, key=lambda key: abs(_DP_ASPECT_RATIOS[key] - ratio))
 
 
 class ImageGenerationHandler(StateHandlerBase):
@@ -36,6 +57,7 @@ class ImageGenerationHandler(StateHandlerBase):
         outputs_dir: Path,
         config: RuntimeConfig,
         image_api_client: ImageAPIClient,
+        palette_image_client: PaletteImageClient,
     ) -> None:
         super().__init__(state, lock)
         self._generation = generation_handler
@@ -43,6 +65,7 @@ class ImageGenerationHandler(StateHandlerBase):
         self._outputs_dir = outputs_dir
         self._config = config
         self._image_api_client = image_api_client
+        self._palette_image_client = palette_image_client
 
     def generate(self, req: GenerateImageRequest) -> GenerateImageResponse:
         if self._generation.is_generation_running():
@@ -60,7 +83,9 @@ class ImageGenerationHandler(StateHandlerBase):
         else:
             seed = int(time.time()) % 2147483647
 
-        if self._config.force_api_generations:
+        # Director's Palette models are cloud-only — always take the API path, even if local
+        # generation is otherwise enabled.
+        if self._config.force_api_generations or settings.image_model.startswith("dp-"):
             return self._generate_via_api(
                 prompt=req.prompt,
                 width=width,
@@ -68,6 +93,7 @@ class ImageGenerationHandler(StateHandlerBase):
                 num_inference_steps=req.numSteps,
                 seed=seed,
                 num_images=num_images,
+                reference_image_paths=req.referenceImagePaths,
             )
 
         try:
@@ -142,13 +168,15 @@ class ImageGenerationHandler(StateHandlerBase):
 
         is_flux = "flux" in image_model
         is_edit = source_image is not None
-        if is_flux:
+        if image_model in ("flux-dev", "flux_dev"):
+            model_label = "flux-dev-edit" if is_edit else "flux-dev"
+            guidance = 3.5
+        elif is_flux:
             model_label = "flux-klein-edit" if is_edit else "flux-klein"
+            guidance = 4.0
         else:
             model_label = "zit-edit" if is_edit else "zit"
-
-        # FLUX Klein uses guidance_scale=4.0; ZIT uses 0.0
-        guidance = 4.0 if is_flux else 0.0
+            guidance = 0.0
         outputs: list[str] = []
 
         for i in range(num_images):
@@ -189,6 +217,23 @@ class ImageGenerationHandler(StateHandlerBase):
         self._generation.update_progress("complete", 100, num_images, num_images)
         return outputs
 
+    @staticmethod
+    def _encode_reference_images(paths: list[str]) -> list[str]:
+        """Encode local reference images as base64 data URIs for the cloud image model."""
+        import base64
+
+        uris: list[str] = []
+        for path in paths:
+            try:
+                validated = validate_image_file(path)
+            except Exception:
+                continue
+            raw = validated.read_bytes()
+            b64 = base64.b64encode(raw).decode("ascii")
+            mime = "image/png" if validated.suffix.lower() == ".png" else "image/jpeg"
+            uris.append(f"data:{mime};base64,{b64}")
+        return uris
+
     def _generate_via_api(
         self,
         *,
@@ -198,17 +243,28 @@ class ImageGenerationHandler(StateHandlerBase):
         num_inference_steps: int,
         seed: int,
         num_images: int,
+        reference_image_paths: list[str] | None = None,
     ) -> GenerateImageResponse:
         generation_id = uuid.uuid4().hex[:8]
         output_paths: list[Path] = []
         settings = self.state.app_settings.model_copy(deep=True)
 
+        # Director's Palette image models (selected as "dp-<model>") run on the user's DP
+        # account/credits via the dp_ API key — no Replicate key needed.
+        use_palette = settings.image_model.startswith("dp-")
+
         try:
             self._generation.start_api_generation(generation_id)
             self._generation.update_progress("validating_request", 5, None, None)
 
-            if not settings.replicate_api_key.strip():
+            if use_palette:
+                if not settings.palette_api_key.strip():
+                    raise HTTPError(400, "DIRECTORS_PALETTE_NOT_CONNECTED")
+            elif not settings.replicate_api_key.strip():
                 raise HTTPError(500, "REPLICATE_API_KEY_NOT_CONFIGURED")
+
+            reference_image_urls = self._encode_reference_images(reference_image_paths or [])
+            aspect_ratio = _aspect_ratio_for(width, height)
 
             for idx in range(num_images):
                 if self._generation.is_generation_cancelled():
@@ -216,15 +272,25 @@ class ImageGenerationHandler(StateHandlerBase):
 
                 inference_progress = 15 + int((idx / num_images) * 60)
                 self._generation.update_progress("inference", inference_progress, None, None)
-                image_bytes = self._image_api_client.generate_text_to_image(
-                    api_key=settings.replicate_api_key,
-                    model=settings.image_model,
-                    prompt=prompt,
-                    width=width,
-                    height=height,
-                    seed=seed + idx,
-                    num_inference_steps=num_inference_steps,
-                )
+                if use_palette:
+                    image_bytes = self._palette_image_client.generate_image(
+                        api_key=settings.palette_api_key,
+                        model=settings.image_model.removeprefix("dp-"),
+                        prompt=prompt,
+                        aspect_ratio=aspect_ratio,
+                        reference_image_urls=reference_image_urls,
+                    )
+                else:
+                    image_bytes = self._image_api_client.generate_text_to_image(
+                        api_key=settings.replicate_api_key,
+                        model=settings.image_model,
+                        prompt=prompt,
+                        width=width,
+                        height=height,
+                        seed=seed + idx,
+                        num_inference_steps=num_inference_steps,
+                        reference_image_urls=reference_image_urls,
+                    )
 
                 if self._generation.is_generation_cancelled():
                     raise RuntimeError("Generation was cancelled")

@@ -47,6 +47,16 @@ export function createWindow(): BrowserWindow {
     mainWindow?.show()
   })
 
+  // Recover from a renderer/GPU crash instead of letting the app die (Windows GPU-process
+  // flakiness, exit 0xC0000005). A transient crash reloads the page once rather than taking
+  // the whole window down; a clean exit is left alone.
+  mainWindow.webContents.on('render-process-gone', (_event, details) => {
+    logger.error(`[render-process-gone] reason=${details.reason} exitCode=${details.exitCode}`)
+    if (details.reason !== 'clean-exit' && mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.reload()
+    }
+  })
+
   mainWindow.on('closed', () => {
     mainWindow = null
   })

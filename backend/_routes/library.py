@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, File, Query, UploadFile
 
 from api_types import (
+    AudioReferenceCreate,
+    AudioReferenceListResponse,
+    AudioReferenceResponse,
     CharacterCreate,
     CharacterListResponse,
     CharacterResponse,
@@ -20,7 +23,7 @@ from api_types import (
 )
 from app_handler import AppHandler
 from state import get_state_service
-from state.library_store import Character, Reference, Style
+from state.library_store import AudioReference, Character, Reference, Style
 
 router = APIRouter(prefix="/api/library", tags=["library"])
 
@@ -53,6 +56,17 @@ def _reference_response(r: Reference) -> ReferenceResponse:
         category=r.category,
         image_path=r.image_path,
         created_at=r.created_at,
+    )
+
+
+def _audio_response(a: AudioReference) -> AudioReferenceResponse:
+    return AudioReferenceResponse(
+        id=a.id,
+        name=a.name,
+        file_path=a.file_path,
+        source=a.source,
+        duration_seconds=a.duration_seconds,
+        created_at=a.created_at,
     )
 
 
@@ -176,4 +190,50 @@ def route_delete_reference(
     handler: AppHandler = Depends(get_state_service),
 ) -> StatusResponse:
     handler.library.delete_reference(reference_id)
+    return StatusResponse(status="ok")
+
+
+# ------------------------------------------------------------------
+# Audio references (Seedance 2.0 audio refs; sources: upload / timeline / library)
+# ------------------------------------------------------------------
+
+
+@router.get("/audio", response_model=AudioReferenceListResponse)
+def route_list_audio(
+    handler: AppHandler = Depends(get_state_service),
+) -> AudioReferenceListResponse:
+    items = handler.library.list_audio()
+    return AudioReferenceListResponse(audio=[_audio_response(a) for a in items])
+
+
+@router.post("/audio", response_model=AudioReferenceResponse)
+def route_create_audio(
+    req: AudioReferenceCreate,
+    handler: AppHandler = Depends(get_state_service),
+) -> AudioReferenceResponse:
+    result = handler.library.create_audio(
+        name=req.name,
+        file_path=req.file_path,
+        source=req.source,
+        duration_seconds=req.duration_seconds,
+    )
+    return _audio_response(result)
+
+
+@router.post("/audio/upload", response_model=AudioReferenceResponse)
+async def route_upload_audio(
+    file: UploadFile = File(...),
+    handler: AppHandler = Depends(get_state_service),
+) -> AudioReferenceResponse:
+    data = await file.read()
+    result = handler.library.upload_audio(filename=file.filename or "audio", data=data)
+    return _audio_response(result)
+
+
+@router.delete("/audio/{audio_id}", response_model=StatusResponse)
+def route_delete_audio(
+    audio_id: str,
+    handler: AppHandler = Depends(get_state_service),
+) -> StatusResponse:
+    handler.library.delete_audio(audio_id)
     return StatusResponse(status="ok")

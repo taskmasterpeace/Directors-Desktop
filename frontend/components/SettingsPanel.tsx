@@ -9,8 +9,10 @@ import {
   sanitizeForcedApiVideoSettings,
 } from '../lib/api-video-options'
 
+export type VideoModel = 'fast' | 'pro' | 'seedance-1.5-pro' | 'seedance-2.0' | 'seedance-2.0-fast'
+
 export interface GenerationSettings {
-  model: 'fast' | 'pro' | 'seedance-1.5-pro'
+  model: VideoModel
   duration: number
   videoResolution: string
   fps: number
@@ -27,6 +29,9 @@ export interface GenerationSettings {
   loraWeight?: number
   loraTriggerPhrase?: string | null
   loraTriggerMode?: 'prepend' | 'append' | 'off'
+  // Omni-reference (Seedance 2.0): local reference image / audio paths.
+  referenceImagePaths?: string[]
+  audioReferencePaths?: string[]
 }
 
 interface SettingsPanelProps {
@@ -37,6 +42,7 @@ interface SettingsPanelProps {
   forceApiGenerations?: boolean
   hasAudio?: boolean
   hasReplicateApiKey?: boolean
+  hasFalApiKey?: boolean
 }
 
 export function SettingsPanel({
@@ -47,6 +53,7 @@ export function SettingsPanel({
   forceApiGenerations = false,
   hasAudio = false,
   hasReplicateApiKey = false,
+  hasFalApiKey = false,
 }: SettingsPanelProps) {
   const [loraBrowserOpen, setLoraBrowserOpen] = useState(false)
   const isImageMode = mode === 'text-to-image'
@@ -326,7 +333,13 @@ export function SettingsPanel({
           </>
         )}
         <option value="seedance-1.5-pro" disabled={!hasReplicateApiKey}>
-          Seedance 1.5 Pro (Cloud){!hasReplicateApiKey ? ' — needs API key' : ''}
+          Seedance 1.5 Pro (Replicate){!hasReplicateApiKey ? ' — needs API key' : ''}
+        </option>
+        <option value="seedance-2.0" disabled={!hasFalApiKey}>
+          Seedance 2.0 (fal){!hasFalApiKey ? ' — needs fal key' : ''}
+        </option>
+        <option value="seedance-2.0-fast" disabled={!hasFalApiKey}>
+          Seedance 2.0 Fast (fal){!hasFalApiKey ? ' — needs fal key' : ''}
         </option>
       </Select>
 

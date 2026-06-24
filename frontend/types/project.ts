@@ -378,6 +378,8 @@ export interface TimelineClip {
   // Take management
   takeIndex?: number // Which take to show (overrides asset.activeTakeIndex). undefined = use latest.
   isRegenerating?: boolean // Visual flag: true while a regeneration is in progress for this clip
+  isGenerating?: boolean // Visual flag: true while this clip is a generating placeholder (no asset yet)
+  generatingLabel?: string // Optional caption shown on a generating placeholder (e.g. the prompt)
   // Linked audio/video
   linkedClipIds?: string[] // If set, this clip is linked to other clips (e.g. video ↔ audio pairs). Moving/deleting one affects all linked clips.
   colorLabel?: string // Color label override (if set, uses this; otherwise inherits from asset)

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import threading
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from api_types import GenerateImageRequest, GenerateVideoRequest
 
@@ -14,6 +14,59 @@ if TYPE_CHECKING:
     from state.job_queue import QueueJob
 
 logger = logging.getLogger(__name__)
+
+
+def _str_list(value: object) -> list[str]:
+    """Coerce an opaque queue-param value into a list of strings."""
+    if isinstance(value, list):
+        return [str(item) for item in cast("list[Any]", value)]
+    return []
+
+
+def _prepare_video_params(handler: AppHandler, params: dict[str, Any]) -> dict[str, Any]:
+    """Apply the Director's Palette prompt language and resolve reference images.
+
+    1. Expand ``[shot directive]`` tokens (and legacy ``@CharacterName`` text mentions).
+    2. Attach character/reference images as REFERENCE images (Seedance 2.0 omni-reference) —
+       NEVER as the start frame. The explicit ``imagePath`` stays a separate start-frame control.
+    """
+    from server_utils.prompt_language import expand_prompt, resolve_reference_mentions
+
+    result: dict[str, Any] = dict(params)
+
+    prompt = result.get("prompt")
+    referenced_ids: list[str] = []
+    mention_ref_paths: list[str] = []
+    if isinstance(prompt, str) and prompt:
+        characters = handler.library.list_characters()
+        # Resolve @name/@category reference mentions BEFORE expansion rewrites the text.
+        mention_ref_paths = resolve_reference_mentions(prompt, handler.library.list_references())
+        expanded, referenced_ids = expand_prompt(prompt, characters)
+        result["prompt"] = expanded
+
+    ref_paths: list[str] = [p for p in _str_list(result.get("referenceImagePaths")) if p]
+    for path in mention_ref_paths:
+        if path not in ref_paths:
+            ref_paths.append(path)
+
+    character_ids = list(referenced_ids)
+    explicit_char = result.get("character_id") or result.get("characterId")
+    if explicit_char:
+        character_ids.append(str(explicit_char))
+    reference_id = result.get("reference_id") or result.get("referenceId")
+
+    for cid in character_ids:
+        for path in handler.library.resolve_reference_paths(character_id=cid):
+            if path not in ref_paths:
+                ref_paths.append(path)
+    if reference_id:
+        for path in handler.library.resolve_reference_paths(reference_id=str(reference_id)):
+            if path not in ref_paths:
+                ref_paths.append(path)
+
+    if ref_paths:
+        result["referenceImagePaths"] = ref_paths
+    return result
 
 
 class _ProgressSyncer:
@@ -109,6 +162,7 @@ class GpuJobExecutor:
             loraWeight=float(params.get("loraWeight", 1.0)),
             sourceImagePath=str(params.get("sourceImagePath")) if params.get("sourceImagePath") else None,
             strength=float(params.get("strength", 0.65)),
+            referenceImagePaths=_str_list(params.get("referenceImagePaths")),
         )
         result = self._handler.image_generation.generate(req)
         if result.status == "cancelled":
@@ -116,7 +170,7 @@ class GpuJobExecutor:
         return result.image_paths or []
 
     def _execute_video(self, job: QueueJob) -> list[str]:
-        params = job.params
+        params = _prepare_video_params(self._handler, job.params)
         req = GenerateVideoRequest(
             prompt=str(params.get("prompt", "")),
             resolution=str(params.get("resolution", "512p")),
@@ -128,6 +182,8 @@ class GpuJobExecutor:
             imagePath=str(params.get("imagePath")) if params.get("imagePath") else None,
             audioPath=str(params.get("audioPath")) if params.get("audioPath") else None,
             lastFramePath=str(params.get("lastFramePath")) if params.get("lastFramePath") else None,
+            referenceImagePaths=_str_list(params.get("referenceImagePaths")),
+            audioReferencePaths=_str_list(params.get("audioReferencePaths")),
             aspectRatio=str(params.get("aspectRatio", "16:9")),  # type: ignore[arg-type]
             loraPath=str(params.get("loraPath")) if params.get("loraPath") else None,
             loraWeight=float(params.get("loraWeight", 1.0)),
@@ -187,6 +243,7 @@ class ApiJobExecutor:
             loraWeight=float(params.get("loraWeight", 1.0)),
             sourceImagePath=str(params.get("sourceImagePath")) if params.get("sourceImagePath") else None,
             strength=float(params.get("strength", 0.65)),
+            referenceImagePaths=_str_list(params.get("referenceImagePaths")),
         )
         result = self._handler.image_generation.generate(req)
         if result.status == "cancelled":
@@ -194,7 +251,7 @@ class ApiJobExecutor:
         return result.image_paths or []
 
     def _execute_video(self, job: QueueJob) -> list[str]:
-        params = job.params
+        params = _prepare_video_params(self._handler, job.params)
         req = GenerateVideoRequest(
             prompt=str(params.get("prompt", "")),
             resolution=str(params.get("resolution", "512p")),
@@ -206,6 +263,8 @@ class ApiJobExecutor:
             imagePath=str(params.get("imagePath")) if params.get("imagePath") else None,
             audioPath=str(params.get("audioPath")) if params.get("audioPath") else None,
             lastFramePath=str(params.get("lastFramePath")) if params.get("lastFramePath") else None,
+            referenceImagePaths=_str_list(params.get("referenceImagePaths")),
+            audioReferencePaths=_str_list(params.get("audioReferencePaths")),
             aspectRatio=str(params.get("aspectRatio", "16:9")),  # type: ignore[arg-type]
             loraPath=str(params.get("loraPath")) if params.get("loraPath") else None,
             loraWeight=float(params.get("loraWeight", 1.0)),

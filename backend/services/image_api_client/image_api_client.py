@@ -16,5 +16,6 @@ class ImageAPIClient(Protocol):
         height: int,
         seed: int,
         num_inference_steps: int,
+        reference_image_urls: list[str] | None = None,
     ) -> bytes:
         ...

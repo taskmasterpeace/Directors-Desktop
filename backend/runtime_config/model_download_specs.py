@@ -29,6 +29,7 @@ MODEL_FILE_ORDER: tuple[ModelFileType, ...] = (
     "text_encoder_abliterated",
     "zit",
     "flux_klein",
+    "flux_dev",
 )
 
 
@@ -74,6 +75,13 @@ DEFAULT_MODEL_DOWNLOAD_SPECS: dict[ModelFileType, ModelFileDownloadSpec] = {
         is_folder=True,
         repo_id="black-forest-labs/FLUX.2-klein-base-9B",
         description="FLUX.2 Klein 9B Base — text-to-image with LoRA support",
+    ),
+    "flux_dev": ModelFileDownloadSpec(
+        relative_path=Path("FLUX.1-dev"),
+        expected_size_bytes=32_000_000_000,
+        is_folder=True,
+        repo_id="black-forest-labs/FLUX.1-dev",
+        description="FLUX.1 Dev 12B — high quality text-to-image, standard LoRA target",
     ),
 }
 

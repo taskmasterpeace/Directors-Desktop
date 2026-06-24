@@ -164,12 +164,12 @@ export function BatchAnimateTab({ target, onSubmit, isRunning, initialImagePaths
       {/* Top bar */}
       <div className="flex items-center gap-2">
         <div className="flex-1">
-          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 290)' }}>Animate with</label>
+          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 250)' }}>Animate with</label>
           <select
             value={targetModel}
             onChange={e => setTargetModel(e.target.value as CaptionTargetModel)}
             className="w-full rounded-lg px-2 py-1.5 text-sm border"
-            style={{ background: 'oklch(0.22 0.025 290)', borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.92 0.02 290)' }}
+            style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}
           >
             <option value="ltx-fast">LTX-2 Fast (local)</option>
             <option value="seedance-1.5-pro">Seedance 1.5 Pro (cloud)</option>
@@ -178,7 +178,7 @@ export function BatchAnimateTab({ target, onSubmit, isRunning, initialImagePaths
         <button
           onClick={handleAddImages}
           className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium self-end"
-          style={{ background: 'oklch(0.22 0.025 290)', border: '1px solid oklch(0.32 0.03 290)', color: 'oklch(0.92 0.02 290)' }}
+          style={{ background: 'oklch(0.22 0.025 250)', border: '1px solid oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}
         >
           <Upload className="w-4 h-4" /> Add images
         </button>
@@ -186,7 +186,7 @@ export function BatchAnimateTab({ target, onSubmit, isRunning, initialImagePaths
           onClick={handleClearAll}
           disabled={tiles.length === 0}
           className="px-3 py-2 rounded-lg text-sm self-end disabled:opacity-40"
-          style={{ background: 'oklch(0.22 0.025 290)', border: '1px solid oklch(0.32 0.03 290)', color: 'oklch(0.65 0.04 290)' }}
+          style={{ background: 'oklch(0.22 0.025 250)', border: '1px solid oklch(0.32 0.03 250)', color: 'oklch(0.65 0.04 250)' }}
         >
           Clear all
         </button>
@@ -199,13 +199,13 @@ export function BatchAnimateTab({ target, onSubmit, isRunning, initialImagePaths
             onClick={handleCaptionAll}
             disabled={captioner.progress.running}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium disabled:opacity-50"
-            style={{ background: 'oklch(0.6 0.2 290 / 0.3)', color: 'oklch(0.85 0.1 290)', border: '1px solid oklch(0.6 0.2 290 / 0.5)' }}
+            style={{ background: 'oklch(0.6 0.2 250 / 0.3)', color: 'oklch(0.85 0.1 250)', border: '1px solid oklch(0.6 0.2 250 / 0.5)' }}
           >
             <Sparkles className="w-4 h-4" />
             Generate prompts for all
           </button>
           {captioner.progress.running && (
-            <span className="text-xs" style={{ color: 'oklch(0.65 0.04 290)' }}>
+            <span className="text-xs" style={{ color: 'oklch(0.65 0.04 250)' }}>
               Captioning {captioner.progress.completed + captioner.progress.failed} of {captioner.progress.total}...
             </span>
           )}
@@ -216,7 +216,7 @@ export function BatchAnimateTab({ target, onSubmit, isRunning, initialImagePaths
       {tiles.length === 0 ? (
         <div
           className="h-48 rounded-lg border-dashed border-2 flex flex-col items-center justify-center gap-1 text-sm"
-          style={{ borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.55 0.04 290)' }}
+          style={{ borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.55 0.04 250)' }}
         >
           <span>Click "Add images" to get started</span>
           <span className="text-[11px]">Tip: generate a batch in the Prompts tab first, then add those images here from the gallery</span>
@@ -240,35 +240,35 @@ export function BatchAnimateTab({ target, onSubmit, isRunning, initialImagePaths
       {/* Video settings */}
       <div className="grid grid-cols-4 gap-2">
         <div>
-          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 290)' }}>Duration (s)</label>
+          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 250)' }}>Duration (s)</label>
           <select value={duration} onChange={e => setDuration(Number(e.target.value))}
             className="w-full rounded-lg px-2 py-1.5 text-sm border"
-            style={{ background: 'oklch(0.22 0.025 290)', borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.92 0.02 290)' }}>
+            style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}>
             {VIDEO_DURATIONS.map(d => <option key={d} value={d}>{d}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 290)' }}>FPS</label>
+          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 250)' }}>FPS</label>
           <select value={fps} onChange={e => setFps(Number(e.target.value))}
             className="w-full rounded-lg px-2 py-1.5 text-sm border"
-            style={{ background: 'oklch(0.22 0.025 290)', borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.92 0.02 290)' }}>
+            style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}>
             {VIDEO_FPS.map(f => <option key={f} value={f}>{f}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 290)' }}>Resolution</label>
+          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 250)' }}>Resolution</label>
           <select value={resolution} onChange={e => setResolution(e.target.value)}
             className="w-full rounded-lg px-2 py-1.5 text-sm border"
-            style={{ background: 'oklch(0.22 0.025 290)', borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.92 0.02 290)' }}>
+            style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}>
             <option value="512p">512p</option>
             <option value="720p">720p</option>
           </select>
         </div>
         <div>
-          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 290)' }}>Camera motion</label>
+          <label className="block text-xs mb-1" style={{ color: 'oklch(0.65 0.04 250)' }}>Camera motion</label>
           <select value={cameraMotion} onChange={e => setCameraMotion(e.target.value)}
             className="w-full rounded-lg px-2 py-1.5 text-sm border"
-            style={{ background: 'oklch(0.22 0.025 290)', borderColor: 'oklch(0.32 0.03 290)', color: 'oklch(0.92 0.02 290)' }}>
+            style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}>
             {CAMERA_MOTIONS.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
@@ -279,7 +279,7 @@ export function BatchAnimateTab({ target, onSubmit, isRunning, initialImagePaths
         onClick={handleSubmit}
         disabled={!canRun || isRunning}
         className="w-full py-2.5 rounded-lg text-sm font-semibold disabled:opacity-50"
-        style={{ background: 'oklch(0.6 0.2 290)', color: 'oklch(0.98 0.01 290)' }}
+        style={{ background: 'oklch(0.6 0.2 250)', color: 'oklch(0.98 0.01 250)' }}
       >
         {!canRun && tiles.length > 0
           ? 'All active tiles need a caption'

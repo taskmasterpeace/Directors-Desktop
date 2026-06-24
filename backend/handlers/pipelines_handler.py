@@ -54,6 +54,7 @@ class PipelinesHandler(StateHandlerBase):
         nf4_video_pipeline_class: type[FastVideoPipeline] | None,
         image_generation_pipeline_class: type[ImageGenerationPipeline],
         flux_klein_pipeline_class: type[ImageGenerationPipeline] | None,
+        flux_dev_pipeline_class: type[ImageGenerationPipeline] | None,
         ic_lora_pipeline_class: type[IcLoraPipeline],
         a2v_pipeline_class: type[A2VPipeline],
         retake_pipeline_class: type[RetakePipeline],
@@ -69,6 +70,7 @@ class PipelinesHandler(StateHandlerBase):
         self._nf4_video_pipeline_class = nf4_video_pipeline_class
         self._image_generation_pipeline_class = image_generation_pipeline_class
         self._flux_klein_pipeline_class = flux_klein_pipeline_class
+        self._flux_dev_pipeline_class = flux_dev_pipeline_class
         self._ic_lora_pipeline_class = ic_lora_pipeline_class
         self._a2v_pipeline_class = a2v_pipeline_class
         self._retake_pipeline_class = retake_pipeline_class
@@ -291,6 +293,8 @@ class PipelinesHandler(StateHandlerBase):
         """
         if model_name == "flux-klein-9b" or model_name == "flux_klein":
             return self._load_flux_klein_to_gpu(on_phase=on_phase)
+        if model_name == "flux-dev" or model_name == "flux_dev":
+            return self._load_flux_dev_to_gpu(on_phase=on_phase)
         # Default: load ZIT
         return self.load_zit_to_gpu(on_phase=on_phase)
 
@@ -335,6 +339,47 @@ class PipelinesHandler(StateHandlerBase):
         with self._lock:
             self.state.gpu_slot = GpuSlot(active_pipeline=flux_service, generation=None)
             self._loaded_image_model = "flux_klein"
+            self._assert_invariants()
+
+        return flux_service
+
+    def _load_flux_dev_to_gpu(
+        self,
+        on_phase: "Callable[[str], None] | None" = None,
+    ) -> ImageGenerationPipeline:
+        """Load FLUX.1 Dev to GPU."""
+        def _report(phase: str) -> None:
+            if on_phase is not None:
+                on_phase(phase)
+
+        with self._lock:
+            if self.state.gpu_slot is not None and self._loaded_image_model == "flux_dev":
+                active = self.state.gpu_slot.active_pipeline
+                if not isinstance(active, (VideoPipelineState, ICLoraState, A2VPipelineState, RetakePipelineState)):
+                    if hasattr(active, "pipeline"):
+                        return active
+
+            if self.state.gpu_slot is not None:
+                self._ensure_no_running_generation()
+                _report("unloading_image_model")
+                self.state.gpu_slot = None
+                self.state.cpu_slot = None
+                self._assert_invariants()
+
+        _report("cleaning_gpu")
+        self._gpu_cleaner.cleanup()
+
+        _report("loading_image_model")
+        if self._flux_dev_pipeline_class is None:
+            raise RuntimeError("FLUX.1 Dev pipeline class not configured")
+        flux_path = self._config.model_path("flux_dev")
+        if not (flux_path.exists() and any(flux_path.iterdir())):
+            raise RuntimeError("FLUX.1 Dev model not downloaded. Please download it from the Model Status menu.")
+        flux_service = self._flux_dev_pipeline_class.create(str(flux_path), self._runtime_device)
+
+        with self._lock:
+            self.state.gpu_slot = GpuSlot(active_pipeline=flux_service, generation=None)
+            self._loaded_image_model = "flux_dev"
             self._assert_invariants()
 
         return flux_service

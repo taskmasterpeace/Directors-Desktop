@@ -1,10 +1,27 @@
 import { ipcMain, dialog, BrowserWindow, session } from 'electron'
 import path from 'path'
 import fs from 'fs'
+import { execFile } from 'child_process'
 import { getAllowedRoots } from '../config'
 import { logger } from '../logger'
 import { getMainWindow } from '../window'
 import { validatePath, approvePath } from '../path-validation'
+
+// Active fs.watch watchers, keyed by the absolute file path being watched.
+const storyWatchers = new Map<string, fs.FSWatcher>()
+
+// Walk up from a file until we find the aiobr repo root (the dir holding
+// scripts/build_timeline_from_story.js). Returns null if not found.
+function findRepoRoot(startFile: string): string | null {
+  let dir = path.dirname(startFile)
+  for (let i = 0; i < 12; i++) {
+    if (fs.existsSync(path.join(dir, 'scripts', 'build_timeline_from_story.js'))) return dir
+    const parent = path.dirname(dir)
+    if (parent === dir) break
+    dir = parent
+  }
+  return null
+}
 
 const MIME_TYPES: Record<string, string> = {
   '.png': 'image/png',
@@ -399,6 +416,107 @@ export function registerFileHandlers(): void {
         fs.mkdirSync(dirPath, { recursive: true })
       }
       return { success: true }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  // --- Story file bridge (the "living medium" for AIOBR story production) ---
+
+  // Read a text file (e.g. a .story.json) as a UTF-8 string.
+  ipcMain.handle('read-text-file', async (_event, filePath: string) => {
+    try {
+      const normalizedPath = validatePath(filePath, getAllowedRoots())
+      if (!fs.existsSync(normalizedPath)) {
+        return { success: false, error: `File not found: ${normalizedPath}` }
+      }
+      return { success: true, content: fs.readFileSync(normalizedPath, 'utf-8') }
+    } catch (error) {
+      logger.error(`Error reading text file: ${error}`)
+      return { success: false, error: String(error) }
+    }
+  })
+
+  // Watch a story file for external edits (e.g. Claude editing the JSON).
+  // Emits 'story-file-changed' to the renderer (debounced) on change.
+  ipcMain.handle('watch-file', async (_event, filePath: string) => {
+    try {
+      const normalizedPath = validatePath(filePath, getAllowedRoots())
+      // Drop any prior watcher for this path so re-loading doesn't stack them.
+      const existing = storyWatchers.get(normalizedPath)
+      if (existing) {
+        existing.close()
+        storyWatchers.delete(normalizedPath)
+      }
+      let debounce: ReturnType<typeof setTimeout> | null = null
+      const watcher = fs.watch(normalizedPath, () => {
+        if (debounce) clearTimeout(debounce)
+        debounce = setTimeout(() => {
+          const win = getMainWindow()
+          if (win) win.webContents.send('story-file-changed', { path: normalizedPath })
+        }, 200)
+      })
+      storyWatchers.set(normalizedPath, watcher)
+      return { success: true }
+    } catch (error) {
+      logger.error(`Error watching file: ${error}`)
+      return { success: false, error: String(error) }
+    }
+  })
+
+  ipcMain.handle('unwatch-file', async (_event, filePath: string) => {
+    try {
+      const normalizedPath = validatePath(filePath, getAllowedRoots())
+      const watcher = storyWatchers.get(normalizedPath)
+      if (watcher) {
+        watcher.close()
+        storyWatchers.delete(normalizedPath)
+      }
+      return { success: true }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  // Export the story file to a DaVinci-ready FCP7 XML by shelling out to the
+  // canonical Node exporter + verifier in the aiobr repo. Correctness lives in
+  // those scripts, not in the app — so app flakiness can't break the export.
+  ipcMain.handle('run-story-export', async (_event, storyPath: string) => {
+    const normalizedPath = validatePath(storyPath, getAllowedRoots())
+    const repoRoot = findRepoRoot(normalizedPath)
+    if (!repoRoot) {
+      return { success: false, error: `Could not locate aiobr repo root above ${normalizedPath}` }
+    }
+    const relStory = path.relative(repoRoot, normalizedPath).replace(/\\/g, '/')
+
+    const runNode = (scriptRelPath: string, args: string[]): Promise<{ code: number; out: string }> =>
+      new Promise((resolve) => {
+        execFile(
+          process.execPath,
+          [path.join(repoRoot, scriptRelPath), ...args],
+          { cwd: repoRoot, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, maxBuffer: 1024 * 1024 * 16 },
+          (err, stdout, stderr) => {
+            resolve({ code: err ? (err as NodeJS.ErrnoException & { code?: number }).code ?? 1 : 0, out: `${stdout || ''}${stderr || ''}` })
+          }
+        )
+      })
+
+    try {
+      const build = await runNode('scripts/build_timeline_from_story.js', ['--story', relStory])
+      if (build.code !== 0) {
+        return { success: false, stage: 'build', output: build.out, error: 'Timeline build failed' }
+      }
+      // Exporter writes stories/<slug>/<slug>_timeline.xml by default.
+      const slug = path.basename(normalizedPath).replace(/\.story\.json$/, '')
+      const xmlPath = path.join(path.dirname(normalizedPath), `${slug}_timeline.xml`)
+      const xmlRel = path.relative(repoRoot, xmlPath).replace(/\\/g, '/')
+      const verify = await runNode('scripts/verify_timeline_inputs.js', [`--xml=${xmlRel}`])
+      return {
+        success: verify.code === 0,
+        stage: 'verify',
+        xmlPath,
+        output: `${build.out}\n${verify.out}`,
+      }
     } catch (error) {
       return { success: false, error: String(error) }
     }

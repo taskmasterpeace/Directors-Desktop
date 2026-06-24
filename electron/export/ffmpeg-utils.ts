@@ -2,6 +2,7 @@ import { spawn, spawnSync, ChildProcess, execSync } from 'child_process'
 import path from 'path'
 import fs from 'fs'
 import { isDev, getCurrentDir } from '../config'
+import { getPythonDir } from '../python-setup'
 import { logger } from '../logger'
 
 let activeExportProcess: ChildProcess | null = null
@@ -13,12 +14,12 @@ export function findFfmpegPath(): string | null {
     const imageioRelPath = path.join('Lib', 'site-packages', 'imageio_ffmpeg', 'binaries')
     binDir = isDev
       ? path.join(getCurrentDir(), 'backend', '.venv', imageioRelPath)
-      : path.join(process.resourcesPath, 'python', imageioRelPath)
+      : path.join(getPythonDir(), imageioRelPath)
   } else {
     // macOS/Linux: find lib/python3.X/site-packages dynamically
     const venvBase = isDev
       ? path.join(getCurrentDir(), 'backend', '.venv')
-      : path.join(process.resourcesPath, 'python')
+      : getPythonDir()
     const libDir = path.join(venvBase, 'lib')
     if (fs.existsSync(libDir)) {
       const pythonDir = fs.readdirSync(libDir).find(e => e.startsWith('python3'))

@@ -1,10 +1,9 @@
 import { app, ipcMain } from 'electron'
 import path from 'path'
 import fs from 'fs'
-import { BACKEND_BASE_URL } from '../config'
 import { checkGPU } from '../gpu'
 import { isPythonReady, downloadPythonEmbed } from '../python-setup'
-import { getBackendHealthStatus, startPythonBackend } from '../python-backend'
+import { getBackendHealthStatus, startPythonBackend, getBackendUrl, getAuthToken } from '../python-backend'
 import { getMainWindow } from '../window'
 import { getAnalyticsState, setAnalyticsEnabled, sendAnalyticsEvent } from '../analytics'
 
@@ -69,7 +68,11 @@ function markLicenseAccepted(settingsPath: string): void {
 
 export function registerAppHandlers(): void {
   ipcMain.handle('get-backend-url', () => {
-    return BACKEND_BASE_URL
+    return getBackendUrl()
+  })
+
+  ipcMain.handle('get-backend-token', () => {
+    return getAuthToken()
   })
 
   ipcMain.handle('get-models-path', () => {

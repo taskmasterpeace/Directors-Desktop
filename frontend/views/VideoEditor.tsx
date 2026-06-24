@@ -42,6 +42,10 @@ import { ClipContextMenu } from './editor/ClipContextMenu'
 import { AssetContextMenu } from './editor/AssetContextMenu'
 import { TakeContextMenu } from './editor/TakeContextMenu'
 import { ClipPropertiesPanel } from './editor/ClipPropertiesPanel'
+import { TranscriptPanel } from '../components/TranscriptPanel'
+import { rippleDeleteSpan } from '../lib/transcript-ripple'
+import { generateFromPrompt } from '../lib/transcript-generate'
+import type { TranscriptWord } from '../lib/transcript-api'
 import { SubtitlePropertiesPanel } from './editor/SubtitlePropertiesPanel'
 import { SourceMonitor } from './editor/SourceMonitor'
 import { ProgramMonitor } from './editor/ProgramMonitor'
@@ -82,7 +86,7 @@ export function VideoEditor() {
   } = useProjects()
 
   const { activeLayout: kbLayout, isEditorOpen: isKbEditorOpen, setEditorOpen: setKbEditorOpen } = useKeyboardShortcuts()
-  const { shouldVideoGenerateWithLtxApi } = useAppSettings()
+  const { shouldVideoGenerateWithLtxApi, settings: appSettings } = useAppSettings()
   const kbLayoutRef = useRef(kbLayout)
   kbLayoutRef.current = kbLayout
   const isKbEditorOpenRef = useRef(isKbEditorOpen)
@@ -627,7 +631,49 @@ export function VideoEditor() {
       .find(c => c && (c.type === 'video' || c.type === 'image'))
     return primary ?? first
   })()
-  
+
+  // Phase 2: ripple-delete a transcript word span from the timeline. One pushUndo() for the
+  // whole op; the speed-aware / track-scoped / linked-aware math lives in transcript-ripple.
+  const handleDeleteTranscriptSpan = useCallback(
+    (clipId: string, spanStartSource: number, spanEndSource: number) => {
+      pushUndo()
+      setClips((prev) => rippleDeleteSpan(prev, clipId, spanStartSource, spanEndSource))
+    },
+    [pushUndo, setClips],
+  )
+
+  // Per-clip transcript cache (survives panel re-mounts; holds transcribe results + edits).
+  const [transcriptCache, setTranscriptCache] = useState<Record<string, TranscriptWord[]>>({})
+  const [transcriptGenPhase, setTranscriptGenPhase] = useState<string | null>(null)
+  const handleTranscriptWords = useCallback((clipId: string, words: TranscriptWord[]) => {
+    setTranscriptCache((prev) => ({ ...prev, [clipId]: words }))
+  }, [])
+
+  // Story-aware generate chain: prompt → image → (for video) video-from-image. Results land
+  // in the gallery via the queue executor; the user can drag them onto the timeline.
+  const handleTranscriptGenerate = useCallback(
+    async (prompt: string, mediaType: 'image' | 'video') => {
+      setTranscriptGenPhase('Starting…')
+      try {
+        const result = await generateFromPrompt({
+          prompt,
+          mediaType,
+          imageModel: appSettings.imageModel || 'nano-banana-2',
+          videoModel: 'seedance-2.0',
+          onPhase: setTranscriptGenPhase,
+        })
+        setTranscriptGenPhase(
+          result.videoPath ? 'Done — image + video in your gallery' : 'Done — image in your gallery',
+        )
+        setTimeout(() => setTranscriptGenPhase(null), 4000)
+      } catch (e) {
+        setTranscriptGenPhase(`Failed: ${e instanceof Error ? e.message : 'error'}`)
+        setTimeout(() => setTranscriptGenPhase(null), 6000)
+      }
+    },
+    [appSettings.imageModel],
+  )
+
   const totalDuration = Math.max(
     clips.reduce((max, clip) => Math.max(max, clip.startTime + clip.duration), 0),
     30
@@ -990,6 +1036,7 @@ export function VideoEditor() {
     gapImageFile, setGapImageFile, gapImageInputRef,
     gapSuggesting, gapSuggestion, gapSuggestionError, gapSuggestionNoApiKey, gapBeforeFrame, gapAfterFrame,
     gapApplyAudioToTrack, setGapApplyAudioToTrack,
+    gapChunkLength, setGapChunkLength,
     regenerateSuggestion,
     generatingGap, regenProgress: gapRegenProgress,
     cancelGapGeneration,
@@ -3236,6 +3283,35 @@ export function VideoEditor() {
                           </div>
                         </div>
                       )}
+
+                      {/* Generating placeholder overlay — sized to the clip's duration */}
+                      {clip.isGenerating && (
+                        <div className="absolute inset-0 bg-teal-900/40 backdrop-blur-[1px] flex items-center justify-center rounded-lg z-10 overflow-hidden">
+                          <div
+                            className="absolute inset-0 opacity-20 pointer-events-none animate-pulse"
+                            style={{ backgroundImage: 'repeating-linear-gradient(45deg, #2dd4bf 0, #2dd4bf 6px, transparent 6px, transparent 12px)' }}
+                          />
+                          {clip.generatingLabel && (clip.duration * pixelsPerSecond) > 120 && (
+                            <span className="absolute top-1 left-2 right-2 truncate text-[9px] text-teal-200/90 pointer-events-none z-10">
+                              {clip.generatingLabel}
+                            </span>
+                          )}
+                          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-teal-900/85 border border-teal-500/40 z-10">
+                            <Loader2 className="h-3 w-3 text-teal-200 animate-spin" />
+                            <span className="text-[9px] text-teal-100 font-medium">
+                              {generatingGap?.clipId === clip.id
+                                ? (gapRegenProgress > 0 ? `${gapRegenProgress}%` : 'Generating…')
+                                : 'Queued'}
+                            </span>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); cancelGapGeneration() }}
+                              className="ml-1 px-1.5 py-0.5 rounded bg-zinc-800/80 border border-zinc-600/60 text-[9px] text-zinc-300 hover:text-red-400 hover:border-red-500/50 hover:bg-red-900/30 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
                       
                       
                       {/* Transition in indicator */}
@@ -3913,6 +3989,31 @@ export function VideoEditor() {
             <span>No clip selected</span>
           </div>
         ) : null}
+        {selectedClip && (selectedClip.type === 'video' || selectedClip.type === 'audio') && selectedClip.asset?.path && (
+          <div
+            className="border-l border-zinc-800 overflow-y-auto p-2 flex-shrink-0"
+            style={{ width: 300, background: 'var(--dp-rail-surface)' }}
+          >
+            <TranscriptPanel
+              clip={selectedClip}
+              audioPath={selectedClip.asset.path}
+              words={transcriptCache[selectedClip.id]}
+              currentTime={currentTime}
+              onSeek={(t) => setCurrentTime(Math.max(0, t))}
+              onDeleteSpan={handleDeleteTranscriptSpan}
+              onWordsLoaded={handleTranscriptWords}
+              onWordsChange={handleTranscriptWords}
+              onGenerate={handleTranscriptGenerate}
+              isBusy={transcriptGenPhase !== null}
+            />
+            {transcriptGenPhase && (
+              <div className="mt-2 rounded-md px-2 py-1.5 text-[11px] text-zinc-200"
+                style={{ background: 'var(--dp-popover)', border: '1px solid var(--dp-border)' }}>
+                {transcriptGenPhase}
+              </div>
+            )}
+          </div>
+        )}
         </>
       )}
       
@@ -4192,6 +4293,8 @@ export function VideoEditor() {
           setSelectedGap={setSelectedGap}
           gapApplyAudioToTrack={gapApplyAudioToTrack}
           setGapApplyAudioToTrack={setGapApplyAudioToTrack}
+          gapChunkLength={gapChunkLength}
+          setGapChunkLength={setGapChunkLength}
           regenerateSuggestion={regenerateSuggestion}
           gapSuggestionError={gapSuggestionError}
           gapSuggestionNoApiKey={gapSuggestionNoApiKey}

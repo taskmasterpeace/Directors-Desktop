@@ -25,6 +25,13 @@
   /* Text */
   --text: 255 255 255;
   --text-muted: 161 161 170;  /* zinc-400 */
+
+  /* Director's Palette "Electric Amber" — reference system surfaces (NEVER purple) */
+  --dp-primary-amber: oklch(0.75 0.16 75);   /* active tab, focus ring, caret, primary */
+  --dp-accent-teal:   oklch(0.65 0.12 195);  /* reference tags / chips / badges */
+  --dp-popover:       oklch(0.18 0.02 250);  /* @ dropdown surface */
+  --dp-rail-surface:  oklch(0.15 0.015 250); /* reference rail */
+  --dp-border:        oklch(0.28 0.02 250);
 }
 
 * {
