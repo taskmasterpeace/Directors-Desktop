@@ -1,0 +1,180 @@
+<!doctype html>
+<!--
+  Director's Desktop — 9:16 looping promo (self-contained, no deps, no paid generation).
+  Open in a browser and screen-record the .reel element (405x720) to export an MP4,
+  or use it as an animatic/storyboard. Brand: DP Electric Amber + teal. No purple.
+  Loop length: 15s. Every scene resets attention; ends on the directorspal.com CTA.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Director's Desktop — promo</title>
+<style>
+  :root{
+    --bg:#0c0e12; --surface:#14181f; --line:#272e38;
+    --amber:#eaa118; --amber-soft:#f5c25a; --teal:#2db3a0; --teal-ink:#7fd3c6;
+    --text:#e8eef4; --muted:#93a2b2;
+    --loop:15s;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:#05070a;min-height:100vh;display:grid;place-items:center;
+    font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:var(--text);gap:14px;padding:24px}
+  .frame{display:flex;flex-direction:column;align-items:center;gap:12px}
+  .reel{
+    position:relative;width:405px;height:720px;border-radius:22px;overflow:hidden;
+    background:radial-gradient(120% 80% at 50% 0%, #161b24 0%, var(--bg) 55%, #07090d 100%);
+    box-shadow:0 30px 80px -20px #000, 0 0 0 1px var(--line);
+    isolation:isolate;
+  }
+  /* subtle grid + scanline for energy (no feTurbulence, no backdrop-filter) */
+  .reel::before{content:"";position:absolute;inset:0;z-index:0;opacity:.5;
+    background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+    background-size:36px 36px;-webkit-mask-image:radial-gradient(120% 90% at 50% 35%,#000 30%,transparent 75%);mask-image:radial-gradient(120% 90% at 50% 35%,#000 30%,transparent 75%)}
+  .scan{position:absolute;left:0;right:0;height:160px;z-index:6;pointer-events:none;
+    background:linear-gradient(180deg,transparent,rgba(234,161,24,.06),transparent);
+    animation:scan var(--loop) linear infinite}
+  @keyframes scan{0%{transform:translateY(-180px)}100%{transform:translateY(740px)}}
+
+  .scene{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;text-align:center;padding:38px;opacity:0}
+  .scene .kicker{font-size:12px;letter-spacing:.32em;text-transform:uppercase;color:var(--muted);margin-bottom:18px}
+  .scene h1{font-size:40px;line-height:1.04;font-weight:800;letter-spacing:-.03em}
+  .scene h1 .amber{color:var(--amber)} .scene h1 .teal{color:var(--teal-ink)}
+  .scene p{margin-top:16px;color:var(--muted);font-size:16px;max-width:300px;line-height:1.5}
+  .strike{position:relative;color:var(--muted);font-weight:700}
+  .strike::after{content:"";position:absolute;left:-4px;right:-4px;top:54%;height:3px;background:var(--amber);border-radius:3px;transform:scaleX(0);transform-origin:left;animation:strike var(--loop) ease infinite}
+  @keyframes strike{0%,3%{transform:scaleX(0)}9%,15%{transform:scaleX(1)}17%,100%{transform:scaleX(1);opacity:0}}
+
+  /* timing windows (of the 15s loop): s1 0-15% · s2 15-35% · s3 35-58% · s4 58-80% · s5 80-100% */
+  .s1{animation:s1 var(--loop) ease infinite}
+  .s2{animation:s2 var(--loop) ease infinite}
+  .s3{animation:s3 var(--loop) ease infinite}
+  .s4{animation:s4 var(--loop) ease infinite}
+  .s5{animation:s5 var(--loop) ease infinite}
+  @keyframes s1{0%{opacity:0;transform:translateY(14px)}3%,13%{opacity:1;transform:none}16%,100%{opacity:0}}
+  @keyframes s2{0%,15%{opacity:0;transform:translateY(14px)}19%,32%{opacity:1;transform:none}35%,100%{opacity:0}}
+  @keyframes s3{0%,35%{opacity:0;transform:translateY(14px)}39%,55%{opacity:1;transform:none}58%,100%{opacity:0}}
+  @keyframes s4{0%,58%{opacity:0;transform:translateY(14px)}62%,77%{opacity:1;transform:none}80%,100%{opacity:0}}
+  @keyframes s5{0%,80%{opacity:0;transform:scale(.96)}84%,98%{opacity:1;transform:none}100%{opacity:0}}
+
+  /* Scene 2 — timeline with a selection sweep */
+  .track{width:300px;height:54px;border-radius:10px;background:var(--surface);border:1px solid var(--line);
+    position:relative;margin-top:26px;overflow:hidden}
+  .clip{position:absolute;top:7px;bottom:7px;border-radius:6px}
+  .clip.a{left:8px;width:70px;background:linear-gradient(135deg,#21303a,#19242c)}
+  .clip.b{right:8px;width:96px;background:linear-gradient(135deg,#21303a,#19242c)}
+  .sel{position:absolute;top:-2px;bottom:-2px;left:96px;width:118px;border:2px solid var(--amber);border-radius:8px;
+    background:rgba(234,161,24,.10);transform:scaleX(0);transform-origin:left;animation:sel var(--loop) ease infinite}
+  .sel .dur{position:absolute;top:-26px;left:50%;transform:translateX(-50%);background:var(--amber);color:#1a1305;
+    font-size:12px;font-weight:800;padding:2px 8px;border-radius:6px;white-space:nowrap;opacity:0;animation:durpop var(--loop) ease infinite}
+  @keyframes sel{0%,17%{transform:scaleX(0)}24%,33%{transform:scaleX(1)}35%,100%{transform:scaleX(1);opacity:0}}
+  @keyframes durpop{0%,22%{opacity:0;transform:translate(-50%,6px)}26%,33%{opacity:1;transform:translate(-50%,0)}35%,100%{opacity:0}}
+
+  /* Scene 3 — prompt box with @mention + typed caret */
+  .prompt{width:320px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;text-align:left;margin-top:24px;font-size:15px;line-height:1.5}
+  .prompt .ment{color:var(--teal-ink);background:rgba(45,179,160,.14);border-radius:5px;padding:1px 5px;font-weight:700}
+  .typed{overflow:hidden;white-space:nowrap;border-right:2px solid var(--amber);width:0;display:inline-block;vertical-align:bottom;animation:type var(--loop) steps(38) infinite, caret 1s step-end infinite}
+  @keyframes type{0%,38%{width:0}50%,56%{width:235px}58%,100%{width:235px}}
+  @keyframes caret{50%{border-color:transparent}}
+  .chip{display:inline-flex;align-items:center;gap:6px;margin-top:14px;font-size:12px;color:var(--teal-ink);
+    border:1px solid rgba(45,179,160,.4);border-radius:999px;padding:4px 10px}
+  .chip::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--teal)}
+
+  /* Scene 4 — placeholder -> clip swap dropping into the track */
+  .track2{width:300px;height:54px;border-radius:10px;background:var(--surface);border:1px solid var(--line);position:relative;margin-top:26px;overflow:hidden}
+  .slot{position:absolute;top:7px;bottom:7px;left:104px;width:118px;border-radius:6px}
+  .ph{border:2px dashed var(--amber);background:rgba(234,161,24,.08);display:grid;place-items:center;
+    color:var(--amber-soft);font-size:11px;font-weight:700;letter-spacing:.08em;animation:ph var(--loop) ease infinite}
+  .ph .bar{position:absolute;left:6px;right:6px;bottom:6px;height:4px;border-radius:3px;background:rgba(234,161,24,.25);overflow:hidden}
+  .ph .bar::after{content:"";position:absolute;inset:0;width:0;background:var(--amber);animation:fill var(--loop) ease infinite}
+  .real{background:linear-gradient(135deg,var(--teal),#1f7d70);box-shadow:0 8px 20px -6px rgba(45,179,160,.6);
+    display:grid;place-items:center;color:#04130f;font-weight:800;font-size:13px;opacity:0;transform:scale(.9);animation:real var(--loop) ease infinite}
+  @keyframes ph{0%,58%{opacity:0;transform:translateY(-10px)}62%,71%{opacity:1;transform:none}73%,100%{opacity:0}}
+  @keyframes fill{0%,60%{width:0}71%{width:100%}73%,100%{width:100%}}
+  @keyframes real{0%,71%{opacity:0;transform:scale(.9)}75%,78%{opacity:1;transform:scale(1)}80%,100%{opacity:0}}
+
+  /* Scene 5 — CTA lockup */
+  .logo{display:flex;align-items:center;gap:12px;font-weight:800;font-size:26px;letter-spacing:-.02em}
+  .dot{width:38px;height:38px;border-radius:11px;background:linear-gradient(135deg,var(--amber),#c9820c);
+    display:grid;place-items:center;box-shadow:0 0 0 1px rgba(234,161,24,.4),0 10px 30px -8px rgba(234,161,24,.5)}
+  .dot svg{width:20px;height:20px}
+  .cta{margin-top:22px;font-size:15px;color:var(--muted)}
+  .url{margin-top:10px;display:inline-block;font-weight:800;font-size:18px;color:#04130f;background:var(--teal);
+    padding:10px 18px;border-radius:999px;animation:pulse 1.8s ease-in-out infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(45,179,160,.5)}50%{box-shadow:0 0 0 12px rgba(45,179,160,0)}}
+
+  /* persistent footer progress dots */
+  .prog{position:absolute;bottom:18px;left:0;right:0;z-index:7;display:flex;gap:6px;justify-content:center}
+  .prog i{width:22px;height:4px;border-radius:3px;background:var(--line);overflow:hidden;position:relative}
+  .prog i::after{content:"";position:absolute;inset:0;width:0;background:var(--amber);animation:seg var(--loop) linear infinite}
+  .prog i:nth-child(1)::after{animation-delay:calc(var(--loop)*0)}
+  .prog i:nth-child(2)::after{animation-delay:calc(var(--loop)*-0.8)}
+  .prog i:nth-child(3)::after{animation-delay:calc(var(--loop)*-0.6)}
+  .prog i:nth-child(4)::after{animation-delay:calc(var(--loop)*-0.4)}
+  .prog i:nth-child(5)::after{animation-delay:calc(var(--loop)*-0.2)}
+  @keyframes seg{0%{width:0}20%{width:100%}100%{width:100%}}
+
+  .cap{color:#5a6675;font-size:12.5px;letter-spacing:.04em}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important}.scene.s5{opacity:1}}
+</style>
+</head>
+<body>
+  <div class="frame">
+    <div class="reel" role="img" aria-label="Director's Desktop promo: select a moment, describe the shot, the clip lands on the timeline. Powered by Director's Palette — directorspal.com">
+      <div class="scan"></div>
+
+      <!-- S1 — hook / problem -->
+      <section class="scene s1">
+        <div class="kicker">AI video, the old way</div>
+        <h1>Generate.<br>Download.<br><span class="strike">Drag it in.</span><br>Repeat.</h1>
+        <p>You lose the prompt, the character, and your place — every single time.</p>
+      </section>
+
+      <!-- S2 — select the moment -->
+      <section class="scene s2">
+        <div class="kicker">The new way</div>
+        <h1>Select the <span class="amber">moment.</span></h1>
+        <div class="track">
+          <div class="clip a"></div>
+          <div class="clip b"></div>
+          <div class="sel"><span class="dur">3.0s clip</span></div>
+        </div>
+        <p>Highlight a lyric or a range — it reads the exact duration you need.</p>
+      </section>
+
+      <!-- S3 — describe the shot -->
+      <section class="scene s3">
+        <div class="kicker">Describe it</div>
+        <h1>Just <span class="teal">@mention</span><br>your character.</h1>
+        <div class="prompt"><span class="ment">@Truthful</span> <span class="typed">riding through a muddy forest, headlights, cinematic</span></div>
+        <span class="chip">character + duration attached automatically</span>
+      </section>
+
+      <!-- S4 — it lands -->
+      <section class="scene s4">
+        <div class="kicker">Generate</div>
+        <h1>It <span class="amber">lands.</span><br>Right in place.</h1>
+        <div class="track2">
+          <div class="slot ph">GENERATING<div class="bar"></div></div>
+          <div class="slot real">YOUR SHOT</div>
+        </div>
+        <p>A placeholder holds the spot, then the finished clip swaps in — metadata saved.</p>
+      </section>
+
+      <!-- S5 — CTA -->
+      <section class="scene s5">
+        <div class="logo">
+          <span class="dot"><svg viewBox="0 0 24 24" fill="none" stroke="#1a1305" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polygon points="6 4 20 12 6 20 6 4" fill="#1a1305" stroke="none"/></svg></span>
+          Director's Desktop
+        </div>
+        <p class="cta">The AI-native editor. Think, generate, edit —<br>without leaving the timeline.</p>
+        <div style="margin-top:18px;color:var(--muted);font-size:13px;letter-spacing:.06em">POWERED BY DIRECTOR'S PALETTE</div>
+        <a class="url">directorspal.com</a>
+      </section>
+
+      <div class="prog"><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+    <div class="cap">9:16 · 15s loop · screen-record the frame to export MP4 · brand: Electric Amber + teal</div>
+  </div>
+</body>
+</html>
