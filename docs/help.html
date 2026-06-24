@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<!-- Director's Desktop Help Center — rendered by ship-faq/scripts/render-help.mjs from docs/FAQ.md + docs/brand.json.
+     Self-contained and safe to embed; re-themeable via :root variables sourced from brand.json. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Director's Desktop — Help Center</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0c0e12;
+    --surface:#14181f;
+    --border:#272e38;
+    --border-soft:#1c222b;
+    --text:#e8eef4;
+    --muted:#93a2b2;
+    --heading:#f6fafd;
+    --brand:#eaa118;
+    --accent:#2db3a0;
+    --accent-ink:#7fd3c6;
+    --grid:rgba(255,255,255,.025);
+    --radius:14px;
+    --maxw:78rem;
+    --sidebar-w:16rem;
+    --font-display:"Inter",ui-sans-serif,system-ui,sans-serif;
+    --font-body:"Inter",ui-sans-serif,system-ui,sans-serif;
+    --font-mono:"JetBrains Mono",ui-monospace,"SFMono-Regular",monospace;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:16px;line-height:1.65;
+    -webkit-font-smoothing:antialiased;letter-spacing:-0.006em;
+    background-image:
+      radial-gradient(120% 60% at 50% -10%, color-mix(in oklab,var(--brand) 13%, transparent), transparent 60%),
+      linear-gradient(var(--grid) 1px,transparent 1px),
+      linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+    background-size:auto,34px 34px,34px 34px;}
+  a{color:var(--brand);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  header.hero{max-width:var(--maxw);margin:0 auto;padding:2.6rem 1.4rem 1.2rem;text-align:center}
+  .hero h1{font-family:var(--font-display);color:var(--heading);font-size:clamp(2rem,5vw,2.9rem);letter-spacing:-0.03em;margin:0 0 .35rem}
+  .hero .tag{color:var(--muted);font-size:1.05rem;margin:0 0 1.3rem}
+  .searchbox{position:relative;max-width:40rem;margin:0 auto}
+  .searchbox input{width:100%;font:inherit;font-size:1.02rem;color:var(--text);background:var(--surface);
+    border:1px solid var(--border);border-radius:12px;padding:.85rem 1rem .85rem 2.7rem;outline:none}
+  .searchbox input:focus{border-color:var(--brand);box-shadow:0 0 0 3px color-mix(in oklab,var(--brand) 22%,transparent)}
+  .searchbox input::placeholder{color:var(--muted)}
+  .searchbox svg{position:absolute;left:.95rem;top:50%;transform:translateY(-50%);width:1.15rem;height:1.15rem;stroke:var(--muted)}
+  .meta{color:var(--muted);font-size:.84rem;margin:.7rem 0 0;font-family:var(--font-mono)}
+  .ver{display:inline-block;font-family:var(--font-mono);font-size:.72rem;color:var(--brand);
+    border:1px solid color-mix(in oklab,var(--brand) 40%,var(--border));border-radius:6px;padding:.06rem .42rem;
+    background:color-mix(in oklab,var(--brand) 10%,transparent);margin-left:.4rem}
+
+  .layout{max-width:var(--maxw);margin:0 auto;display:grid;grid-template-columns:var(--sidebar-w) minmax(0,1fr);gap:2.2rem;padding:1.4rem 1.4rem 5rem}
+  .sidebar{position:sticky;top:1rem;align-self:start;max-height:calc(100vh - 2rem);overflow-y:auto;scrollbar-width:thin}
+  .sidebar .lbl{font-family:var(--font-display);color:var(--heading);font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;margin:.2rem .65rem .6rem}
+  .sidebar nav a{display:flex;justify-content:space-between;align-items:center;gap:.5rem;color:var(--muted);font-size:.88rem;
+    padding:.4rem .65rem;border-left:2px solid transparent;border-radius:0 7px 7px 0;transition:color .15s,background .15s,border-color .15s}
+  .sidebar nav a:hover{color:var(--text);background:var(--surface);text-decoration:none}
+  .sidebar nav a.active{color:var(--heading);border-left-color:var(--brand);background:color-mix(in oklab,var(--brand) 10%,transparent)}
+  .sidebar nav a .ct{font-family:var(--font-mono);font-size:.72rem;color:var(--muted);background:var(--surface);border-radius:20px;padding:.02rem .45rem}
+
+  main{min-width:0}
+  .cat h2{font-family:var(--font-display);color:var(--heading);font-size:1.4rem;letter-spacing:-0.025em;margin:1.8rem 0 .8rem;scroll-margin-top:1rem}
+  .cat:first-child h2{margin-top:.2rem}
+  details.qa{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin:.6rem 0;overflow:hidden;scroll-margin-top:1rem}
+  details.qa[open]{border-color:color-mix(in oklab,var(--brand) 45%,var(--border))}
+  details.qa summary{display:flex;align-items:center;justify-content:space-between;gap:1rem;cursor:pointer;list-style:none;
+    padding:.95rem 1.1rem;font-family:var(--font-display);font-weight:600;color:var(--heading);font-size:1.02rem;letter-spacing:-0.01em}
+  details.qa summary::-webkit-details-marker{display:none}
+  details.qa summary:hover{background:color-mix(in oklab,var(--brand) 6%,transparent)}
+  .qa .ico{flex:none;width:1.5rem;height:1.5rem;display:grid;place-items:center;border-radius:7px;color:var(--brand);
+    background:color-mix(in oklab,var(--brand) 12%,transparent);font-weight:700;font-size:1.1rem;transition:transform .2s}
+  details.qa[open] .ico{transform:rotate(45deg)}
+  .qa .a{padding:0 1.1rem 1rem;color:var(--text);border-top:1px solid var(--border-soft)}
+  .qa .a > :first-child{margin-top:.85rem}
+  .qa .a p{margin:.6rem 0}
+  .qa .a ul,.qa .a ol{margin:.6rem 0;padding-left:1.25rem}
+  .qa .a li{margin:.3rem 0}
+  .qa .a li::marker{color:var(--muted)}
+  .qa .a code{font-family:var(--font-mono);font-size:.84em;background:var(--bg);border:1px solid var(--border-soft);border-radius:5px;padding:.08em .35em;color:var(--accent-ink)}
+  .qa .a pre{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:.85rem 1rem;overflow:auto;margin:.8rem 0}
+  .qa .a pre code{background:none;border:0;padding:0;color:var(--text);font-size:.85rem}
+  .qa .a blockquote{margin:.7rem 0;padding:.5rem .9rem;border-left:3px solid var(--accent);background:color-mix(in oklab,var(--accent) 9%,transparent);border-radius:0 8px 8px 0;color:var(--muted)}
+  .permalink{margin-top:.6rem;font:inherit;font-size:.76rem;font-family:var(--font-mono);color:var(--muted);background:transparent;
+    border:1px solid var(--border);border-radius:7px;padding:.2rem .55rem;cursor:pointer;transition:color .15s,border-color .15s}
+  .permalink:hover{color:var(--brand);border-color:var(--brand)}
+
+  .empty{display:none;text-align:center;color:var(--muted);padding:3rem 1rem}
+  .empty.show{display:block}
+  .empty .big{font-family:var(--font-display);color:var(--heading);font-size:1.2rem;margin-bottom:.3rem}
+  mark{background:color-mix(in oklab,var(--accent) 38%,transparent);color:var(--heading);border-radius:3px;padding:0 .12em}
+  .ops-note{max-width:var(--maxw);margin:0 auto;padding:0 1.4rem;color:var(--muted);font-size:.82rem;text-align:center}
+  .foot{max-width:var(--maxw);margin:0 auto;padding:1.6rem 1.4rem 3rem;color:var(--muted);font-size:.82rem;text-align:center}
+  .foot .mono{font-family:var(--font-mono)}
+
+  @media (max-width:820px){
+    .layout{grid-template-columns:1fr;gap:.4rem}
+    .sidebar{position:static;max-height:none;display:flex;flex-wrap:wrap;gap:.3rem}
+    .sidebar .lbl{width:100%}
+    .sidebar nav{display:flex;flex-wrap:wrap;gap:.3rem}
+    .sidebar nav a{border-left:0;border:1px solid var(--border);border-radius:20px;padding:.3rem .7rem}
+    .sidebar nav a.active{border-color:var(--brand)}
+  }
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}.ico{transition:none}}
+</style>
+</head>
+<body>
+<header class="hero">
+  <h1>Director's Desktop Help Center</h1>
+  <p class="tag">The AI-native video editor — generate the exact clip you need, right on the timeline.</p>
+  <div class="searchbox">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="m21 21-4.3-4.3"></path></svg>
+    <input id="q" type="search" placeholder="Search 36 answers…" aria-label="Search the help center" autocomplete="off">
+  </div>
+  <p class="meta">36 answers · 10 topics<span class="ver">v1.0.1</span></p>
+</header>
+<p class="ops-note">Support team: canned reply templates live in <code>docs/support-replies.md</code>.</p>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="lbl">Topics</div>
+    <nav aria-label="Topics">
+      <a href="#" data-cat="" class="active">All <span class="ct">36</span></a>
+      <a href="#getting-started" data-cat="getting-started">Getting started <span class="ct">4</span></a>
+      <a href="#directors-palette-accounts" data-cat="directors-palette-accounts">Director's Palette &amp; accounts <span class="ct">4</span></a>
+      <a href="#the-ai-native-timeline-workflow" data-cat="the-ai-native-timeline-workflow">The AI-native timeline workflow <span class="ct">5</span></a>
+      <a href="#characters-references-the-system" data-cat="characters-references-the-system">Characters, references &amp; the @ system <span class="ct">4</span></a>
+      <a href="#generation-models" data-cat="generation-models">Generation &amp; models <span class="ct">4</span></a>
+      <a href="#local-vs-api-mode" data-cat="local-vs-api-mode">Local vs. API mode <span class="ct">2</span></a>
+      <a href="#batch-generation" data-cat="batch-generation">Batch generation <span class="ct">2</span></a>
+      <a href="#export-projects" data-cat="export-projects">Export &amp; projects <span class="ct">3</span></a>
+      <a href="#api-keys-credits-cost" data-cat="api-keys-credits-cost">API keys, credits &amp; cost <span class="ct">3</span></a>
+      <a href="#troubleshooting" data-cat="troubleshooting">Troubleshooting <span class="ct">5</span></a>
+    </nav>
+  </aside>
+  <main id="main">
+    <section class="cat" id="getting-started" data-cat="getting-started">
+      <h2>Getting started</h2>
+      <details class="qa" id="getting-started-what-is-directors-desktop" data-cat="getting-started">
+        <summary><span class="q">What is Director's Desktop?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>It's an AI-native video editor: you select a moment on the timeline, describe the shot you want, and the generated clip lands <strong>exactly there</strong>. Instead of generating clips somewhere else and dragging them in, you think, generate, and edit in one place. It's the desktop companion to <strong><a href="https://directorspal.com">Director's Palette</a></strong>.</p>
+          <button class="permalink" data-id="getting-started-what-is-directors-desktop" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="getting-started-how-do-i-install-it" data-cat="getting-started">
+        <summary><span class="q">How do I install it?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>Download the latest installer from the <a href="../../releases">Releases page</a>, run it, and launch <strong>Director's Desktop</strong>. On first run, complete setup, then connect your Director's Palette account in <strong>Settings → Palette Connection</strong>. Windows and macOS (Apple Silicon) are supported.</p>
+          <button class="permalink" data-id="getting-started-how-do-i-install-it" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="getting-started-do-i-need-a-powerful-gpu" data-cat="getting-started">
+        <summary><span class="q">Do I need a powerful GPU?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>No. Local generation needs an NVIDIA GPU with <strong>≥32 GB VRAM</strong>, but <strong>API mode runs on any hardware</strong> (including macOS) — the cloud providers do the work. If you connect Director's Palette, you don't need a local GPU at all.</p>
+          <button class="permalink" data-id="getting-started-do-i-need-a-powerful-gpu" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="getting-started-whats-the-very-first-thing-i-should-do-after-ins" data-cat="getting-started">
+        <summary><span class="q">What's the very first thing I should do after installing?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>Connect Director's Palette (<strong>Settings → Palette Connection</strong>). That unlocks your saved characters, cloud image/video generation on your credits, and the shared gallery. Then load a project with a transcript and try the core loop below.</p>
+          <button class="permalink" data-id="getting-started-whats-the-very-first-thing-i-should-do-after-ins" type="button">Copy link</button>
+        </div>
+      </details>
+    </section>
+    <section class="cat" id="directors-palette-accounts" data-cat="directors-palette-accounts">
+      <h2>Director's Palette &amp; accounts</h2>
+      <details class="qa" id="directors-palette-accounts-what-is-directors-palette-and-why-do-" data-cat="directors-palette-accounts">
+        <summary><span class="q">What is Director's Palette and why do I need it?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p><a href="https://directorspal.com">Director's Palette</a> is the cloud brain behind Director's Desktop. It stores your characters, styles, and references, runs image and shot generation on your credits, and keeps one gallery across web and desktop. Director's Desktop works without it, but the <code>@character</code> system and no-keys generation are why it exists. <strong><a href="https://directorspal.com">Create a free account →</a></strong></p>
+          <button class="permalink" data-id="directors-palette-accounts-what-is-directors-palette-and-why-do-" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="directors-palette-accounts-how-do-i-connect-my-directors-palette" data-cat="directors-palette-accounts">
+        <summary><span class="q">How do I connect my Director's Palette account?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>Open <strong>Settings → Palette Connection</strong> and sign in with your email and password (or via the deep link from the web app). Once connected, your credit balance shows in the header and your characters appear in the <code>@</code> picker.</p>
+          <button class="permalink" data-id="directors-palette-accounts-how-do-i-connect-my-directors-palette" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="directors-palette-accounts-where-do-i-see-my-credit-balance-and-" data-cat="directors-palette-accounts">
+        <summary><span class="q">Where do I see my credit balance and what a generation will cost?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>Your balance is in the app header, and the <strong>estimated cost shows on the Generate button</strong> before you submit — so there are no surprises. Credits are only used for API-backed generations; local GPU generations are free.</p>
+          <button class="permalink" data-id="directors-palette-accounts-where-do-i-see-my-credit-balance-and-" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="directors-palette-accounts-is-my-directors-palette-login-or-api-" data-cat="directors-palette-accounts">
+        <summary><span class="q">Is my Director's Palette login or API key safe?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>Yes. Keys and tokens are stored locally in your app-data folder and are never committed or uploaded with your project. Treat them like passwords.</p>
+          <button class="permalink" data-id="directors-palette-accounts-is-my-directors-palette-login-or-api-" type="button">Copy link</button>
+        </div>
+      </details>
+    </section>
+    <section class="cat" id="the-ai-native-timeline-workflow" data-cat="the-ai-native-timeline-workflow">
+      <h2>The AI-native timeline workflow</h2>
+      <details class="qa" id="the-ai-native-timeline-workflow-how-does-the-core-generate-into-" data-cat="the-ai-native-timeline-workflow">
+        <summary><span class="q">How does the core "generate into the timeline" loop work?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><ol><li>Load a project (video or audio) with a transcript. 2. Highlight a lyric/sentence in the transcript, or</li></ol>
+<p>drag a range on the timeline. 3. Director's Desktop reads the <strong>exact duration</strong> you need (e.g. 1:08–1:11 → 3 seconds). 4. Type <code>@</code> to add a Director's Palette character, write your prompt, and generate. 5. A <strong>placeholder</strong> holds the spot while it renders, then the finished clip swaps in automatically.</p>
+          <button class="permalink" data-id="the-ai-native-timeline-workflow-how-does-the-core-generate-into-" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="the-ai-native-timeline-workflow-how-does-it-know-what-clip-lengt" data-cat="the-ai-native-timeline-workflow">
+        <summary><span class="q">How does it know what clip length to generate?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>From your selection. Highlight a transcript range or a timeline range and it computes the duration for you and sends it with the request — so you get a clip that fits the slot instead of guessing.</p>
+          <button class="permalink" data-id="the-ai-native-timeline-workflow-how-does-it-know-what-clip-lengt" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="the-ai-native-timeline-workflow-i-highlighted-a-transcript-line-" data-cat="the-ai-native-timeline-workflow">
+        <summary><span class="q">I highlighted a transcript line but the timeline didn't move — why?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>The transcript panel maps <strong>word-level timestamps</strong> to the timeline. Click a word to jump the playhead; if nothing happens, the clip under that word may not have a transcript yet — generate or attach one first, and make sure the clip you expect is on an active track.</p>
+          <button class="permalink" data-id="the-ai-native-timeline-workflow-i-highlighted-a-transcript-line-" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="the-ai-native-timeline-workflow-does-the-generated-clip-really-d" data-cat="the-ai-native-timeline-workflow">
+        <summary><span class="q">Does the generated clip really drop itself onto the timeline?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>For the generate-into-the-timeline (gap-fill) flow, yes — a duration-sized placeholder appears at the spot and is replaced by the finished clip. Generating into <strong>any</strong> arbitrary timeline position from every panel is being generalized (tracked in the project's open issues); today it's most reliable via the timeline/transcript flow.</p>
+          <button class="permalink" data-id="the-ai-native-timeline-workflow-does-the-generated-clip-really-d" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="the-ai-native-timeline-workflow-can-i-use-this-for-youtube-video" data-cat="the-ai-native-timeline-workflow">
+        <summary><span class="q">Can I use this for YouTube videos, not just music videos?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>Absolutely. Highlight a sentence of narration that runs, say, 5 seconds, prompt a visual metaphor, and a 5-second clip drops in. The same loop works for explainers, commentary, news, trailers, and pitch decks.</p>
+          <button class="permalink" data-id="the-ai-native-timeline-workflow-can-i-use-this-for-youtube-video" type="button">Copy link</button>
+        </div>
+      </details>
+    </section>
+    <section class="cat" id="characters-references-the-system" data-cat="characters-references-the-system">
+      <h2>Characters, references &amp; the @ system</h2>
+      <details class="qa" id="characters-references-the-system-how-do-i-add-one-of-my-saved-ch" data-cat="characters-references-the-system">
+        <summary><span class="q">How do I add one of my saved characters to a generation?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>Type <code>@</code> in the prompt box and pick a character from the dropdown — the same characters you saved in Director's Palette. Its reference images attach to the generation automatically, so the character stays consistent across shots.</p>
+          <button class="permalink" data-id="characters-references-the-system-how-do-i-add-one-of-my-saved-ch" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="characters-references-the-system-my-menu-is-empty-whats-wrong" data-cat="characters-references-the-system">
+        <summary><span class="q">My @ menu is empty. What's wrong?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>The <code>@</code> picker pulls from your Director's Palette characters and the local Characters/References libraries. If it's empty, connect Director's Palette (<strong>Settings → Palette Connection</strong>) or add entries under the <strong>Characters</strong> / <strong>References</strong> library views, then reopen the picker.</p>
+          <button class="permalink" data-id="characters-references-the-system-my-menu-is-empty-whats-wrong" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="characters-references-the-system-whats-the-difference-between-a-" data-cat="characters-references-the-system">
+        <summary><span class="q">What's the difference between a reference and a first/last frame?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>A <strong>reference</strong> guides likeness/consistency (a character looks like <em>that</em>). A <strong>first/last frame</strong> sets the literal starting/ending image of the clip. Seedance 1.5 supports first <strong>and</strong> last frame; Seedance 2.0 uses image (and audio) references.</p>
+          <button class="permalink" data-id="characters-references-the-system-whats-the-difference-between-a-" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="characters-references-the-system-can-i-drive-lip-sync-from-an-au" data-cat="characters-references-the-system">
+        <summary><span class="q">Can I drive lip-sync from an audio clip?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>Seedance 2.0 supports audio references (lip-sync) alongside an image reference. The audio-reference library UI is still being finished, so this is partially available today — see the open issues for status.</p>
+          <button class="permalink" data-id="characters-references-the-system-can-i-drive-lip-sync-from-an-au" type="button">Copy link</button>
+        </div>
+      </details>
+    </section>
+    <section class="cat" id="generation-models" data-cat="generation-models">
+      <h2>Generation &amp; models</h2>
+      <details class="qa" id="generation-models-which-video-models-can-i-use" data-cat="generation-models">
+        <summary><span class="q">Which video models can I use?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>Local LTX 2.3 (multiple VRAM-friendly formats), <strong>Seedance 1.5</strong> (first + last frame, via Replicate), and <strong>Seedance 2.0</strong> (reference-to-video with character + audio refs, via fal). Image generation runs through Director's Palette's shot generator, or locally/fal.</p>
+          <button class="permalink" data-id="generation-models-which-video-models-can-i-use" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="generation-models-what-are-story-music-and-plain-prompt-modes" data-cat="generation-models">
+        <summary><span class="q">What are Story, Music, and Plain prompt modes?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>They change how your selection becomes a prompt. <strong>Story</strong> keeps a narrative consistent across moments. <strong>Music</strong> turns <strong>pasted lyrics</strong> into shot prompts that fit the song. <strong>Plain</strong> uses just the text you selected. Pick the mode in the transcript panel.</p>
+          <button class="permalink" data-id="generation-models-what-are-story-music-and-plain-prompt-modes" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="generation-models-which-local-model-format-should-i-download-for" data-cat="generation-models">
+        <summary><span class="q">Which local model format should I download for my GPU?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>32 GB+ → BF16 (auto-downloaded). 20–31 GB → FP8. 16–19 GB → GGUF Q5_K. 10–15 GB → GGUF Q4_K. The built-in <strong>Model Guide</strong> (Settings → Models → Open Model Guide) detects your GPU and recommends one automatically.</p>
+          <button class="permalink" data-id="generation-models-which-local-model-format-should-i-download-for" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="generation-models-why-does-my-first-local-generation-take-so-lon" data-cat="generation-models">
+        <summary><span class="q">Why does my first local generation take so long?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>The model weights download on first use (BF16 is ~43 GB) and the model loads into VRAM. After that, generations are much faster. API/cloud generations skip the download entirely.</p>
+          <button class="permalink" data-id="generation-models-why-does-my-first-local-generation-take-so-lon" type="button">Copy link</button>
+        </div>
+      </details>
+    </section>
+    <section class="cat" id="local-vs-api-mode" data-cat="local-vs-api-mode">
+      <h2>Local vs. API mode</h2>
+      <details class="qa" id="local-vs-api-mode-whats-the-difference-between-local-and-api-mod" data-cat="local-vs-api-mode">
+        <summary><span class="q">What's the difference between local and API mode?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p><strong>Local</strong> runs the model on your NVIDIA GPU (free, needs ≥32 GB VRAM). <strong>API mode</strong> sends generation to the cloud (Director's Palette, Seedance, fal, LTX) and works on any hardware including macOS, using credits or an API key.</p>
+          <button class="permalink" data-id="local-vs-api-mode-whats-the-difference-between-local-and-api-mod" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="local-vs-api-mode-can-i-run-everything-in-the-cloud-and-skip-loc" data-cat="local-vs-api-mode">
+        <summary><span class="q">Can I run everything in the cloud and skip local models?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>Yes — connect Director's Palette and/or add API keys, and you never need a local GPU. This is the default path on macOS and on Windows machines without a big GPU.</p>
+          <button class="permalink" data-id="local-vs-api-mode-can-i-run-everything-in-the-cloud-and-skip-loc" type="button">Copy link</button>
+        </div>
+      </details>
+    </section>
+    <section class="cat" id="batch-generation" data-cat="batch-generation">
+      <h2>Batch generation</h2>
+      <details class="qa" id="batch-generation-how-do-i-generate-many-clips-at-once" data-cat="batch-generation">
+        <summary><span class="q">How do I generate many clips at once?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>Open the <strong>Batch Builder</strong>. Use <strong>List</strong> mode to add prompts one by one, <strong>Import</strong> to bulk-load from CSV/JSON/text, or <strong>Grid Sweep</strong> to run combinations of prompts × seeds × models. You can also import an edited timeline to re-generate all of its segments.</p>
+          <button class="permalink" data-id="batch-generation-how-do-i-generate-many-clips-at-once" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="batch-generation-can-i-re-generate-a-whole-edited-timeline" data-cat="batch-generation">
+        <summary><span class="q">Can I re-generate a whole edited timeline?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>Yes — use <strong>Timeline import</strong> in the Batch Builder to turn your edit into a batch and regenerate each segment.</p>
+          <button class="permalink" data-id="batch-generation-can-i-re-generate-a-whole-edited-timeline" type="button">Copy link</button>
+        </div>
+      </details>
+    </section>
+    <section class="cat" id="export-projects" data-cat="export-projects">
+      <h2>Export &amp; projects</h2>
+      <details class="qa" id="export-projects-how-do-i-export-my-finished-video" data-cat="export-projects">
+        <summary><span class="q">How do I export my finished video?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>Use <strong>FFmpeg export</strong> from the editor and choose your codec and quality. Save your editing session as a <strong>Video Project</strong> so you can reopen it later.</p>
+          <button class="permalink" data-id="export-projects-how-do-i-export-my-finished-video" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="export-projects-are-my-generated-videos-uploaded-to-the-cloud" data-cat="export-projects">
+        <summary><span class="q">Are my generated videos uploaded to the cloud?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>No — generated <strong>videos stay on your machine</strong> (they're large). Generated <strong>images</strong> are designed to sync to a shared Director's Palette gallery; that image-save round-trip is being finalized on the Director's Palette side, so for now images live in your local Gallery.</p>
+          <button class="permalink" data-id="export-projects-are-my-generated-videos-uploaded-to-the-cloud" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="export-projects-where-are-my-files-and-settings-stored" data-cat="export-projects">
+        <summary><span class="q">Where are my files and settings stored?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>App data (settings, models, logs) is in <code>%LOCALAPPDATA%\LTXDesktop\</code> on Windows or <code>~/Library/Application Support/LTXDesktop/</code> on macOS. Generated media lands in the app's outputs folder and shows up in the <strong>Gallery</strong>.</p>
+          <button class="permalink" data-id="export-projects-where-are-my-files-and-settings-stored" type="button">Copy link</button>
+        </div>
+      </details>
+    </section>
+    <section class="cat" id="api-keys-credits-cost" data-cat="api-keys-credits-cost">
+      <h2>API keys, credits &amp; cost</h2>
+      <details class="qa" id="api-keys-credits-cost-which-api-keys-do-i-actually-need" data-cat="api-keys-credits-cost">
+        <summary><span class="q">Which API keys do I actually need?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>None are strictly required if you connect Director's Palette. Optional keys add providers: <strong>LTX</strong> (free cloud text encoding + prompt enhancement; paid video), <strong>Replicate</strong> (Seedance 1.5), <strong>fal</strong> (Seedance 2.0, Z-Image), <strong>OpenRouter/Gemini</strong> (prompt suggestions). Add them in <strong>Settings</strong>.</p>
+          <button class="permalink" data-id="api-keys-credits-cost-which-api-keys-do-i-actually-need" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="api-keys-credits-cost-is-text-encoding-free" data-cat="api-keys-credits-cost">
+        <summary><span class="q">Is text encoding free?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>Yes — cloud <strong>text encoding is completely free</strong> (via LTX/Palette) and is recommended because it speeds up inference and saves memory. Only actual video/image generation consumes credits or paid API usage.</p>
+          <button class="permalink" data-id="api-keys-credits-cost-is-text-encoding-free" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="api-keys-credits-cost-when-do-i-get-charged-credits" data-cat="api-keys-credits-cost">
+        <summary><span class="q">When do I get charged credits?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>Only for API-backed generations (cloud video, Seedance, cloud image). <strong>Local GPU generations are free.</strong> The cost estimate appears on the Generate button before you confirm.</p>
+          <button class="permalink" data-id="api-keys-credits-cost-when-do-i-get-charged-credits" type="button">Copy link</button>
+        </div>
+      </details>
+    </section>
+    <section class="cat" id="troubleshooting" data-cat="troubleshooting">
+      <h2>Troubleshooting</h2>
+      <details class="qa" id="troubleshooting-the-app-crashed-on-startup-kept-relaunching-is-t" data-cat="troubleshooting">
+        <summary><span class="q">The app crashed on startup / kept relaunching. Is that fixed?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>Yes. An intermittent startup crash (a <code>file:</code> protocol recursion in the Electron layer, surfacing as a <code>0xC0000005</code> access violation) was fixed in v1.0.1. Update to the latest build. It was <strong>not</strong> a GPU driver problem, so you don't need to change GPU settings.</p>
+          <button class="permalink" data-id="troubleshooting-the-app-crashed-on-startup-kept-relaunching-is-t" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="troubleshooting-my-generation-failed-or-the-placeholder-shows-an" data-cat="troubleshooting">
+        <summary><span class="q">My generation failed or the placeholder shows an error — what now?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>Open the failed job and check the message. Common causes: no API key/credits for an API-backed model (add a key or connect Director's Palette), an unsupported resolution/duration for that provider, or a reference image that's too large. Fix the cause and retry from the placeholder.</p>
+          <button class="permalink" data-id="troubleshooting-my-generation-failed-or-the-placeholder-shows-an" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="troubleshooting-generation-is-using-api-mode-when-i-wanted-local" data-cat="troubleshooting">
+        <summary><span class="q">Generation is using API mode when I wanted local (or vice-versa).</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>The mode is chosen by your hardware and the selected model. A <code>dp-</code> or cloud model always runs via the API; local LTX formats run on your GPU when you have ≥32 GB VRAM. Pick the model that matches the mode you want in <strong>Settings → Models</strong> and the generation panel.</p>
+          <button class="permalink" data-id="troubleshooting-generation-is-using-api-mode-when-i-wanted-local" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="troubleshooting-im-out-of-vram-getting-out-of-memory-errors-on-l" data-cat="troubleshooting">
+        <summary><span class="q">I'm out of VRAM / getting out-of-memory errors on local generation.</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p>Use a smaller model format for your GPU (FP8/GGUF — see the Model Guide), lower the resolution or duration, or switch that job to API/Director's Palette mode. Very long or high-resolution local clips need the most VRAM.</p>
+          <button class="permalink" data-id="troubleshooting-im-out-of-vram-getting-out-of-memory-errors-on-l" type="button">Copy link</button>
+        </div>
+      </details>
+      <details class="qa" id="troubleshooting-how-do-i-turn-off-analytics" data-cat="troubleshooting">
+        <summary><span class="q">How do I turn off analytics?</span><span class="ico" aria-hidden="true">+</span></summary>
+        <div class="a"><p><strong>Settings → General → Anonymous Analytics</strong>. Analytics is minimal and anonymous (app version, platform, a random install ID — no personal data or generated content), but you can disable it anytime.</p>
+          <button class="permalink" data-id="troubleshooting-how-do-i-turn-off-analytics" type="button">Copy link</button>
+        </div>
+      </details>
+    </section>
+    <div class="empty" id="empty">
+      <div class="big">No answers match that.</div>
+      <div>Try fewer or different words — or contact support.</div>
+    </div>
+  </main>
+</div>
+<div class="foot">Director's Desktop help center · <span class="mono">v1.0.1</span> · updated 2026-06-24 · built with the ship pack</div>
+<script id="faq-index" type="application/json">[{"id":"getting-started-what-is-directors-desktop","cat":"getting-started","q":"What is Director's Desktop?","a":"It's an AI-native video editor: you select a moment on the timeline, describe the shot you want, and the generated clip lands exactly there. Instead of generating clips somewhere else and dragging them in, you think, generate, and edit in one place. It's the desktop companion to Director's Palette."},{"id":"getting-started-how-do-i-install-it","cat":"getting-started","q":"How do I install it?","a":"Download the latest installer from the Releases page, run it, and launch Director's Desktop. On first run, complete setup, then connect your Director's Palette account in Settings → Palette Connection. Windows and macOS (Apple Silicon) are supported."},{"id":"getting-started-do-i-need-a-powerful-gpu","cat":"getting-started","q":"Do I need a powerful GPU?","a":"No. Local generation needs an NVIDIA GPU with ≥32 GB VRAM, but API mode runs on any hardware (including macOS) — the cloud providers do the work. If you connect Director's Palette, you don't need a local GPU at all."},{"id":"getting-started-whats-the-very-first-thing-i-should-do-after-ins","cat":"getting-started","q":"What's the very first thing I should do after installing?","a":"Connect Director's Palette (Settings → Palette Connection). That unlocks your saved characters, cloud image/video generation on your credits, and the shared gallery. Then load a project with a transcript and try the core loop below."},{"id":"directors-palette-accounts-what-is-directors-palette-and-why-do-","cat":"directors-palette-accounts","q":"What is Director's Palette and why do I need it?","a":"Director's Palette is the cloud brain behind Director's Desktop. It stores your characters, styles, and references, runs image and shot generation on your credits, and keeps one gallery across web and desktop. Director's Desktop works without it, but the @character system and no-keys generation are why it exists. Create a free account →"},{"id":"directors-palette-accounts-how-do-i-connect-my-directors-palette","cat":"directors-palette-accounts","q":"How do I connect my Director's Palette account?","a":"Open Settings → Palette Connection and sign in with your email and password (or via the deep link from the web app). Once connected, your credit balance shows in the header and your characters appear in the @ picker."},{"id":"directors-palette-accounts-where-do-i-see-my-credit-balance-and-","cat":"directors-palette-accounts","q":"Where do I see my credit balance and what a generation will cost?","a":"Your balance is in the app header, and the estimated cost shows on the Generate button before you submit — so there are no surprises. Credits are only used for API-backed generations; local GPU generations are free."},{"id":"directors-palette-accounts-is-my-directors-palette-login-or-api-","cat":"directors-palette-accounts","q":"Is my Director's Palette login or API key safe?","a":"Yes. Keys and tokens are stored locally in your app-data folder and are never committed or uploaded with your project. Treat them like passwords."},{"id":"the-ai-native-timeline-workflow-how-does-the-core-generate-into-","cat":"the-ai-native-timeline-workflow","q":"How does the core \"generate into the timeline\" loop work?","a":"1. Load a project (video or audio) with a transcript. 2. Highlight a lyric/sentence in the transcript, or drag a range on the timeline. 3. Director's Desktop reads the exact duration you need (e.g. 1:08–1:11 → 3 seconds). 4. Type @ to add a Director's Palette character, write your prompt, and generate. 5. A placeholder holds the spot while it renders, then the finished clip swaps in automatically."},{"id":"the-ai-native-timeline-workflow-how-does-it-know-what-clip-lengt","cat":"the-ai-native-timeline-workflow","q":"How does it know what clip length to generate?","a":"From your selection. Highlight a transcript range or a timeline range and it computes the duration for you and sends it with the request — so you get a clip that fits the slot instead of guessing."},{"id":"the-ai-native-timeline-workflow-i-highlighted-a-transcript-line-","cat":"the-ai-native-timeline-workflow","q":"I highlighted a transcript line but the timeline didn't move — why?","a":"The transcript panel maps word-level timestamps to the timeline. Click a word to jump the playhead; if nothing happens, the clip under that word may not have a transcript yet — generate or attach one first, and make sure the clip you expect is on an active track."},{"id":"the-ai-native-timeline-workflow-does-the-generated-clip-really-d","cat":"the-ai-native-timeline-workflow","q":"Does the generated clip really drop itself onto the timeline?","a":"For the generate-into-the-timeline (gap-fill) flow, yes — a duration-sized placeholder appears at the spot and is replaced by the finished clip. Generating into any arbitrary timeline position from every panel is being generalized (tracked in the project's open issues); today it's most reliable via the timeline/transcript flow."},{"id":"the-ai-native-timeline-workflow-can-i-use-this-for-youtube-video","cat":"the-ai-native-timeline-workflow","q":"Can I use this for YouTube videos, not just music videos?","a":"Absolutely. Highlight a sentence of narration that runs, say, 5 seconds, prompt a visual metaphor, and a 5-second clip drops in. The same loop works for explainers, commentary, news, trailers, and pitch decks."},{"id":"characters-references-the-system-how-do-i-add-one-of-my-saved-ch","cat":"characters-references-the-system","q":"How do I add one of my saved characters to a generation?","a":"Type @ in the prompt box and pick a character from the dropdown — the same characters you saved in Director's Palette. Its reference images attach to the generation automatically, so the character stays consistent across shots."},{"id":"characters-references-the-system-my-menu-is-empty-whats-wrong","cat":"characters-references-the-system","q":"My @ menu is empty. What's wrong?","a":"The @ picker pulls from your Director's Palette characters and the local Characters/References libraries. If it's empty, connect Director's Palette (Settings → Palette Connection) or add entries under the Characters / References library views, then reopen the picker."},{"id":"characters-references-the-system-whats-the-difference-between-a-","cat":"characters-references-the-system","q":"What's the difference between a reference and a first/last frame?","a":"A reference guides likeness/consistency (a character looks like that). A first/last frame sets the literal starting/ending image of the clip. Seedance 1.5 supports first and last frame; Seedance 2.0 uses image (and audio) references."},{"id":"characters-references-the-system-can-i-drive-lip-sync-from-an-au","cat":"characters-references-the-system","q":"Can I drive lip-sync from an audio clip?","a":"Seedance 2.0 supports audio references (lip-sync) alongside an image reference. The audio-reference library UI is still being finished, so this is partially available today — see the open issues for status."},{"id":"generation-models-which-video-models-can-i-use","cat":"generation-models","q":"Which video models can I use?","a":"Local LTX 2.3 (multiple VRAM-friendly formats), Seedance 1.5 (first + last frame, via Replicate), and Seedance 2.0 (reference-to-video with character + audio refs, via fal). Image generation runs through Director's Palette's shot generator, or locally/fal."},{"id":"generation-models-what-are-story-music-and-plain-prompt-modes","cat":"generation-models","q":"What are Story, Music, and Plain prompt modes?","a":"They change how your selection becomes a prompt. Story keeps a narrative consistent across moments. Music turns pasted lyrics into shot prompts that fit the song. Plain uses just the text you selected. Pick the mode in the transcript panel."},{"id":"generation-models-which-local-model-format-should-i-download-for","cat":"generation-models","q":"Which local model format should I download for my GPU?","a":"32 GB+ → BF16 (auto-downloaded). 20–31 GB → FP8. 16–19 GB → GGUF Q5K. 10–15 GB → GGUF Q4K. The built-in Model Guide (Settings → Models → Open Model Guide) detects your GPU and recommends one automatically."},{"id":"generation-models-why-does-my-first-local-generation-take-so-lon","cat":"generation-models","q":"Why does my first local generation take so long?","a":"The model weights download on first use (BF16 is ~43 GB) and the model loads into VRAM. After that, generations are much faster. API/cloud generations skip the download entirely."},{"id":"local-vs-api-mode-whats-the-difference-between-local-and-api-mod","cat":"local-vs-api-mode","q":"What's the difference between local and API mode?","a":"Local runs the model on your NVIDIA GPU (free, needs ≥32 GB VRAM). API mode sends generation to the cloud (Director's Palette, Seedance, fal, LTX) and works on any hardware including macOS, using credits or an API key."},{"id":"local-vs-api-mode-can-i-run-everything-in-the-cloud-and-skip-loc","cat":"local-vs-api-mode","q":"Can I run everything in the cloud and skip local models?","a":"Yes — connect Director's Palette and/or add API keys, and you never need a local GPU. This is the default path on macOS and on Windows machines without a big GPU."},{"id":"batch-generation-how-do-i-generate-many-clips-at-once","cat":"batch-generation","q":"How do I generate many clips at once?","a":"Open the Batch Builder. Use List mode to add prompts one by one, Import to bulk-load from CSV/JSON/text, or Grid Sweep to run combinations of prompts × seeds × models. You can also import an edited timeline to re-generate all of its segments."},{"id":"batch-generation-can-i-re-generate-a-whole-edited-timeline","cat":"batch-generation","q":"Can I re-generate a whole edited timeline?","a":"Yes — use Timeline import in the Batch Builder to turn your edit into a batch and regenerate each segment."},{"id":"export-projects-how-do-i-export-my-finished-video","cat":"export-projects","q":"How do I export my finished video?","a":"Use FFmpeg export from the editor and choose your codec and quality. Save your editing session as a Video Project so you can reopen it later."},{"id":"export-projects-are-my-generated-videos-uploaded-to-the-cloud","cat":"export-projects","q":"Are my generated videos uploaded to the cloud?","a":"No — generated videos stay on your machine (they're large). Generated images are designed to sync to a shared Director's Palette gallery; that image-save round-trip is being finalized on the Director's Palette side, so for now images live in your local Gallery."},{"id":"export-projects-where-are-my-files-and-settings-stored","cat":"export-projects","q":"Where are my files and settings stored?","a":"App data (settings, models, logs) is in %LOCALAPPDATA%\\LTXDesktop\\ on Windows or ~/Library/Application Support/LTXDesktop/ on macOS. Generated media lands in the app's outputs folder and shows up in the Gallery."},{"id":"api-keys-credits-cost-which-api-keys-do-i-actually-need","cat":"api-keys-credits-cost","q":"Which API keys do I actually need?","a":"None are strictly required if you connect Director's Palette. Optional keys add providers: LTX (free cloud text encoding + prompt enhancement; paid video), Replicate (Seedance 1.5), fal (Seedance 2.0, Z-Image), OpenRouter/Gemini (prompt suggestions). Add them in Settings."},{"id":"api-keys-credits-cost-is-text-encoding-free","cat":"api-keys-credits-cost","q":"Is text encoding free?","a":"Yes — cloud text encoding is completely free (via LTX/Palette) and is recommended because it speeds up inference and saves memory. Only actual video/image generation consumes credits or paid API usage."},{"id":"api-keys-credits-cost-when-do-i-get-charged-credits","cat":"api-keys-credits-cost","q":"When do I get charged credits?","a":"Only for API-backed generations (cloud video, Seedance, cloud image). Local GPU generations are free. The cost estimate appears on the Generate button before you confirm."},{"id":"troubleshooting-the-app-crashed-on-startup-kept-relaunching-is-t","cat":"troubleshooting","q":"The app crashed on startup / kept relaunching. Is that fixed?","a":"Yes. An intermittent startup crash (a file: protocol recursion in the Electron layer, surfacing as a 0xC0000005 access violation) was fixed in v1.0.1. Update to the latest build. It was not a GPU driver problem, so you don't need to change GPU settings."},{"id":"troubleshooting-my-generation-failed-or-the-placeholder-shows-an","cat":"troubleshooting","q":"My generation failed or the placeholder shows an error — what now?","a":"Open the failed job and check the message. Common causes: no API key/credits for an API-backed model (add a key or connect Director's Palette), an unsupported resolution/duration for that provider, or a reference image that's too large. Fix the cause and retry from the placeholder."},{"id":"troubleshooting-generation-is-using-api-mode-when-i-wanted-local","cat":"troubleshooting","q":"Generation is using API mode when I wanted local (or vice-versa).","a":"The mode is chosen by your hardware and the selected model. A dp- or cloud model always runs via the API; local LTX formats run on your GPU when you have ≥32 GB VRAM. Pick the model that matches the mode you want in Settings → Models and the generation panel."},{"id":"troubleshooting-im-out-of-vram-getting-out-of-memory-errors-on-l","cat":"troubleshooting","q":"I'm out of VRAM / getting out-of-memory errors on local generation.","a":"Use a smaller model format for your GPU (FP8/GGUF — see the Model Guide), lower the resolution or duration, or switch that job to API/Director's Palette mode. Very long or high-resolution local clips need the most VRAM."},{"id":"troubleshooting-how-do-i-turn-off-analytics","cat":"troubleshooting","q":"How do I turn off analytics?","a":"Settings → General → Anonymous Analytics. Analytics is minimal and anonymous (app version, platform, a random install ID — no personal data or generated content), but you can disable it anytime."}]</script>
+<script>
+(function(){
+  var IDX = JSON.parse(document.getElementById('faq-index').textContent);
+  var byId = {}; IDX.forEach(function(r){ byId[r.id]=(r.q+' '+r.a).toLowerCase(); });
+  var input = document.getElementById('q');
+  var empty = document.getElementById('empty');
+  var qas = [].slice.call(document.querySelectorAll('details.qa'));
+  var cats = [].slice.call(document.querySelectorAll('section.cat'));
+  var navLinks = [].slice.call(document.querySelectorAll('.sidebar nav a'));
+  var activeCat = '';
+
+  function apply(){
+    var q = input.value.trim().toLowerCase();
+    var terms = q.split(/\s+/).filter(Boolean);
+    var shown = 0;
+    qas.forEach(function(d){
+      var hay = byId[d.id] || '';
+      var matchText = terms.every(function(t){ return hay.indexOf(t)>-1; });
+      var matchCat = !activeCat || d.getAttribute('data-cat')===activeCat;
+      var on = matchText && matchCat;
+      d.style.display = on ? '' : 'none';
+      if(on){ shown++; if(q) d.open = terms.length<=3 && shown<=8; }
+    });
+    cats.forEach(function(s){
+      var any = [].slice.call(s.querySelectorAll('details.qa')).some(function(d){return d.style.display!=='none';});
+      s.style.display = any ? '' : 'none';
+    });
+    empty.classList.toggle('show', shown===0);
+  }
+  input.addEventListener('input', apply);
+
+  navLinks.forEach(function(a){
+    a.addEventListener('click', function(e){
+      activeCat = a.getAttribute('data-cat') || '';
+      navLinks.forEach(function(x){x.classList.toggle('active',x===a);});
+      if(activeCat){ e.preventDefault(); }
+      apply();
+    });
+  });
+
+  document.addEventListener('click', function(e){
+    var b = e.target.closest('.permalink'); if(!b) return;
+    var url = location.origin+location.pathname+'#'+b.getAttribute('data-id');
+    var done = function(){ var t=b.textContent; b.textContent='Copied!'; setTimeout(function(){b.textContent=t;},1200); };
+    if(navigator.clipboard){ navigator.clipboard.writeText(url).then(done, function(){location.hash=b.getAttribute('data-id');done();}); }
+    else { location.hash=b.getAttribute('data-id'); done(); }
+  });
+
+  // deep-link: open + scroll to a question if the URL has a hash
+  if(location.hash){ var el=document.getElementById(location.hash.slice(1)); if(el && el.tagName==='DETAILS'){ el.open=true; setTimeout(function(){el.scrollIntoView({block:'center'});},60); } }
+
+  // keyboard '/' focuses search
+  document.addEventListener('keydown', function(e){
+    if(e.key==='/' && document.activeElement!==input){ e.preventDefault(); input.focus(); }
+  });
+})();
+</script>
+</body>
+</html>

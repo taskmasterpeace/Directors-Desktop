@@ -1,0 +1,21 @@
+{
+  "name": "Director's Desktop",
+  "tagline": "The AI-native video editor — generate the exact clip you need, right on the timeline.",
+  "colors": {
+    "bg": "#0c0e12",
+    "surface": "#14181f",
+    "border": "#272e38",
+    "border-soft": "#1c222b",
+    "text": "#e8eef4",
+    "muted": "#93a2b2",
+    "heading": "#f6fafd",
+    "brand": "#eaa118",
+    "accent": "#2db3a0",
+    "accent-ink": "#7fd3c6"
+  },
+  "fonts": {
+    "display": "Inter",
+    "body": "Inter",
+    "mono": "JetBrains Mono"
+  }
+}

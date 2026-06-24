@@ -1,249 +1,202 @@
-# LTX Desktop
+<h1 align="center">Director's Desktop</h1>
 
-LTX Desktop is an open-source desktop app for generating videos with LTX models — locally on supported Windows NVIDIA GPUs, with an API mode for unsupported hardware and macOS.
-
-> **Status: Beta.** Expect breaking changes.
-> Frontend architecture is under active refactor; large UI PRs may be declined for now (see [`CONTRIBUTING.md`](docs/CONTRIBUTING.md)).
+<p align="center"><strong>The AI-native video editor.<br>Generate the exact clip you need — right where you need it on the timeline.</strong></p>
 
 <p align="center">
-  <img src="images/gen-space.png" alt="Gen Space" width="70%">
+  <a href="https://directorspal.com"><img alt="Powered by Director's Palette" src="https://img.shields.io/badge/powered%20by-Director's%20Palette-E8A317"></a>
+  <img alt="Status: Beta" src="https://img.shields.io/badge/status-beta-F5B700">
+  <img alt="License: Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-3A9D8F">
+  <img alt="Platforms" src="https://img.shields.io/badge/platforms-Windows%20%7C%20macOS-2A9D8F">
 </p>
 
 <p align="center">
-  <img src="images/video-editor.png" alt="Video Editor" width="70%">
+  Director's Desktop is the desktop companion to <a href="https://directorspal.com"><strong>Director's Palette</strong></a> —
+  bring your saved characters, references, and prompts straight into a timeline editor and generate AI video clips
+  <em>in place</em>, without ever leaving the edit.
 </p>
 
 <p align="center">
-  <img src="images/timeline-gap-fill.png" alt="Timeline gap fill" width="70%">
+  <img src="images/gen-space.png" alt="Generation workspace" width="70%">
 </p>
+<p align="center">
+  <img src="images/video-editor.png" alt="Multi-track timeline editor" width="70%">
+</p>
+<p align="center">
+  <img src="images/timeline-gap-fill.png" alt="Generate a clip directly into a timeline gap" width="70%">
+</p>
+
+> **Status: Beta.** Expect breaking changes. Frontend architecture is under active refactor; large UI PRs may be declined for now (see [`CONTRIBUTING.md`](docs/CONTRIBUTING.md)).
+
+---
+
+## Why Director's Desktop
+
+The usual AI-video workflow is broken: generate a clip somewhere else → download it → hunt for the file → drag it into an editor → realize it's the wrong length → start over. You lose the prompt, the character references, and your place in the edit every single time.
+
+**Director's Desktop collapses that whole loop into one move:**
+
+> ### Select a moment on the timeline → describe the shot → the generated clip lands exactly there.
+
+It's not "another prompt website." It's an editor that understands the **timeline**, the **transcript**, the **audio**, your **characters from Director's Palette**, the **prompt**, the **duration you need**, and the **shots before and after**. That context is what turns it from a toy into a real AI filmmaking tool — the foundation for fast music videos, YouTube videos, narrative shorts, trailers, and pitch videos.
+
+## The core loop
+
+1. **Load a project** — video or audio, with a transcript.
+2. **Highlight a lyric or a sentence** in the transcript (or drag a range on the timeline). Director's Desktop reads the exact duration you need — select **1:08–1:11** and it knows you need a **3-second clip**.
+3. **Type `@` to pull in a saved [Director's Palette](https://directorspal.com) character** — its reference sheet attaches automatically — then write your prompt.
+4. **Generate.** A **placeholder** drops onto the timeline at that exact spot while it renders, tagged with the prompt, duration, and characters used.
+5. **The finished clip swaps into place automatically** — and the full metadata (prompt, characters, transcript range, timeline position, duration, model) is saved with it.
+
+> **Music video, in one line:** highlight a 3-second lyric, then prompt
+> `@Truthful riding a four-wheeler through a muddy forest at night, cinematic music-video style, dramatic headlights, slow-motion mud splashing`
+> → a 3-second clip lands right on the beat.
+>
+> **YouTube / narration:** highlight a sentence that runs 5 seconds, prompt a visual metaphor, and a 5-second clip drops straight into the timeline. Same workflow for explainers, commentary, news, trailers, and pitch decks.
+
+## Powered by Director's Palette
+
+[**Director's Palette**](https://directorspal.com) is the cloud brain behind Director's Desktop. Connect your account and:
+
+- 🎭 **Your characters, styles, and references sync down** — the `@` mention system in the editor pulls the same saved characters you use on the web, so a character stays consistent across every shot.
+- 🖼️ **Image & shot generation runs on your DP account and credits** — no juggling separate keys for every provider.
+- 🗂️ **One gallery across web and desktop** — generate anywhere, see it everywhere.
+- 💳 **Live credit balance and per-generation cost** are shown right in the header and on the Generate button, so there are no surprises.
+
+> **New here?** Director's Desktop is most powerful with a Director's Palette account. **[Create one free at directorspal.com →](https://directorspal.com)**
 
 ## Features
 
 ### Generation
-- **Text-to-video** — generate video clips from text prompts
-- **Image-to-video** — animate a still image into video
-- **Audio-to-video** — drive video generation from an audio track
-- **Image generation** — create images with ZIT (local) or fal API
-- **Image editing (img2img)** — edit existing images with ZIT Edit
-- **Video Retake** — re-generate portions of an existing video
-- **IC-LoRA** — identity-consistent generation with LoRA weights
-- **Video Extend** — continue generating from the last frame of a video
-- **Prompt Enhancement** — AI-powered prompt rewriting (via LTX API or Palette)
+- **Text-to-video**, **image-to-video**, and **audio-to-video**
+- **Seedance** cinematic video — Seedance 1.5 (first **and** last frame) and Seedance 2.0 (reference-to-video with character + audio references)
+- **Image generation & editing** — via Director's Palette's shot generator, or local/fal
+- **Video Retake** (regenerate a portion), **Video Extend** (continue from the last frame), **IC-LoRA** (identity-consistent generation)
+- **Story / Music / Plain prompt modes** — Music mode turns pasted lyrics into shot prompts; Story mode keeps a narrative consistent across moments
+- **AI prompt enhancement** — via Director's Palette, LTX, OpenRouter, or Gemini
 
-### Batch Generation
-- **Batch Builder** — queue multiple generation jobs at once
-- **List mode** — add prompts one-by-one with per-job settings
-- **Import mode** — bulk-import prompts from CSV, JSON, or plain text files
-- **Grid Sweep mode** — combinatorial parameter sweeps (prompts × seeds × models)
-- **Timeline import** — import an edited timeline as a batch to re-generate all segments
+### Timeline & transcript
+- **Multi-track timeline editor** with clips, transitions, and keyframes
+- **Word-level transcript panel** — click a word to jump the playhead; highlight a range to set the clip duration
+- **Generate-into-the-timeline** — placeholders hold the spot while a clip renders, then swap in automatically
 
-### Library & Organization
-- **Gallery** — browse, filter, and manage all generated images and videos
-- **Prompt Library** — save, tag, and reuse favorite prompts
-- **Characters** — store character descriptions for consistent generation
-- **Styles** — save and apply visual style presets
-- **References** — manage reference images for guided generation
-- **Wildcards** — define placeholder tokens that expand to random values
+### Batch generation
+- **Batch Builder** — queue many jobs at once
+- **List / Import / Grid-Sweep** modes — add prompts one by one, bulk-import from CSV/JSON/text, or run combinatorial sweeps (prompts × seeds × models)
+- **Timeline import** — re-generate every segment of an edited timeline as a batch
 
-### Palette Cloud Integration
-- **Directors Palette sync** — connect to [Directors Palette](https://directorspal.com) for cloud-synced library content
-- **Email/password login** — authenticate directly or via deep link
-- **Credit balance & cost tracking** — view remaining credits in the header, see estimated cost on Generate buttons before submitting
-- **Automatic credit deduction** — API-slot jobs automatically deduct credits after successful generation
-- **Seedance video generation** — generate videos via Seedance 1.5 Pro through the Replicate API
+### Library & organization
+- **Gallery**, **Prompt Library**, **Characters**, **Styles**, **References**, and **Wildcards** — all syncable with Director's Palette
 
-### Editor & Export
-- **Video Editor** — multi-track timeline editor with clips, transitions, and keyframes
+### Export
+- **FFmpeg export** with configurable codec and quality
 - **Video Projects** — save and reopen editing sessions
-- **FFmpeg export** — export final videos with configurable codec and quality settings
 
-## Local vs API mode
+## Local vs. API mode
 
 | Platform / hardware | Generation mode | Notes |
 | --- | --- | --- |
-| Windows + CUDA GPU with **≥32GB VRAM** | Local generation | Downloads model weights locally |
-| Windows (no CUDA, <32GB VRAM, or unknown VRAM) | API-only | **LTX API key required** |
-| macOS (Apple Silicon builds) | API-only | **LTX API key required** |
+| Windows + CUDA GPU with **≥32 GB VRAM** | Local generation | Downloads model weights locally |
+| Windows (no CUDA, <32 GB VRAM, or unknown) | API-only | API key or Director's Palette account required |
+| macOS (Apple Silicon) | API-only | API key or Director's Palette account required |
 | Linux | Not officially supported | No official builds |
 
-In API-only mode, available resolutions/durations may be limited to what the API supports.
+In API-only mode, the cloud providers (Director's Palette, Seedance, fal, LTX) do all the heavy lifting — you don't need a local GPU at all.
 
-## Custom Video Models
+## Custom video models
 
-Directors Desktop supports multiple LTX 2.3 model formats, so you can run on GPUs with less VRAM.
+Director's Desktop supports multiple LTX 2.3 model formats so you can run on GPUs with less VRAM.
 
-| Your GPU VRAM | Recommended Format | File Size |
-|---------------|-------------------|-----------|
+| Your GPU VRAM | Recommended format | File size |
+|---|---|---|
 | 32 GB+ | BF16 (auto-downloaded) | ~43 GB |
-| 20-31 GB | [FP8 Checkpoint](https://huggingface.co/Lightricks/LTX-Video-2.3-22b-distilled) | ~22 GB |
-| 16-19 GB | [GGUF Q5_K](https://huggingface.co/city96/LTX-Video-2.3-22b-0.9.7-dev-gguf) | ~15 GB |
-| 10-15 GB | [GGUF Q4_K](https://huggingface.co/city96/LTX-Video-2.3-22b-0.9.7-dev-gguf) | ~12 GB |
+| 20–31 GB | [FP8 Checkpoint](https://huggingface.co/Lightricks/LTX-Video-2.3-22b-distilled) | ~22 GB |
+| 16–19 GB | [GGUF Q5_K](https://huggingface.co/city96/LTX-Video-2.3-22b-0.9.7-dev-gguf) | ~15 GB |
+| 10–15 GB | [GGUF Q4_K](https://huggingface.co/city96/LTX-Video-2.3-22b-0.9.7-dev-gguf) | ~12 GB |
 
-### Setup
-
-1. Download the model file for your GPU from the links above
-2. Open **Settings → Models** and set your model folder
-3. If using GGUF or NF4, also download the [distilled LoRA](https://huggingface.co/Lightricks/LTX-Video-2.3-22b-distilled)
-4. Select your model from the dropdown
-5. Generate!
-
-The app also has a built-in **Model Guide** (Settings → Models → Open Model Guide) that detects your GPU and recommends the best format automatically.
+**Setup:** download the model for your GPU → **Settings → Models**, set your model folder → for GGUF/NF4 also grab the [distilled LoRA](https://huggingface.co/Lightricks/LTX-Video-2.3-22b-distilled) → pick your model → generate. The built-in **Model Guide** (Settings → Models → Open Model Guide) detects your GPU and recommends a format automatically.
 
 ## System requirements
 
-### Windows (local generation)
+**Windows (local generation):** Windows 10/11 (x64) · NVIDIA CUDA GPU with **≥32 GB VRAM** · 16 GB+ RAM (32 GB recommended) · ample free disk for weights and outputs.
 
-- Windows 10/11 (x64)
-- NVIDIA GPU with CUDA support and **≥32GB VRAM** (more is better)
-- 16GB+ RAM (32GB recommended)
-- Plenty of free disk space for model weights and outputs
-
-### macOS (API-only)
-
-- Apple Silicon (arm64)
-- macOS 13+ (Ventura)
-- Stable internet connection
+**macOS (API-only):** Apple Silicon (arm64) · macOS 13+ (Ventura) · stable internet.
 
 ## Install
 
-1. Download the latest installer from GitHub Releases: [Releases](../../releases)
-2. Install and launch **LTX Desktop**
-3. Complete first-run setup
+1. Download the latest installer from [**Releases**](../../releases).
+2. Install and launch **Director's Desktop**.
+3. Complete first-run setup, then connect your [Director's Palette](https://directorspal.com) account in **Settings → Palette Connection**.
 
-## First run & data locations
+### First run & data locations
 
-LTX Desktop stores app data (settings, models, logs) in:
+App data (settings, models, logs) is stored in:
 
 - **Windows:** `%LOCALAPPDATA%\LTXDesktop\`
 - **macOS:** `~/Library/Application Support/LTXDesktop/`
 
-Model weights are downloaded into the `models/` subfolder (this can be large and may take time).
+Model weights download into the `models/` subfolder (large; may take time). On first launch you may be prompted to review model license terms (fetched from Hugging Face; requires internet).
 
-On first launch you may be prompted to review/accept model license terms (license text is fetched from Hugging Face; requires internet).
+**Text encoding** is required to generate video, via either:
+- **A Director's Palette / LTX API key** (cloud) — **text encoding is completely FREE** and recommended to speed up inference and save memory. Free key at the [LTX Console](https://console.ltx.video/).
+- **Local Text Encoder** (extra download) — fully-local operation on supported Windows hardware.
 
-Text encoding: to generate videos you must configure text encoding:
+## API keys, cost & privacy
 
-- **LTX API key** (cloud text encoding) — **text encoding via the API is completely FREE** and highly recommended to speed up inference and save memory. Generate a free API key at the [LTX Console](https://console.ltx.video/). [Read more](https://ltx.io/model/model-blog/ltx-2-better-control-for-real-workflows).
-- **Local Text Encoder** (extra download; enables fully-local operation on supported Windows hardware) — if you don't wish to generate an API key, you can encode text locally via the settings menu.
+Your keys are stored locally in your app-data folder — treat them like secrets. They are never committed to this repo.
 
-## API keys, cost, and privacy
+- **Director's Palette account** *(recommended)* — syncs characters/styles/references, runs image & shot generation on your DP credits, and tracks balance + cost in the UI. **Local GPU generations are free.** [directorspal.com](https://directorspal.com)
+- **LTX API key** — FREE cloud text encoding + prompt enhancement; paid for API video generation and Retake. [LTX Console](https://console.ltx.video/)
+- **Replicate** *(optional)* — Seedance 1.5 video. [Replicate dashboard](https://replicate.com/account/api-tokens)
+- **fal** *(optional)* — Seedance 2.0 video and Z-Image image generation. [fal dashboard](https://fal.ai/dashboard/keys)
+- **OpenRouter / Gemini** *(optional)* — AI prompt suggestions.
 
-### LTX API key
-
-The LTX API is used for:
-
-- **Cloud text encoding and prompt enhancement** — **FREE**; text encoding is highly recommended to speed up inference and save memory
-- API-based video generations (required on macOS and on unsupported Windows hardware) — paid
-- Retake — paid
-
-An LTX API key is required in API-only mode, but optional on Windows local mode if you enable the Local Text Encoder.
-
-Generate a FREE API key at the [LTX Console](https://console.ltx.video/). Text encoding is free; video generation API usage is paid. [Read more](https://ltx.io/model/model-blog/ltx-2-better-control-for-real-workflows).
-
-When you use API-backed features, prompts and media inputs are sent to the API service. Your API key is stored locally in your app data folder — treat it like a secret.
-
-### fal API key (optional)
-
-Used for Z Image Turbo text-to-image generation in API mode. When enabled, image generation requests are sent to fal.ai.
-
-Create an API key in the [fal dashboard](https://fal.ai/dashboard/keys).
-
-### Replicate API key (optional)
-
-Used for Seedance 1.5 Pro video generation. When enabled, video generation requests are sent to Replicate.
-
-Create an API key in the [Replicate dashboard](https://replicate.com/account/api-tokens).
-
-### Gemini API key (optional)
-
-Used for AI prompt suggestions. When enabled, prompt context and frames may be sent to Google Gemini.
-
-### Directors Palette account (optional)
-
-Connect to [Directors Palette](https://directorspal.com) to sync library content (characters, styles, references), use cloud-based prompt enhancement, and track credit usage. Sign in via email/password in **Settings > Palette Connection**.
-
-Credits are consumed when generating via API-backed models (cloud video, Seedance, cloud image). Local GPU generations are free. Credit balance and per-generation costs are displayed in the UI.
+When you use API-backed features, prompts and media inputs are sent to that service. Credits are consumed only for API-backed generations; local GPU generations are free.
 
 ## Architecture
 
-LTX Desktop is split into three main layers:
+Three layers:
 
-- **Renderer (`frontend/`)**: TypeScript + React UI.
-  - Calls the local backend over HTTP at `http://localhost:8000`.
-  - Talks to Electron via the preload bridge (`window.electronAPI`).
-- **Electron (`electron/`)**: TypeScript main process + preload.
-  - Owns app lifecycle and OS integration (file dialogs, native export via ffmpeg, starting/managing the Python backend).
-  - Security: renderer is sandboxed (`contextIsolation: true`, `nodeIntegration: false`).
-- **Backend (`backend/`)**: Python + FastAPI local server.
-  - Orchestrates generation, model downloads, and GPU execution.
-  - Calls external APIs only when API-backed features are used.
-  - Output files follow the naming convention `dd_{model}_{prompt_slug}_{timestamp}.{ext}` for easy identification.
+- **Renderer (`frontend/`)** — TypeScript + React UI. Calls the local backend over HTTP and talks to Electron via the `window.electronAPI` preload bridge.
+- **Electron (`electron/`)** — TypeScript main + preload. Owns app lifecycle and OS integration (file dialogs, ffmpeg export, managing the Python backend). The renderer is sandboxed (`contextIsolation: true`, `nodeIntegration: false`).
+- **Backend (`backend/`)** — Python + FastAPI local server. Orchestrates generation, model downloads, and GPU execution; calls external APIs only for API-backed features.
 
 ```mermaid
 graph TD
-  UI["Renderer (React + TS)"] -->|HTTP: localhost:8000| BE["Backend (FastAPI + Python)"]
+  UI["Renderer (React + TS)"] -->|HTTP: localhost| BE["Backend (FastAPI + Python)"]
   UI -->|IPC via preload: window.electronAPI| EL["Electron main (TS)"]
   EL --> OS["OS integration (files, dialogs, ffmpeg, process mgmt)"]
   BE --> GPU["Local models + GPU (when supported)"]
-  BE --> EXT["External APIs (only for API-backed features)"]
-  EL --> DATA["App data folder (settings/models/logs)"]
+  BE --> EXT["External APIs: Director's Palette, Seedance, fal, LTX"]
+  EL --> DATA["App data (settings/models/logs)"]
   BE --> DATA
 ```
 
-## Development (quickstart)
+See [`backend/architecture.md`](backend/architecture.md) and [`CLAUDE.md`](CLAUDE.md) for the full map.
 
-Prereqs:
+## Development
 
-- Node.js
-- `uv` (Python package manager)
-- Python 3.12+
-- Git
-
-Setup:
+**Prereqs:** Node.js · [`pnpm`](https://pnpm.io) · `uv` (Python package manager) · Python 3.12+ · Git.
 
 ```bash
-# macOS
-pnpm setup:dev:mac
+pnpm install
+pnpm setup:dev:win     # or :mac — one-time environment setup
+pnpm dev               # Vite + Electron + Python backend
+pnpm dev:debug         # + Electron inspector and Python debugpy
 
-# Windows
-pnpm setup:dev:win
+pnpm typecheck         # tsc (TypeScript) + pyright (Python)
+pnpm backend:test      # Python pytest suite
+pnpm test:frontend     # vitest pure-function suites
 ```
 
-Run:
-
-```bash
-pnpm dev
-```
-
-Debug:
-
-```bash
-pnpm dev:debug
-```
-
-`dev:debug` starts Electron with inspector enabled and starts the Python backend with `debugpy`.
-
-Typecheck:
-
-```bash
-pnpm typecheck
-```
-
-Backend tests:
-
-```bash
-pnpm backend:test
-```
-
-Building installers:
-- See [`INSTALLER.md`](docs/INSTALLER.md)
+Building installers: see [`INSTALLER.md`](docs/INSTALLER.md).
 
 ## Telemetry
 
-LTX Desktop collects minimal, anonymous usage analytics (app version, platform, and a random installation ID) to help prioritize development. No personal information or generated content is collected. Analytics is enabled by default and can be disabled in **Settings > General > Anonymous Analytics**. See [`TELEMETRY.md`](docs/TELEMETRY.md) for details.
+Minimal, anonymous usage analytics (app version, platform, a random install ID) help prioritize development. No personal information or generated content is collected. Enabled by default; disable in **Settings → General → Anonymous Analytics**. See [`TELEMETRY.md`](docs/TELEMETRY.md).
 
 ## Docs
 
+- [`docs/HANDOFF-KENIL.md`](docs/HANDOFF-KENIL.md) — what's built vs. what's next (project orientation)
 - [`INSTALLER.md`](docs/INSTALLER.md) — building installers
 - [`TELEMETRY.md`](docs/TELEMETRY.md) — telemetry and privacy
 - [`backend/architecture.md`](backend/architecture.md) — backend architecture
@@ -254,8 +207,6 @@ See [`CONTRIBUTING.md`](docs/CONTRIBUTING.md).
 
 ## License
 
-Apache-2.0 — see [`LICENSE.txt`](LICENSE.txt).
+Apache-2.0 — see [`LICENSE.txt`](LICENSE.txt). Third-party notices (including model licenses/terms): [`NOTICES.md`](NOTICES.md).
 
-Third-party notices (including model licenses/terms): [`NOTICES.md`](NOTICES.md).
-
-Model weights are downloaded separately and may be governed by additional licenses/terms.
+<p align="center"><sub>Built to work with <a href="https://directorspal.com">Director's Palette</a> · think, generate, edit, and assemble — without leaving the timeline.</sub></p>
