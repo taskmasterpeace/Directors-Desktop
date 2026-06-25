@@ -45,13 +45,15 @@ function handleDeepLink(url: string): void {
   logger.info(`[deep-link] Received: ${safeUrl}`)
   try {
     const parsed = new URL(url)
-    // Expected: directorsdesktop://auth/callback?token=XXX
+    // Expected: directorsdesktop://auth/callback?token=XXX[&refresh=YYY]
     if (parsed.hostname === 'auth' && parsed.pathname === '/callback') {
       const token = parsed.searchParams.get('token')
+      // The refresh token lets the app stay signed in past the ~1h access-token expiry.
+      const refresh = parsed.searchParams.get('refresh') ?? undefined
       if (token) {
         const mainWindow = getMainWindow()
         if (mainWindow) {
-          mainWindow.webContents.send('palette-auth-callback', { token })
+          mainWindow.webContents.send('palette-auth-callback', { token, refresh })
           logger.info('[deep-link] Auth token forwarded to renderer')
         }
       }

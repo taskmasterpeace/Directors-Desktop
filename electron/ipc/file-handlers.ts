@@ -268,6 +268,17 @@ export function registerFileHandlers(): void {
     return true
   })
 
+  // Open Director's Palette sign-in in the user's REAL system browser (not an embedded window).
+  // Google OAuth refuses to run inside embedded webviews, so Google sign-in must happen in a
+  // real browser. The web bridge at /auth/desktop reuses Palette's Google + email login and
+  // hands the session back via the directorsdesktop://auth/callback deep link (see main.ts).
+  ipcMain.handle('open-palette-auth', async () => {
+    const { shell } = await import('electron')
+    const redirect = encodeURIComponent('directorsdesktop://auth/callback')
+    await shell.openExternal(`https://directorspal.com/auth/desktop?redirect=${redirect}`)
+    return true
+  })
+
   ipcMain.handle('open-palette-api-key-page', async () => {
     const { shell } = await import('electron')
     await shell.openExternal('https://directorspal.com/settings/api-keys')

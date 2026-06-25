@@ -107,13 +107,19 @@ class SyncHandler:
             self._cached_user = None
             return {"connected": False, "user": None, "error": str(exc)}
 
-    def connect(self, token: str) -> dict[str, Any]:
-        """Store an auth token and validate it. Returns status."""
+    def connect(self, token: str, refresh_token: str | None = None) -> dict[str, Any]:
+        """Store an auth token and validate it. Returns status.
+
+        A refresh_token may accompany a Supabase JWT obtained via the browser sign-in
+        bridge (Google/email); storing it lets the session renew after the JWT expires.
+        """
         try:
             user = self._client.validate_connection(api_key=token)
         except Exception as exc:
             return {"connected": False, "error": str(exc)}
         self._state.app_settings.palette_api_key = token
+        if refresh_token:
+            self._state.app_settings.palette_refresh_token = refresh_token
         self._cached_user = user
         return {"connected": True, "user": user}
 

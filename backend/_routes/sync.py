@@ -14,6 +14,9 @@ router = APIRouter(prefix="/api/sync", tags=["sync"])
 
 class ConnectRequest(BaseModel):
     token: str
+    # Optional Supabase refresh token (sent by the browser OAuth/email bridge) so the
+    # session can be renewed after the ~1h access-token expiry.
+    refresh_token: str | None = None
 
 
 class LoginRequest(BaseModel):
@@ -33,7 +36,7 @@ def sync_status(handler: AppHandler = Depends(get_state_service)) -> dict[str, A
 
 @router.post("/connect")
 def sync_connect(body: ConnectRequest, handler: AppHandler = Depends(get_state_service)) -> dict[str, Any]:
-    result = handler.sync.connect(body.token)
+    result = handler.sync.connect(body.token, refresh_token=body.refresh_token)
     if result.get("connected"):
         handler.settings.save_settings()
     return result
