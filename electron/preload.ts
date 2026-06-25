@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openReplicateApiKeyPage: (): Promise<boolean> => ipcRenderer.invoke('open-replicate-api-key-page'),
   openPaletteLoginPage: (): Promise<boolean> => ipcRenderer.invoke('open-palette-login-page'),
   openPaletteAuth: (): Promise<boolean> => ipcRenderer.invoke('open-palette-auth'),
+  startPaletteGoogleLogin: (): Promise<{ ok: boolean; error?: string }> => ipcRenderer.invoke('start-palette-google-login'),
   openPaletteApiKeyPage: (): Promise<boolean> => ipcRenderer.invoke('open-palette-api-key-page'),
   openParentFolderOfFile: (filePath: string): Promise<void> => ipcRenderer.invoke('open-parent-folder-of-file', filePath),
   
@@ -222,6 +223,7 @@ declare global {
       sendAnalyticsEvent: (eventName: string, extraDetails?: Record<string, unknown> | null) => Promise<void>
       onPaletteAuthCallback: (cb: (data: { token: string; refresh?: string }) => void) => (() => void)
       openPaletteAuth: () => Promise<boolean>
+      startPaletteGoogleLogin: () => Promise<{ ok: boolean; error?: string }>
       platform: string
     }
   }

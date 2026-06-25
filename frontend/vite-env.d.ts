@@ -28,6 +28,7 @@ interface Window {
     openReplicateApiKeyPage: () => Promise<boolean>
     openPaletteLoginPage: () => Promise<boolean>
     openPaletteAuth: () => Promise<boolean>
+    startPaletteGoogleLogin: () => Promise<{ ok: boolean; error?: string }>
     openPaletteApiKeyPage: () => Promise<boolean>
     openParentFolderOfFile: (filePath: string) => Promise<void>
     showItemInFolder: (filePath: string) => Promise<void>

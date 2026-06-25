@@ -28,7 +28,7 @@ type RequiredModelsGateState = 'checking' | 'missing' | 'ready'
 function AppContent() {
   const { currentView } = useProjects()
   const { status, processStatus, isLoading: backendLoading, error: backendError } = useBackend()
-  const { settings, saveLtxApiKey, saveReplicateApiKey, forceApiGenerations, isLoaded, runtimePolicyLoaded } = useAppSettings()
+  const { settings, saveLtxApiKey, saveReplicateApiKey, forceApiGenerations, isLoaded, runtimePolicyLoaded, refreshSettings } = useAppSettings()
 
   const [pythonReady, setPythonReady] = useState<boolean | null>(null)
   const [backendStarted, setBackendStarted] = useState(false)
@@ -80,6 +80,35 @@ function AppContent() {
     window.addEventListener('open-api-gateway', handler)
     return () => window.removeEventListener('open-api-gateway', handler)
   }, [])
+
+  // Global Palette sign-in handler. The token arrives from the browser sign-in flow via the
+  // `palette-auth-callback` IPC (loopback server, or directorsdesktop:// deep link). Handling it
+  // here — at the app root, always mounted — means it works no matter which view is showing or
+  // whether the user started from Home or the Settings modal. We connect once, then broadcast
+  // `palette-auth-updated` so any open sign-in UI can reflect the connected state.
+  useEffect(() => {
+    if (!window.electronAPI?.onPaletteAuthCallback) return
+    const cleanup = window.electronAPI.onPaletteAuthCallback(async (data) => {
+      if (!data?.token) return
+      try {
+        const backendUrl = await window.electronAPI.getBackendUrl()
+        const res = await fetch(`${backendUrl}/api/sync/connect`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: data.token, refresh_token: data.refresh }),
+        })
+        if (!res.ok) return
+        const result = await res.json()
+        if (result.connected) {
+          await refreshSettings()
+          window.dispatchEvent(new CustomEvent('palette-auth-updated', { detail: result }))
+        }
+      } catch (e) {
+        logger.error(`Palette auth callback failed: ${e}`)
+      }
+    })
+    return cleanup
+  }, [refreshSettings])
 
   useEffect(() => {
     const check = async () => {

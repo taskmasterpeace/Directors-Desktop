@@ -96,6 +96,20 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
     return () => { cancelled = true; clearInterval(interval) }
   }, [isOpen, activeTab, settings.hasPaletteApiKey])
 
+  // Reflect a completed browser sign-in immediately (App.tsx connects + broadcasts the result).
+  useEffect(() => {
+    const onUpdated = (e: Event) => {
+      const result = (e as CustomEvent).detail
+      if (result?.connected) {
+        setPaletteStatus(result)
+        setPaletteLoginError(null)
+        void refreshSettings()
+      }
+    }
+    window.addEventListener('palette-auth-updated', onUpdated)
+    return () => window.removeEventListener('palette-auth-updated', onUpdated)
+  }, [refreshSettings])
+
   useEffect(() => {
     if (!isOpen || activeTab !== 'apiKeys' || !focusLtxApiKeyInputOnTabChange) return
 
@@ -1310,7 +1324,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                         {/* Continue with Google — opens the system browser (Google blocks OAuth in
                             embedded windows). The browser bridge hands the session back via deep link. */}
                         <button
-                          onClick={() => { void window.electronAPI.openPaletteAuth() }}
+                          onClick={() => { void window.electronAPI.startPaletteGoogleLogin() }}
                           className="w-full px-3 py-2 bg-white hover:bg-zinc-100 text-zinc-800 text-sm font-medium rounded-lg flex items-center justify-center gap-2 transition-colors"
                         >
                           <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">

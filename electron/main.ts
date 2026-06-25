@@ -8,6 +8,7 @@ import { registerFileHandlers } from './ipc/file-handlers'
 import { registerLogHandlers } from './ipc/log-handlers'
 import { registerVideoProcessingHandlers } from './ipc/video-processing-handlers'
 import { initSessionLog } from './logging-management'
+import { registerPaletteAuthHandlers } from './palette-auth-server'
 import { stopPythonBackend } from './python-backend'
 import { initAutoUpdater } from './updater'
 import { createWindow, getMainWindow } from './window'
@@ -75,6 +76,7 @@ if (!gotLock) {
   registerLogHandlers()
   registerExportHandlers()
   registerVideoProcessingHandlers()
+  registerPaletteAuthHandlers()
 
   // Surface (but don't die from) GPU/utility child-process crashes — see the crash-limit
   // switch above and the renderer recovery in window.ts.

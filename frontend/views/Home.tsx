@@ -238,31 +238,19 @@ export function Home() {
     void fetchPaletteStatus()
   }, [fetchPaletteStatus])
 
-  // Listen for deep link auth callbacks (from browser login)
+  // Reflect a completed browser sign-in. App.tsx owns the actual /api/sync/connect call (so it
+  // works from any view) and broadcasts `palette-auth-updated` with the result; we just update
+  // this screen's local UI.
   useEffect(() => {
-    const cleanup = window.electronAPI.onPaletteAuthCallback(async (data) => {
-      if (data.token) {
-        try {
-          const backendUrl = await window.electronAPI.getBackendUrl()
-          const res = await fetch(`${backendUrl}/api/sync/connect`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token: data.token, refresh_token: data.refresh }),
-          })
-          if (res.ok) {
-            const result = await res.json()
-            if (result.connected) {
-              setPaletteConnected(true)
-              setPaletteUser(result.user ?? null)
-              setShowSignInMenu(false)
-              void refreshSettings()
-            }
-          }
-        } catch { /* ignore */ }
-      }
-    })
-    return cleanup
-  }, [refreshSettings])
+    const onUpdated = (e: Event) => {
+      const result = (e as CustomEvent).detail
+      setPaletteConnected(true)
+      setPaletteUser(result?.user ?? null)
+      setShowSignInMenu(false)
+    }
+    window.addEventListener('palette-auth-updated', onUpdated)
+    return () => window.removeEventListener('palette-auth-updated', onUpdated)
+  }, [])
 
   const getDefaultAssetPath = (name: string) => {
     if (!defaultDownloadsPath) return ''
@@ -449,7 +437,7 @@ export function Home() {
                   {/* Continue with Google — opens the system browser (Google blocks OAuth in
                       embedded windows). The browser bridge hands the session back via deep link. */}
                   <button
-                    onClick={() => { void window.electronAPI.openPaletteAuth() }}
+                    onClick={() => { void window.electronAPI.startPaletteGoogleLogin() }}
                     className="w-full px-3 py-2 rounded-lg bg-white hover:bg-zinc-100 text-zinc-800 text-xs font-medium flex items-center justify-center gap-2 transition-colors"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
