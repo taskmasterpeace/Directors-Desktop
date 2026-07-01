@@ -147,7 +147,11 @@ function baseClip(overrides: Partial<TimelineClip> & Pick<TimelineClip, 'id' | '
  */
 export function loadStoryToTimeline(story: StoryFile, storyAbsPath: string): LoadedStory {
   const repoRoot = repoRootFromStoryPath(storyAbsPath)
-  const abs = (rel: string) => pathToFileUrl(`${repoRoot}/${rel.replace(/^\/+/, '')}`)
+  // Remote (http/https) media — e.g. a Directors Palette MV export whose clips
+  // live on R2/Supabase — passes through unchanged; only local repo-relative
+  // paths are resolved to file:// URLs.
+  const abs = (rel: string) =>
+    /^https?:\/\//i.test(rel) ? rel : pathToFileUrl(`${repoRoot}/${rel.replace(/^\/+/, '')}`)
 
   const cast = story.characters ?? {}
   const beats = [...story.beats].sort((a, b) => a.slot.start_seconds - b.slot.start_seconds)
