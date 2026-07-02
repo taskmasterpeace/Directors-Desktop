@@ -45,6 +45,7 @@ interface Window {
     copyFile: (src: string, dest: string) => Promise<{ success: boolean; error?: string }>
     checkFilesExist: (filePaths: string[]) => Promise<Record<string, boolean>>
     showOpenFileDialog: (options: { title?: string; filters?: { name: string; extensions: string[] }[]; properties?: string[] }) => Promise<string[] | null>
+    readTextFile: (filePath: string) => Promise<{ success: boolean; content?: string; error?: string }>
     searchDirectoryForFiles: (directory: string, filenames: string[]) => Promise<Record<string, string | null>>
     exportNative: (data: {
       clips: { url: string; type: string; startTime: number; duration: number; trimStart: number; speed: number; reversed: boolean; flipH: boolean; flipV: boolean; opacity: number; trackIndex: number; muted: boolean; volume: number }[]

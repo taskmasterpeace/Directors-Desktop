@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import type { Project, Asset, AssetTake, ViewType, ProjectTab, Timeline } from '../types/project'
 import { createDefaultTimeline } from '../types/project'
+import { loadStoryToTimeline, type StoryFile } from '../lib/story-loader'
 import { logger } from '../lib/logger'
 
 interface ProjectContextType {
@@ -40,6 +41,9 @@ interface ProjectContextType {
   
   // Navigation helpers
   openProject: (id: string) => void
+  // Import a Directors Palette music-video export (.story.json) as a new
+  // project + editable timeline, and open it in the video editor.
+  importPaletteMv: () => Promise<{ ok: boolean; error?: string; name?: string }>
   goHome: () => void
   openPlayground: () => void
   openGallery: () => void
@@ -478,7 +482,51 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     setCurrentView('project')
     setCurrentTab('gen-space')
   }, [])
-  
+
+  // Open a Directors Palette music-video export (.story.json) → new project +
+  // editable timeline, landed straight in the video editor. The export's clips
+  // are remote URLs (R2/Supabase); loadStoryToTimeline places each as a
+  // positioned clip and each beat's text as a subtitle synced to the playhead.
+  const importPaletteMv = useCallback(async (): Promise<{ ok: boolean; error?: string; name?: string }> => {
+    const api = window.electronAPI
+    if (!api?.showOpenFileDialog || !api?.readTextFile) return { ok: false, error: 'File access unavailable' }
+    const paths = await api.showOpenFileDialog({
+      title: 'Open Directors Palette Music Video',
+      filters: [{ name: 'Palette MV timeline', extensions: ['json'] }],
+      properties: ['openFile'],
+    })
+    if (!paths || paths.length === 0) return { ok: false } // user cancelled
+    const path = paths[0]
+    const read = await api.readTextFile(path)
+    if (!read.success || !read.content) return { ok: false, error: read.error || 'Could not read the file' }
+    let story: StoryFile
+    try { story = JSON.parse(read.content) as StoryFile } catch { return { ok: false, error: 'That file is not valid JSON' } }
+    if (!story || !Array.isArray(story.beats) || story.beats.length === 0) {
+      return { ok: false, error: 'That does not look like a Palette MV timeline (no shots found)' }
+    }
+    let loaded
+    try { loaded = loadStoryToTimeline(story, path) } catch (e) {
+      logger.error(`importPaletteMv: loadStoryToTimeline failed: ${e instanceof Error ? e.message : String(e)}`)
+      return { ok: false, error: 'Could not build a timeline from that file' }
+    }
+    const name = story.title || 'Palette Music Video'
+    const newProject: Project = {
+      id: `project-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      name,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      assets: [],
+      timelines: [loaded.timeline],
+      activeTimelineId: loaded.timeline.id,
+    }
+    setProjects(prev => [newProject, ...prev])
+    setCurrentProjectId(newProject.id)
+    setCurrentView('project')
+    setCurrentTab('video-editor') // land in the editor with the imported timeline
+    logger.info(`importPaletteMv: opened "${name}" — ${loaded.timeline.clips.length} clips, ${loaded.timeline.subtitles?.length ?? 0} subtitles`)
+    return { ok: true, name }
+  }, [])
+
   const goHome = useCallback(() => {
     setCurrentView('home')
     setCurrentProjectId(null)
@@ -541,6 +589,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       updateTimeline,
       getActiveTimeline,
       openProject,
+      importPaletteMv,
       goHome,
       openPlayground,
       openGallery,

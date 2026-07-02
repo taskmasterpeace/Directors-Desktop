@@ -114,7 +114,22 @@ function ProjectCard({ project, onOpen, onDelete, onRename, onSetAssetFolder }: 
 }
 
 export function Home() {
-  const { projects, createProject, deleteProject, renameProject, updateProject, openProject, openPlayground, openGallery, openCharacters, openStyles, openReferences, openWildcards, openPromptLibrary } = useProjects()
+  const { projects, createProject, deleteProject, renameProject, updateProject, openProject, importPaletteMv, openPlayground, openGallery, openCharacters, openStyles, openReferences, openWildcards, openPromptLibrary } = useProjects()
+
+  const [importingMv, setImportingMv] = useState(false)
+  const [importMvError, setImportMvError] = useState<string | null>(null)
+  const handleImportPaletteMv = useCallback(async () => {
+    setImportMvError(null)
+    setImportingMv(true)
+    try {
+      const res = await importPaletteMv()
+      if (!res.ok && res.error) setImportMvError(res.error)
+    } catch {
+      setImportMvError('Could not open that music video')
+    } finally {
+      setImportingMv(false)
+    }
+  }, [importPaletteMv])
   const { refreshSettings } = useAppSettings()
   const [isCreating, setIsCreating] = useState(false)
   const [newProjectName, setNewProjectName] = useState('')
@@ -532,7 +547,7 @@ export function Home() {
             </div>
           )}
 
-          <div className="px-3 pb-3">
+          <div className="px-3 pb-3 space-y-2">
             <button
               onClick={() => setIsCreating(true)}
               className="w-full px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium flex items-center justify-center gap-2 transition-colors"
@@ -540,6 +555,18 @@ export function Home() {
               <Plus className="h-4 w-4" />
               New Project
             </button>
+            {/* Open a Directors Palette music-video export (.story.json) →
+                new project + editable timeline in the video editor. */}
+            <button
+              onClick={handleImportPaletteMv}
+              disabled={importingMv}
+              className="w-full px-3 py-2 rounded-lg border border-white/15 hover:bg-white/5 text-white/90 text-sm font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
+              title="Open a Directors Palette music video (.story.json) as an editable timeline"
+            >
+              <FolderOpen className="h-4 w-4" />
+              {importingMv ? 'Opening…' : 'Open Palette MV'}
+            </button>
+            {importMvError && <p className="text-[11px] text-red-400 text-center">{importMvError}</p>}
           </div>
         </div>
       </aside>
