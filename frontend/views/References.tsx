@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, Plus, Trash2, ImageIcon, X } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, ImageIcon, X, CloudDownload } from 'lucide-react'
 import { useProjects } from '../contexts/ProjectContext'
 import { LtxLogo } from '../components/LtxLogo'
 import { Button } from '../components/ui/button'
@@ -26,6 +26,8 @@ export function References() {
   const [formCategory, setFormCategory] = useState<Exclude<Category, 'all'>>('people')
   const [formImage, setFormImage] = useState('')
   const [saving, setSaving] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
 
   const fetchReferences = useCallback(async () => {
     setLoading(true)
@@ -93,6 +95,76 @@ export function References() {
     }
   }
 
+  // Import the user's Directors Palette reference gallery into the local library.
+  // Palette (cloud) references are URLs; the local model needs local files, so we
+  // download each and register it locally (reusing the existing create route),
+  // after which they behave exactly like native references everywhere in DD.
+  const mapPaletteCategory = (c: string): Exclude<Category, 'all'> =>
+    (['people', 'places', 'props'].includes(c) ? c : 'other') as Exclude<Category, 'all'>
+
+  const handleSyncFromPalette = async () => {
+    setSyncing(true)
+    setSyncMsg(null)
+    try {
+      const backendUrl = await window.electronAPI.getBackendUrl()
+      const res = await fetch(`${backendUrl}/api/sync/library/references`)
+      if (!res.ok) throw new Error(`Palette sync failed: ${res.status}`)
+      const data = (await res.json()) as {
+        connected?: boolean
+        references?: { id?: string; name?: string; category?: string; image_path?: string }[]
+        error?: string
+      }
+      if (!data.connected) {
+        setSyncMsg('Sign in to Directors Palette first (Home → Sign In to Directors Palette).')
+        return
+      }
+      const cloud = data.references ?? []
+      if (cloud.length === 0) {
+        setSyncMsg('No references in your Palette library yet.')
+        return
+      }
+      const existingNames = new Set(references.map((r) => r.name))
+      const dir = `${await window.electronAPI.getDownloadsPath()}/DirectorsDesktop/palette-refs`
+      await window.electronAPI.ensureDirectory(dir)
+      let imported = 0
+      let skipped = 0
+      for (const r of cloud) {
+        const name = `[Palette] ${r.name || 'reference'}`
+        if (existingNames.has(name) || !r.image_path) { skipped++; continue }
+        try {
+          const imgRes = await fetch(r.image_path)
+          if (!imgRes.ok) throw new Error(`download ${imgRes.status}`)
+          const buf = await imgRes.arrayBuffer()
+          const ext = ((r.image_path.split('?')[0].split('.').pop() || 'jpg').slice(0, 4)) || 'jpg'
+          const safe = (r.id || name).replace(/[^a-z0-9]+/gi, '_')
+          const localPath = `${dir}/${safe}.${ext}`
+          const saved = await window.electronAPI.saveBinaryFile(localPath, buf)
+          if (!saved?.success) throw new Error(saved?.error || 'save failed')
+          const createRes = await fetch(`${backendUrl}/api/library/references`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name,
+              category: mapPaletteCategory(r.category || 'other'),
+              image_path: saved.path || localPath,
+            }),
+          })
+          if (!createRes.ok) throw new Error(`create ${createRes.status}`)
+          imported++
+        } catch (e) {
+          logger.error(`Import Palette reference failed: ${e}`)
+          skipped++
+        }
+      }
+      setSyncMsg(`Imported ${imported} reference${imported === 1 ? '' : 's'} from Palette${skipped ? `, skipped ${skipped}` : ''}.`)
+      void fetchReferences()
+    } catch (e) {
+      setSyncMsg(e instanceof Error ? e.message : 'Sync failed')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   const handleSelectImage = async () => {
     try {
       const files = await window.electronAPI.showOpenFileDialog({
@@ -155,12 +227,29 @@ export function References() {
             ))}
           </div>
 
+          <Button
+            onClick={handleSyncFromPalette}
+            disabled={syncing}
+            variant="outline"
+            size="sm"
+            className="border-zinc-700"
+            title="Import your reference gallery from Directors Palette"
+          >
+            <CloudDownload className={`h-3.5 w-3.5 mr-1.5 ${syncing ? 'animate-pulse' : ''}`} />
+            {syncing ? 'Syncing…' : 'Sync from Palette'}
+          </Button>
+
           <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-500" size="sm">
             <Plus className="h-3.5 w-3.5 mr-1.5" />
             Add Reference
           </Button>
         </div>
       </header>
+      {syncMsg && (
+        <div className="px-6 py-2 text-xs text-zinc-400 border-b border-zinc-800 bg-zinc-900/50 shrink-0">
+          {syncMsg}
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
