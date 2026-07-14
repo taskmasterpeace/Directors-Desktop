@@ -54,6 +54,17 @@ class TestReceiveJobConnected:
         job = queue["jobs"][0]
         assert "imagePath" in job["params"]
 
+    def test_receive_job_rejects_ssrf_frame_url(self, client):
+        client.post("/api/settings", json={"paletteApiKey": "dp_valid_key"})
+        # A loopback / private target must be refused (SSRF guard).
+        for url in ("https://127.0.0.1/frame.png", "http://example.com/frame.png"):
+            resp = client.post("/api/sync/receive-job", json={
+                "prompt": "Animate this scene",
+                "model": "ltx-fast",
+                "first_frame_url": url,
+            })
+            assert resp.status_code == 400
+
 
 class TestReceiveJobDisconnected:
     def test_receive_job_returns_403_without_api_key(self, client):

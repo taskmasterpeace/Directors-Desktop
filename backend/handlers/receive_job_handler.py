@@ -1,9 +1,11 @@
 """Handler for receiving generation jobs from Director's Palette."""
 from __future__ import annotations
 
+import ipaddress
 import logging
 import tempfile
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 
 from _routes._errors import HTTPError
 from api_types import ReceiveJobRequest, ReceiveJobResponse
@@ -60,7 +62,25 @@ class ReceiveJobHandler:
 
         return ReceiveJobResponse(id=job.id, status=job.status)
 
+    @staticmethod
+    def _assert_safe_url(url: str) -> None:
+        """Reject non-HTTPS URLs and hosts that are private/loopback/link-local
+        IP literals, so an incoming job can't turn the backend into an SSRF proxy
+        against localhost or the LAN. (No DNS resolution — kept hermetic; blocks
+        the direct-IP-literal case which is what SSRF payloads use.)"""
+        parsed = urlparse(url)
+        host = parsed.hostname
+        if parsed.scheme != "https" or not host:
+            raise HTTPError(400, "Only https:// image URLs are accepted")
+        try:
+            ip = ipaddress.ip_address(host)
+        except ValueError:
+            return  # a hostname, not an IP literal — allowed
+        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_unspecified:
+            raise HTTPError(400, "Image URL points at a disallowed address")
+
     def _download_remote_image(self, url: str, prefix: str) -> str:
+        self._assert_safe_url(url)
         try:
             resp = self._http.get(url, timeout=30)
             if resp.status_code != 200:
