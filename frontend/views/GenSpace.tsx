@@ -116,6 +116,7 @@ function AssetCard({
       {/* Favorite heart - always visible when favorited */}
       {isFavorite && !isHovered && (
         <button
+          aria-label="Toggle favorite"
           onClick={(e) => { e.stopPropagation(); onToggleFavorite?.() }}
           className="absolute top-2 left-2 p-1.5 rounded-lg bg-black/40 backdrop-blur-md text-white transition-colors z-10"
         >
@@ -131,6 +132,7 @@ function AssetCard({
         <div className="absolute top-2 left-2 right-2 flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <button
+              aria-label="Toggle favorite"
               onClick={(e) => { e.stopPropagation(); onToggleFavorite?.() }}
               className={`p-1.5 rounded-lg backdrop-blur-md transition-colors ${
                 isFavorite ? 'bg-white/20 text-white' : 'bg-black/40 text-white hover:bg-black/60'
@@ -179,6 +181,7 @@ function AssetCard({
           
           <div className="flex items-center gap-1.5">
             <button
+              aria-label="Download"
               onClick={handleDownload}
               className="p-1.5 rounded-lg bg-black/40 backdrop-blur-md text-white hover:bg-black/60 transition-colors"
             >
@@ -195,6 +198,7 @@ function AssetCard({
               {formatTime(currentTime)}
             </div>
             <button
+              aria-label="Toggle mute"
               onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted) }}
               className="p-1.5 rounded-lg bg-black/40 backdrop-blur-md text-white hover:bg-black/60 transition-colors"
             >
@@ -206,6 +210,7 @@ function AssetCard({
         {/* Delete button (subtle, bottom right for images) */}
         {asset.type === 'image' && (
           <button
+            aria-label="Delete asset"
             onClick={(e) => { e.stopPropagation(); onDelete() }}
             className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-red-600/70 backdrop-blur-md text-white hover:bg-red-500 transition-colors opacity-0 group-hover:opacity-100"
           >
@@ -607,6 +612,7 @@ function PromptBar({
               <>
                 <img src={inputImage} alt="" className="w-full h-full object-cover rounded-md" />
                 <button
+                  aria-label="Remove image"
                   onClick={(e) => { e.stopPropagation(); onInputImageChange(null) }}
                   className="absolute -top-1 -right-1 p-0.5 rounded-full bg-zinc-800 text-zinc-400 hover:text-white z-10"
                 >
@@ -642,6 +648,7 @@ function PromptBar({
               <>
                 <Music className="h-4 w-4 text-emerald-400" />
                 <button
+                  aria-label="Remove audio"
                   onClick={(e) => { e.stopPropagation(); onInputAudioChange(null) }}
                   className="absolute -top-1 -right-1 p-0.5 rounded-full bg-zinc-800 text-zinc-400 hover:text-white z-10"
                 >
@@ -677,6 +684,7 @@ function PromptBar({
               <>
                 <img src={lastFrameUrl} alt="" className="w-full h-full object-cover rounded-md" />
                 <button
+                  aria-label="Remove last frame"
                   onClick={(e) => { e.stopPropagation(); onLastFrameChange(null) }}
                   className="absolute -top-1 -right-1 p-0.5 rounded-full bg-zinc-800 text-zinc-400 hover:text-white z-10"
                 >
@@ -1659,6 +1667,7 @@ export function GenSpace() {
 
             <div ref={sizeMenuRef} className="relative">
               <button
+                aria-label="Change gallery size"
                 onClick={() => setShowSizeMenu(!showSizeMenu)}
                 className={`p-2 rounded-md transition-colors ${
                   showSizeMenu ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
@@ -1811,6 +1820,7 @@ export function GenSpace() {
         >
           {/* Previous button */}
           <button
+            aria-label="Previous"
             onClick={(e) => { e.stopPropagation(); goToPrev() }}
             disabled={!canGoPrev}
             className={`absolute left-4 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full backdrop-blur-md transition-all ${
@@ -1824,6 +1834,7 @@ export function GenSpace() {
 
           {/* Next button */}
           <button
+            aria-label="Next"
             onClick={(e) => { e.stopPropagation(); goToNext() }}
             disabled={!canGoNext}
             className={`absolute right-4 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full backdrop-blur-md transition-all ${
@@ -1843,6 +1854,7 @@ export function GenSpace() {
                 {selectedIndex + 1} / {filteredAssets.length}
               </span>
               <button
+                aria-label="Close"
                 onClick={() => setSelectedAsset(null)}
                 className="p-2 rounded-md text-zinc-400 hover:text-white transition-colors"
               >

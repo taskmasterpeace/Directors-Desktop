@@ -194,7 +194,7 @@ export function LoraBrowser({ isOpen, onClose, onSelectLora }: LoraBrowserProps)
             <Package className="w-5 h-5 text-blue-400" />
             <h2 className="text-sm font-semibold text-zinc-200">LoRA Library</h2>
           </div>
-          <button onClick={onClose} className="p-1 text-zinc-500 hover:text-zinc-300 rounded-lg hover:bg-zinc-800">
+          <button aria-label="Close" onClick={onClose} className="p-1 text-zinc-500 hover:text-zinc-300 rounded-lg hover:bg-zinc-800">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -475,6 +475,7 @@ function LibraryTab({ library, backendUrl, onSelect, onDelete }: {
 
           {/* Delete button (appears on hover) */}
           <button
+            aria-label="Delete LoRA"
             onClick={(e) => { e.stopPropagation(); onDelete(entry.id) }}
             className="absolute top-2 right-2 p-1 bg-black/60 backdrop-blur-sm rounded-md text-zinc-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
             title="Delete LoRA"

@@ -486,6 +486,7 @@ export function LeftPanel(props: LeftPanelProps) {
                       {takesAsset.takes!.length > 1 && (
                         <Tooltip content="Delete take" side="right">
                           <button
+                            aria-label="Delete take"
                             className="absolute top-1.5 right-1.5 p-1 rounded-md bg-black/70 text-zinc-400 hover:text-red-400 hover:bg-red-900/60 opacity-0 group-hover:opacity-100 transition-all z-10"
                             onClick={(e) => {
                               e.stopPropagation()
@@ -746,6 +747,7 @@ export function LeftPanel(props: LeftPanelProps) {
                     )}
                     <Tooltip content="Delete asset" side="right">
                       <button
+                        aria-label="Delete asset"
                         onClick={(e) => {
                           e.stopPropagation()
                           if (currentProjectId) { pushAssetUndoRef.current(); deleteAsset(currentProjectId, asset.id) }
@@ -982,6 +984,7 @@ export function LeftPanel(props: LeftPanelProps) {
                     {/* Delete button on hover */}
                     <Tooltip content="Delete asset" side="right">
                       <button
+                        aria-label="Delete asset"
                         onClick={(e) => {
                           e.stopPropagation()
                           if (currentProjectId) { pushAssetUndoRef.current(); deleteAsset(currentProjectId, asset.id) }
@@ -1110,6 +1113,7 @@ export function LeftPanel(props: LeftPanelProps) {
                 {timelines.length > 1 && (
                   <Tooltip content="Delete timeline" side="right">
                     <button
+                      aria-label="Delete timeline"
                       onClick={(e) => {
                         e.stopPropagation()
                         handleDeleteTimeline(tl.id)
