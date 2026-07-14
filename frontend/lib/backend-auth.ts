@@ -20,6 +20,16 @@ interface BackendInfo {
 // real URL and a real token are available, then cache that stable value for the session.
 let cachedInfo: BackendInfo | null = null
 
+/**
+ * Invalidate the cached backend URL/token. Must be called whenever the backend
+ * process restarts — each start mints a NEW random token and may bind a NEW
+ * free port, so the cached pair goes stale and every request would 401 or hit a
+ * dead port until the app relaunched.
+ */
+export function resetBackendInfo(): void {
+  cachedInfo = null
+}
+
 function loadBackendInfo(): Promise<BackendInfo> {
   if (cachedInfo) return Promise.resolve(cachedInfo)
   return (async () => {

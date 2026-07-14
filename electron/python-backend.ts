@@ -1,4 +1,4 @@
-import { ChildProcess, spawn } from 'child_process'
+import { ChildProcess, spawn, spawnSync } from 'child_process'
 import crypto from 'crypto'
 import fs from 'fs'
 import path from 'path'
@@ -403,24 +403,43 @@ export async function startPythonBackend(): Promise<void> {
   }
 }
 
+function killProcessTree(pid: number): void {
+  if (process.platform === 'win32') {
+    // Node's kill() calls TerminateProcess on the single PID only. The backend
+    // spawns children (uvicorn, CUDA workers) that would be orphaned and keep
+    // holding VRAM. taskkill /T kills the whole tree, /F forces it, and
+    // spawnSync makes it complete before the app tears down its event loop
+    // (so this also works from the quit handlers, where a setTimeout wouldn't).
+    try {
+      spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { timeout: 10_000 })
+    } catch (err) {
+      logger.error(`taskkill failed for pid ${pid}: ${String(err)}`)
+    }
+    return
+  }
+  // POSIX: graceful SIGTERM, then a SIGKILL fallback.
+  try {
+    process.kill(pid, 'SIGTERM')
+  } catch {
+    return // already dead
+  }
+  setTimeout(() => {
+    try {
+      process.kill(pid, 0)
+      process.kill(pid, 'SIGKILL')
+    } catch {
+      // already dead
+    }
+  }, 5000)
+}
+
 export function stopPythonBackend(): void {
   if (pythonProcess) {
     isIntentionalShutdown = true
     logger.info('Stopping Python backend...')
     const pid = pythonProcess.pid
-    pythonProcess.kill('SIGTERM')
     pythonProcess = null
-    // Force kill after 5 seconds if SIGTERM didn't work (PyTorch/uvicorn threads)
-    if (pid) {
-      setTimeout(() => {
-        try {
-          process.kill(pid, 0) // Check if still alive (throws if dead)
-          process.kill(pid, 'SIGKILL')
-        } catch {
-          // Already dead
-        }
-      }, 5000)
-    }
+    if (pid) killProcessTree(pid)
     return
   }
 
