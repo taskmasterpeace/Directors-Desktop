@@ -424,7 +424,7 @@ export function Home() {
           {paletteConnected ? (
             <div className="p-3">
               <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                   {(paletteUser?.name || paletteUser?.email || '?')[0].toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">

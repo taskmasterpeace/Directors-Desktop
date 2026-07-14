@@ -541,7 +541,7 @@ function PromptBar({
         {mode === 'image' && !editSourceImage && (
           <div
             className={`relative w-10 h-10 mx-2 mt-2 rounded-lg border-2 border-dashed transition-colors flex items-center justify-center flex-shrink-0 cursor-pointer ${
-              isDragOver ? 'border-purple-500 bg-purple-500/10' : 'border-zinc-700 hover:border-zinc-500'
+              isDragOver ? 'border-blue-500 bg-blue-500/10' : 'border-zinc-700 hover:border-zinc-500'
             }`}
             onDragOver={(e) => { e.preventDefault(); setIsDragOver(true) }}
             onDragLeave={() => setIsDragOver(false)}

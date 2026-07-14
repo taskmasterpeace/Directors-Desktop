@@ -797,7 +797,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <svg className="h-4 w-4 text-violet-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg className="h-4 w-4 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <line x1="18" y1="20" x2="18" y2="10" />
                         <line x1="12" y1="20" x2="12" y2="4" />
                         <line x1="6" y1="20" x2="6" y2="14" />
@@ -816,7 +816,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                   <button
                     onClick={handleToggleAnalytics}
                     className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      analyticsEnabled ? 'bg-violet-500' : 'bg-zinc-700'
+                      analyticsEnabled ? 'bg-blue-500' : 'bg-zinc-700'
                     }`}
                   >
                     <span
@@ -1056,7 +1056,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
               {/* Gemini API Key Section */}
               <div className="space-y-4 pt-4 border-t border-zinc-800">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-purple-400" />
+                  <Sparkles className="h-4 w-4 text-blue-400" />
                   <h3 className="text-sm font-semibold text-white">Gemini API</h3>
                 </div>
 
@@ -1288,7 +1288,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       <button
                         onClick={handleSyncLoras}
                         disabled={loraSyncing}
-                        className="px-3 py-1.5 rounded-lg text-xs bg-purple-600 hover:bg-purple-500 text-white disabled:opacity-50 transition-colors"
+                        className="px-3 py-1.5 rounded-lg text-xs bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 transition-colors"
                       >
                         {loraSyncing ? 'Syncing LoRAs...' : 'Sync LoRAs'}
                       </button>
@@ -1694,7 +1694,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
               {/* Video Model Selection */}
               <div className="space-y-3 pt-4 border-t border-zinc-800">
                 <div className="flex items-center gap-2">
-                  <Film className="h-4 w-4 text-purple-400" />
+                  <Film className="h-4 w-4 text-blue-400" />
                   <h3 className="text-sm font-semibold text-white">Video Model</h3>
                 </div>
                 <select
