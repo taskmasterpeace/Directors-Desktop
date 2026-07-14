@@ -6,7 +6,7 @@ Implemented by provider-specific clients (Replicate Seedance 1.5, fal Seedance 2
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Callable, Protocol
 
 
 class VideoAPIClient(Protocol):
@@ -26,5 +26,6 @@ class VideoAPIClient(Protocol):
         reference_audio: list[str] | None = None,
         seed: int | None = None,
         camera_fixed: bool = False,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> bytes:
         ...

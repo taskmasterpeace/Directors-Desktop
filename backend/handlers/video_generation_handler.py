@@ -728,6 +728,7 @@ class VideoGenerationHandler(StateHandlerBase):
                 last_frame=last_frame_uri,
                 seed=self._resolve_seed(),
                 camera_fixed=(req.cameraMotion == "static"),
+                should_cancel=self._generation.is_generation_cancelled,
             )
             self._generation.update_progress("downloading_output", 85, None, None)
 
@@ -807,6 +808,7 @@ class VideoGenerationHandler(StateHandlerBase):
                 reference_images=reference_images or None,
                 reference_audio=reference_audio or None,
                 seed=self._resolve_seed(),
+                should_cancel=self._generation.is_generation_cancelled,
             )
             self._generation.update_progress("downloading_output", 85, None, None)
 
