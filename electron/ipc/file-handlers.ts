@@ -1,5 +1,6 @@
-import { ipcMain, dialog, BrowserWindow, session } from 'electron'
+import { ipcMain, dialog, BrowserWindow, session, app } from 'electron'
 import path from 'path'
+import os from 'os'
 import fs from 'fs'
 import { execFile } from 'child_process'
 import { getAllowedRoots } from '../config'
@@ -497,6 +498,18 @@ export function registerFileHandlers(): void {
     const repoRoot = findRepoRoot(normalizedPath)
     if (!repoRoot) {
       return { success: false, error: `Could not locate aiobr repo root above ${normalizedPath}` }
+    }
+    // This runs scripts/*.js discovered under repoRoot as Node. Refuse to do so
+    // when the repo root sits inside Downloads or the OS temp dir — a crafted
+    // zip unpacked there could ship a malicious scripts/build_timeline_from_story.js.
+    // Legit use runs from a real project checkout outside those locations.
+    const untrusted = [app.getPath('downloads'), os.tmpdir()].map(d => path.resolve(d).toLowerCase())
+    const rootNorm = path.resolve(repoRoot).toLowerCase()
+    if (untrusted.some(d => rootNorm === d || rootNorm.startsWith(d + path.sep))) {
+      return {
+        success: false,
+        error: 'For safety, story export won\'t run scripts from a Downloads or temp folder. Move the project into a normal directory first.',
+      }
     }
     const relStory = path.relative(repoRoot, normalizedPath).replace(/\\/g, '/')
 
