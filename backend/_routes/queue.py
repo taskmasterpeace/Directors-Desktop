@@ -47,9 +47,14 @@ def route_queue_cancel(
     job_id: str,
     handler: AppHandler = Depends(get_state_service),
 ) -> QueueSubmitResponse:
+    job = handler.job_queue.get_job(job_id)
+    # Only stop the running pipeline if the cancelled job is the one actually
+    # running — cancelling a *queued* job must not abort the running job. Target
+    # the job's own slot so a running job on the other slot is untouched.
+    was_running = job is not None and job.status == "running"
     handler.job_queue.cancel_job(job_id)
-    # Also cancel via GenerationHandler so running pipelines stop
-    handler.generation.cancel_generation()
+    if was_running and job is not None:
+        handler.generation.cancel_generation(slot=job.slot)
     job = handler.job_queue.get_job(job_id)
     status = job.status if job else "not_found"
     return QueueSubmitResponse(id=job_id, status=status)

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import threading
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -31,9 +33,17 @@ class QueueJob:
     tags: list[str] = field(default_factory=lambda: list[str]())
 
 
+_TERMINAL = ("complete", "error", "cancelled")
+# Cap retained finished jobs so a long session doesn't grow the queue file — and
+# each /status poll payload — without bound.
+MAX_FINISHED_JOBS = 200
+
+
 class JobQueue:
     def __init__(self, persistence_path: Path) -> None:
         self._path = persistence_path
+        # Reentrant: update_job() calls get_job(), both guarded, same thread.
+        self._lock = threading.RLock()
         self._jobs: list[QueueJob] = []
         self._load()
 
@@ -69,24 +79,52 @@ class JobQueue:
             auto_params=auto_params or {},
             tags=tags or [],
         )
-        self._jobs.append(job)
-        self._save()
+        with self._lock:
+            self._jobs.append(job)
+            self._prune_finished()
+            self._save()
         return job
 
+    def _prune_finished(self) -> None:
+        """Drop the oldest finished jobs beyond the retention cap.
+
+        Caller holds self._lock. Never drops queued/running jobs, and never drops
+        a finished job that still belongs to a batch with a non-terminal member
+        (batch-completion notification still needs it).
+        """
+        finished = [j for j in self._jobs if j.status in _TERMINAL]
+        if len(finished) <= MAX_FINISHED_JOBS:
+            return
+        active_batches = {
+            j.batch_id for j in self._jobs if j.batch_id and j.status not in _TERMINAL
+        }
+        # Oldest-first candidates that are safe to drop.
+        droppable = [
+            j for j in finished
+            if not (j.batch_id and j.batch_id in active_batches)
+        ]
+        excess = len(finished) - MAX_FINISHED_JOBS
+        to_drop = {id(j) for j in droppable[:excess]}
+        if to_drop:
+            self._jobs = [j for j in self._jobs if id(j) not in to_drop]
+
     def get_all_jobs(self) -> list[QueueJob]:
-        return list(self._jobs)
+        with self._lock:
+            return list(self._jobs)
 
     def get_job(self, job_id: str) -> QueueJob | None:
-        for job in self._jobs:
-            if job.id == job_id:
-                return job
-        return None
+        with self._lock:
+            for job in self._jobs:
+                if job.id == job_id:
+                    return job
+            return None
 
     def next_queued_for_slot(self, slot: str) -> QueueJob | None:
-        for job in self._jobs:
-            if job.status == "queued" and job.slot == slot:
-                return job
-        return None
+        with self._lock:
+            for job in self._jobs:
+                if job.status == "queued" and job.slot == slot:
+                    return job
+            return None
 
     def update_job(
         self,
@@ -98,51 +136,70 @@ class JobQueue:
         result_paths: list[str] | None = None,
         error: str | None = None,
     ) -> None:
-        job = self.get_job(job_id)
-        if job is None:
-            return
-        if status is not None:
-            job.status = status  # type: ignore[assignment]
-        if progress is not None:
-            job.progress = progress
-        if phase is not None:
-            job.phase = phase
-        if result_paths is not None:
-            job.result_paths = result_paths
-        if error is not None:
-            job.error = error
-        self._save()
+        with self._lock:
+            job = self.get_job(job_id)
+            if job is None:
+                return
+            if status is not None:
+                # Never resurrect a job out of the terminal "cancelled" state:
+                # the executor thread keeps running after a cancel and would
+                # otherwise flip it back to complete/error on return.
+                if not (job.status == "cancelled" and status != "cancelled"):
+                    job.status = status  # type: ignore[assignment]
+            if progress is not None:
+                job.progress = progress
+            if phase is not None:
+                job.phase = phase
+            if result_paths is not None:
+                job.result_paths = result_paths
+            if error is not None:
+                job.error = error
+            if status is not None and job.status in _TERMINAL:
+                self._prune_finished()
+            self._save()
 
     def cancel_job(self, job_id: str) -> None:
         self.update_job(job_id, status="cancelled", phase="cancelled")
 
     def jobs_for_batch(self, batch_id: str) -> list[QueueJob]:
-        return sorted(
-            [j for j in self._jobs if j.batch_id == batch_id],
-            key=lambda j: j.batch_index,
-        )
+        with self._lock:
+            return sorted(
+                [j for j in self._jobs if j.batch_id == batch_id],
+                key=lambda j: j.batch_index,
+            )
 
     def active_batch_ids(self) -> list[str]:
-        batch_ids: set[str] = set()
-        for job in self._jobs:
-            if job.batch_id and job.status in ("queued", "running"):
-                batch_ids.add(job.batch_id)
-        return sorted(batch_ids)
+        with self._lock:
+            batch_ids: set[str] = set()
+            for job in self._jobs:
+                if job.batch_id and job.status in ("queued", "running"):
+                    batch_ids.add(job.batch_id)
+            return sorted(batch_ids)
 
     def all_jobs(self) -> list[QueueJob]:
-        return list(self._jobs)
+        with self._lock:
+            return list(self._jobs)
 
     def queued_jobs_for_slot(self, slot: str) -> list[QueueJob]:
-        return [j for j in self._jobs if j.status == "queued" and j.slot == slot]
+        with self._lock:
+            return [j for j in self._jobs if j.status == "queued" and j.slot == slot]
 
     def clear_finished(self) -> None:
-        self._jobs = [j for j in self._jobs if j.status not in ("complete", "error", "cancelled")]
-        self._save()
+        with self._lock:
+            self._jobs = [
+                j for j in self._jobs if j.status not in ("complete", "error", "cancelled")
+            ]
+            self._save()
 
     def _save(self) -> None:
+        # Caller holds self._lock. Write to a temp file in the same dir and
+        # atomically replace, so a concurrent reader / crash mid-write can never
+        # observe a truncated file (which _load would silently reset to empty).
         data = {"jobs": [asdict(j) for j in self._jobs]}
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        tmp = self._path.with_name(f"{self._path.name}.{os.getpid()}.tmp")
+        tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+        os.replace(tmp, self._path)
 
     def _load(self) -> None:
         if not self._path.exists():

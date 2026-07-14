@@ -144,6 +144,63 @@ def test_active_batch_ids_excludes_fully_resolved(tmp_path: Path) -> None:
     assert ids == []  # b1 is fully resolved
 
 
+def test_cancelled_status_is_not_resurrected(tmp_path: Path) -> None:
+    # A job cancelled while its executor thread is still running must stay
+    # cancelled when that thread later reports complete/error.
+    queue = JobQueue(persistence_path=tmp_path / "queue.json")
+    job = queue.submit(job_type="video", model="ltx-fast", params={}, slot="gpu")
+    queue.update_job(job.id, status="running")
+    queue.cancel_job(job.id)
+    queue.update_job(job.id, status="complete", progress=100, result_paths=["/out.mp4"])
+    updated = queue.get_job(job.id)
+    assert updated is not None
+    assert updated.status == "cancelled"
+
+
+def test_setting_status_back_to_cancelled_is_allowed(tmp_path: Path) -> None:
+    queue = JobQueue(persistence_path=tmp_path / "queue.json")
+    job = queue.submit(job_type="video", model="ltx-fast", params={}, slot="gpu")
+    queue.update_job(job.id, status="cancelled")
+    queue.update_job(job.id, status="cancelled", phase="cancelled")
+    updated = queue.get_job(job.id)
+    assert updated is not None
+    assert updated.status == "cancelled"
+
+
+def test_save_leaves_no_temp_file(tmp_path: Path) -> None:
+    path = tmp_path / "queue.json"
+    queue = JobQueue(persistence_path=path)
+    queue.submit(job_type="video", model="ltx-fast", params={}, slot="gpu")
+    # Atomic replace should not leave any *.tmp turds next to the queue file.
+    assert path.exists()
+    assert list(tmp_path.glob("*.tmp")) == []
+
+
+def test_finished_jobs_are_pruned_beyond_cap(tmp_path: Path) -> None:
+    from state.job_queue import MAX_FINISHED_JOBS
+
+    queue = JobQueue(persistence_path=tmp_path / "queue.json")
+    # Submit more than the cap and finish each; the queue must stay bounded.
+    for _ in range(MAX_FINISHED_JOBS + 25):
+        job = queue.submit(job_type="video", model="ltx-fast", params={}, slot="gpu")
+        queue.update_job(job.id, status="complete")
+    finished = [j for j in queue.get_all_jobs() if j.status == "complete"]
+    assert len(finished) <= MAX_FINISHED_JOBS
+
+
+def test_prune_keeps_running_and_queued_jobs(tmp_path: Path) -> None:
+    from state.job_queue import MAX_FINISHED_JOBS
+
+    queue = JobQueue(persistence_path=tmp_path / "queue.json")
+    running = queue.submit(job_type="video", model="ltx-fast", params={}, slot="gpu")
+    queue.update_job(running.id, status="running")
+    for _ in range(MAX_FINISHED_JOBS + 10):
+        job = queue.submit(job_type="video", model="ltx-fast", params={}, slot="gpu")
+        queue.update_job(job.id, status="complete")
+    assert queue.get_job(running.id) is not None
+    assert queue.get_job(running.id).status == "running"  # type: ignore[union-attr]
+
+
 def test_running_jobs_reset_to_queued_on_load(tmp_path: Path) -> None:
     path = tmp_path / "queue.json"
     queue1 = JobQueue(persistence_path=path)

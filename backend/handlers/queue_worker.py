@@ -61,6 +61,10 @@ class QueueWorker:
         self._gpu_cleaner = gpu_cleaner
         self._gpu_busy = False
         self._api_busy = False
+        # Which job id currently owns each slot, so a finishing thread only
+        # releases the slot it actually owns (never one a later dispatch took).
+        self._gpu_job_id: str | None = None
+        self._api_job_id: str | None = None
         self._lock = threading.Lock()
         self._on_batch_complete = on_batch_complete
         self._enhance_handler = enhance_handler
@@ -89,12 +93,14 @@ class QueueWorker:
                 gpu_job = self._next_ready_job("gpu")
                 if gpu_job is not None:
                     self._gpu_busy = True
+                    self._gpu_job_id = gpu_job.id
                     self._queue.update_job(gpu_job.id, status="running", phase="starting")
 
             if not self._api_busy:
                 api_job = self._next_ready_job("api")
                 if api_job is not None:
                     self._api_busy = True
+                    self._api_job_id = api_job.id
                     self._queue.update_job(api_job.id, status="running", phase="starting")
 
         if gpu_job is not None:
@@ -124,9 +130,11 @@ class QueueWorker:
             if self._gpu_busy and not has_running_gpu:
                 logger.info("Recovering stuck GPU slot — no running GPU jobs found")
                 self._gpu_busy = False
+                self._gpu_job_id = None
             if self._api_busy and not has_running_api:
                 logger.info("Recovering stuck API slot — no running API jobs found")
                 self._api_busy = False
+                self._api_job_id = None
 
     def _next_ready_job(self, slot: str) -> QueueJob | None:
         for job in self._queue.queued_jobs_for_slot(slot):
@@ -178,31 +186,54 @@ class QueueWorker:
                     self._on_batch_complete(batch_id, jobs)
 
     def _run_job(self, job: QueueJob, executor: JobExecutor, slot: str) -> None:
+        result_paths: list[str] = []
+        error: str | None = None
         try:
             result_paths = executor.execute(job)
-            self._queue.update_job(job.id, status="complete", progress=100, phase="complete", result_paths=result_paths)
-            # Deduct credits for API-slot jobs (local GPU jobs are free)
-            if slot == "api" and self._credit_deductor is not None:
-                credit_type = _credit_type_for_job(job)
-                if credit_type:
-                    try:
-                        self._credit_deductor.deduct_credits(
-                            credit_type, 1,
-                            {"model": job.model, "job_id": job.id},
-                        )
-                    except Exception as exc:
-                        logger.warning("Credit deduction failed for job %s: %s", job.id, exc)
         except Exception as exc:
             logger.error("Job %s failed: %s", job.id, exc)
-            self._queue.update_job(job.id, status="error", error=str(exc))
-        finally:
-            if slot == "gpu" and self._gpu_cleaner is not None:
-                try:
-                    self._gpu_cleaner.deep_cleanup()
-                except Exception:
-                    pass
-            with self._lock:
-                if slot == "gpu":
-                    self._gpu_busy = False
-                else:
-                    self._api_busy = False
+            error = str(exc)
+
+        # Run heavy VRAM cleanup BEFORE releasing the slot / writing the terminal
+        # status, so no later dispatch can put another job on the GPU while this
+        # job's cleanup is still running.
+        if slot == "gpu" and self._gpu_cleaner is not None:
+            try:
+                self._gpu_cleaner.deep_cleanup()
+            except Exception as exc:
+                logger.warning("GPU deep cleanup failed after job %s: %s", job.id, exc)
+
+        with self._lock:
+            if error is None:
+                self._queue.update_job(
+                    job.id, status="complete", progress=100, phase="complete",
+                    result_paths=result_paths,
+                )
+                # Deduct credits for API-slot jobs (local GPU jobs are free).
+                # update_job refuses to leave a "cancelled" job, so re-read status.
+                finished = self._queue.get_job(job.id)
+                if (
+                    slot == "api"
+                    and self._credit_deductor is not None
+                    and finished is not None
+                    and finished.status == "complete"
+                ):
+                    credit_type = _credit_type_for_job(job)
+                    if credit_type:
+                        try:
+                            self._credit_deductor.deduct_credits(
+                                credit_type, 1,
+                                {"model": job.model, "job_id": job.id},
+                            )
+                        except Exception as exc:
+                            logger.warning("Credit deduction failed for job %s: %s", job.id, exc)
+            else:
+                self._queue.update_job(job.id, status="error", error=error)
+
+            # Only release the slot if this job still owns it.
+            if slot == "gpu" and self._gpu_job_id == job.id:
+                self._gpu_busy = False
+                self._gpu_job_id = None
+            elif slot == "api" and self._api_job_id == job.id:
+                self._api_busy = False
+                self._api_job_id = None
