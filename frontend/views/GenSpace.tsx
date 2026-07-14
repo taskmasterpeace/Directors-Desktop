@@ -1700,15 +1700,17 @@ export function GenSpace() {
                 <div className="relative rounded-xl overflow-hidden bg-zinc-800 aspect-video">
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
                     <div className="relative w-16 h-16 mb-3">
-                      <div className="absolute inset-0 rounded-full border-2 border-violet-500/30" />
-                      <div className="absolute inset-0 rounded-full border-2 border-violet-500 border-t-transparent animate-spin" />
+                      <div className="absolute inset-0 rounded-full border-2 border-blue-500/30" />
+                      <div className="absolute inset-0 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
                       <div className="absolute inset-2 rounded-full bg-zinc-800 flex items-center justify-center">
-                        <Sparkles className="h-6 w-6 text-violet-400" />
+                        <Sparkles className="h-6 w-6 text-blue-400" />
                       </div>
                     </div>
                     <p className="text-sm text-zinc-400">{statusMessage || 'Generating...'}</p>
                     <div className="w-32 h-1 bg-zinc-700 rounded-full mt-2 overflow-hidden">
-                      <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${estimatedSeconds && elapsedSeconds ? Math.min((elapsedSeconds / estimatedSeconds) * 100, 95) : Math.max(progress, 2)}%` }} />
+                      {/* Drive the bar from the backend's real per-job progress, not
+                          elapsed/estimated time (which freezes at 95% on long jobs). */}
+                      <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${Math.max(progress, 2)}%` }} />
                     </div>
                     <p className="text-xs text-zinc-500 mt-1">
                       {elapsedSeconds > 0
