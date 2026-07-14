@@ -8,8 +8,24 @@
 const THUMB_WIDTH = 320 // px – sufficient for 2-col grid at ~160px card width
 const THUMB_QUALITY = 0.7
 
-/** Cache: videoUrl → thumbnailBlobUrl  (avoids regenerating on re-render) */
+/** Cache: videoUrl → thumbnailBlobUrl  (avoids regenerating on re-render).
+ * Bounded LRU with revoke-on-evict so decoded JPEG blobs don't accumulate in
+ * memory over a long editing session touching many distinct videos. */
+const THUMB_CACHE_LIMIT = 200
 const thumbnailCache = new Map<string, string>()
+
+/** Insert a thumbnail, evicting+revoking the oldest entries past the cap.
+ * Map preserves insertion order, so the first key is the least-recently added. */
+function cacheThumbnail(videoUrl: string, blobUrl: string): void {
+  thumbnailCache.set(videoUrl, blobUrl)
+  while (thumbnailCache.size > THUMB_CACHE_LIMIT) {
+    const oldest = thumbnailCache.keys().next().value
+    if (oldest === undefined) break
+    const stale = thumbnailCache.get(oldest)
+    thumbnailCache.delete(oldest)
+    if (stale) URL.revokeObjectURL(stale)
+  }
+}
 
 /**
  * Extract a single frame from a video URL at the given time (default 0 s)
@@ -50,7 +66,7 @@ export function generateThumbnail(
             cleanup()
             if (!blob) { reject(new Error('toBlob returned null')); return }
             const blobUrl = URL.createObjectURL(blob)
-            thumbnailCache.set(videoUrl, blobUrl)
+            cacheThumbnail(videoUrl, blobUrl)
             resolve(blobUrl)
           },
           'image/jpeg',

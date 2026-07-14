@@ -52,6 +52,32 @@ def _queue_completed(http: FakeHTTPClient, video_bytes: bytes = b"fal-mp4") -> N
     http.queue("get", FakeResponse(status_code=200, content=video_bytes))
 
 
+def test_cancel_during_poll_stops_and_issues_provider_cancel() -> None:
+    """When should_cancel() flips true mid-poll, the client must stop polling,
+    call fal's cancel endpoint, and raise — so the user isn't billed for a job
+    they aborted."""
+    http = FakeHTTPClient()
+    http.queue(
+        "post",
+        FakeResponse(
+            status_code=200,
+            json_payload={
+                "request_id": "req1",
+                "status": "IN_QUEUE",
+                "status_url": f"{QUEUE_BASE}/bytedance/seedance-2.0/requests/req1/status",
+                "response_url": f"{QUEUE_BASE}/bytedance/seedance-2.0/requests/req1",
+                "cancel_url": f"{QUEUE_BASE}/bytedance/seedance-2.0/requests/req1/cancel",
+            },
+        ),
+    )
+    http.queue("put", FakeResponse(status_code=200, json_payload={"status": "CANCELLED"}))
+
+    with pytest.raises(RuntimeError, match="cancelled"):
+        _make_client(http).generate_video(**_kwargs(should_cancel=lambda: True))
+
+    assert any(call.method == "put" and call.url.endswith("/cancel") for call in http.calls)
+
+
 def test_status_poll_keeps_going_through_202_in_queue() -> None:
     """Regression: fal returns HTTP 202 while IN_QUEUE/IN_PROGRESS — must poll, not fail.
 

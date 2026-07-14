@@ -319,6 +319,7 @@ class FakeVideoAPIClient:
         reference_audio: list[str] | None = None,
         seed: int | None = None,
         camera_fixed: bool = False,
+        should_cancel: Callable[[], bool] | None = None,  # noqa: ARG002 - accepted, unused in fake
     ) -> bytes:
         self.video_calls.append({
             "api_key": api_key,

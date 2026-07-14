@@ -127,7 +127,8 @@ if (!gotLock) {
     initAutoUpdater()
     // Python setup + backend start are now driven by the renderer via IPC
 
-    // Fire analytics event (no-op if user hasn't opted in)
+    // Fire analytics event. NOTE: analytics is opt-OUT — enabled unless the
+    // user has explicitly disabled it (see getAnalyticsState / sendAnalyticsEvent).
     void sendAnalyticsEvent('ltxdesktop_app_launched')
   })
 

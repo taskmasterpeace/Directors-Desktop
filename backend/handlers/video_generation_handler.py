@@ -406,9 +406,15 @@ class VideoGenerationHandler(StateHandlerBase):
                 self._generation.fail_generation(str(e))
             raise
         finally:
-            for f in temp_files:
-                if os.path.exists(f):
-                    os.unlink(f)
+            # Clean up the last-frame PNGs and the intermediate segment mp4s.
+            # On success the segments have already been concatenated into the
+            # final output; on failure they are partial and unwanted either way.
+            for f in [*temp_files, *segment_paths]:
+                try:
+                    if os.path.exists(f):
+                        os.unlink(f)
+                except OSError as exc:
+                    logger.warning("[long] Failed to remove temp file %s: %s", f, exc)
 
     @staticmethod
     def _find_ffmpeg() -> str:
@@ -722,6 +728,7 @@ class VideoGenerationHandler(StateHandlerBase):
                 last_frame=last_frame_uri,
                 seed=self._resolve_seed(),
                 camera_fixed=(req.cameraMotion == "static"),
+                should_cancel=self._generation.is_generation_cancelled,
             )
             self._generation.update_progress("downloading_output", 85, None, None)
 
@@ -801,6 +808,7 @@ class VideoGenerationHandler(StateHandlerBase):
                 reference_images=reference_images or None,
                 reference_audio=reference_audio or None,
                 seed=self._resolve_seed(),
+                should_cancel=self._generation.is_generation_cancelled,
             )
             self._generation.update_progress("downloading_output", 85, None, None)
 

@@ -24,6 +24,7 @@ import { Tooltip } from '../components/ui/tooltip'
 import { ExportModal } from '../components/ExportModal'
 import { MenuBar, type MenuDefinition } from '../components/MenuBar'
 import { ImportTimelineModal } from '../components/ImportTimelineModal'
+import { useConfirm } from '../components/ConfirmDialog'
 import { ClipWaveform } from '../components/AudioWaveform'
 // IC-LORA HIDDEN - import { ICLoraPanel } from '../components/ICLoraPanel'
 import type { TimelineClip, Track, SubtitleClip } from '../types/project' // EFFECTS HIDDEN: removed EffectType
@@ -84,6 +85,7 @@ export function VideoEditor() {
     setCurrentTab, setGenSpaceEditImageUrl, setGenSpaceEditMode, setGenSpaceAudioUrl,
     setGenSpaceRetakeSource, pendingRetakeUpdate, setPendingRetakeUpdate,
   } = useProjects()
+  const confirm = useConfirm()
 
   const { activeLayout: kbLayout, isEditorOpen: isKbEditorOpen, setEditorOpen: setKbEditorOpen } = useKeyboardShortcuts()
   const { shouldVideoGenerateWithLtxApi, settings: appSettings } = useAppSettings()
@@ -817,27 +819,50 @@ export function VideoEditor() {
     loadedTimelineIdRef.current = activeTimeline.id
   }, [activeTimeline?.id])
   
+  // Always-current snapshot of what the debounced save would persist, so the
+  // unmount flush below can save even when a pending debounce hasn't fired yet.
+  const pendingSaveRef = useRef<{
+    projectId: string
+    timelineId: string
+    clips: typeof clips
+    tracks: typeof tracks
+    subtitles: typeof subtitles
+    dirty: boolean
+  } | null>(null)
+
   // Debounced auto-save: when clips, tracks, or subtitles change, schedule a save
   useEffect(() => {
     if (!currentProjectId || !loadedTimelineIdRef.current) return
-    
+
+    pendingSaveRef.current = {
+      projectId: currentProjectId,
+      timelineId: loadedTimelineIdRef.current,
+      clips, tracks, subtitles,
+      dirty: true,
+    }
+
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
     autoSaveTimerRef.current = setTimeout(() => {
       updateTimeline(currentProjectId, loadedTimelineIdRef.current!, { clips, tracks, subtitles })
+      if (pendingSaveRef.current) pendingSaveRef.current.dirty = false
     }, AUTOSAVE_DELAY)
-    
+
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
     }
   }, [clips, tracks, subtitles, currentProjectId])
-  
-  // Save on unmount
+
+  // Save on unmount: flush the latest snapshot if a debounced save was still
+  // pending, so edits made within AUTOSAVE_DELAY of navigating away aren't lost.
   useEffect(() => {
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
-      if (currentProjectId && loadedTimelineIdRef.current) {
-        // We can't read latest clips/tracks from state here since this is a cleanup,
-        // but the debounced save should have already caught the latest changes.
+      const p = pendingSaveRef.current
+      if (p && p.dirty) {
+        updateTimeline(p.projectId, p.timelineId, {
+          clips: p.clips, tracks: p.tracks, subtitles: p.subtitles,
+        })
+        p.dirty = false
       }
     }
   }, [])
@@ -1404,9 +1429,16 @@ export function VideoEditor() {
     }
   }
   
-  const handleDeleteTimeline = (timelineId: string) => {
+  const handleDeleteTimeline = async (timelineId: string) => {
     if (!currentProjectId) return
     if (timelines.length <= 1) return // Can't delete the last one
+    const target = timelines.find(t => t.id === timelineId)
+    const ok = await confirm({
+      title: `Delete timeline${target ? ` "${target.name}"` : ''}?`,
+      message: 'All clips on this timeline will be removed. This cannot be undone.',
+      confirmLabel: 'Delete timeline',
+    })
+    if (!ok) return
     deleteTimeline(currentProjectId, timelineId)
     setTimelineContextMenu(null)
   }
@@ -2690,8 +2722,8 @@ export function VideoEditor() {
                             </Tooltip>
                             <Tooltip content="Delete track" side="right">
                               <button
-                                onClick={() => {
-                                  if (confirm(`Delete subtitle track "${track.name}"?`)) {
+                                onClick={async () => {
+                                  if (await confirm({ title: `Delete subtitle track "${track.name}"?`, confirmLabel: 'Delete' })) {
                                     pushTrackUndo()
                                     setTracks(tracks.filter((_, i) => i !== realIndex))
                                     setSubtitles(prev => prev.filter(s => s.trackIndex !== realIndex))
@@ -3226,8 +3258,8 @@ export function VideoEditor() {
                                   </Tooltip>
                                   <Tooltip content="Delete this take" side="top">
                                     <button
-                                      onClick={() => {
-                                        if (confirm(`Delete take ${(clip.takeIndex ?? (liveAsset.activeTakeIndex ?? liveAsset.takes!.length - 1)) + 1}?`)) {
+                                      onClick={async () => {
+                                        if (await confirm({ title: `Delete take ${(clip.takeIndex ?? (liveAsset.activeTakeIndex ?? liveAsset.takes!.length - 1)) + 1}?`, confirmLabel: 'Delete' })) {
                                           handleDeleteTake(clip.id)
                                         }
                                       }}

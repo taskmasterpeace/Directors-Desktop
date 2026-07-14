@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, cast
+from typing import Any, Callable, cast
 
 from services.http_client.http_client import HTTPClient
 from services.services_utils import JSONValue
@@ -66,6 +66,7 @@ class FalVideoClientImpl:
         reference_audio: list[str] | None = None,
         seed: int | None = None,
         camera_fixed: bool = False,  # noqa: ARG002 - not a Seedance 2.0 input
+        should_cancel: Callable[[], bool] | None = None,
     ) -> bytes:
         routes = _MODEL_ROUTES.get(model)
         if routes is None:
@@ -93,7 +94,7 @@ class FalVideoClientImpl:
         )
 
         submit = self._submit(api_key=api_key, route=route, input_payload=input_payload)
-        response_url = self._wait_for_completion(api_key=api_key, submit=submit)
+        response_url = self._wait_for_completion(api_key=api_key, submit=submit, should_cancel=should_cancel)
         video_url = self._extract_video_url(self._fetch_result(api_key=api_key, response_url=response_url))
         return self._download(api_key=api_key, url=video_url)
 
@@ -148,7 +149,26 @@ class FalVideoClientImpl:
         # Some fal responses include the result directly; most return queue urls.
         return data
 
-    def _wait_for_completion(self, *, api_key: str, submit: dict[str, Any]) -> str:
+    def _cancel_request(self, api_key: str, submit: dict[str, Any]) -> None:
+        cancel_url = submit.get("cancel_url")
+        if not isinstance(cancel_url, str) or not cancel_url:
+            status_url = submit.get("status_url")
+            if isinstance(status_url, str) and status_url:
+                cancel_url = f"{status_url.rstrip('/')}/cancel"
+            else:
+                return
+        try:
+            self._http.put(cancel_url, headers=self._headers(api_key), timeout=30)
+        except Exception as exc:  # best-effort; we're aborting regardless
+            logger.warning("Failed to cancel fal request: %s", exc)
+
+    def _wait_for_completion(
+        self,
+        *,
+        api_key: str,
+        submit: dict[str, Any],
+        should_cancel: Callable[[], bool] | None = None,
+    ) -> str:
         status = str(submit.get("status", "")).upper()
         status_url = submit.get("status_url")
         response_url = submit.get("response_url")
@@ -164,6 +184,9 @@ class FalVideoClientImpl:
 
         deadline = time.monotonic() + _POLL_TIMEOUT_SECONDS
         while time.monotonic() < deadline:
+            if should_cancel is not None and should_cancel():
+                self._cancel_request(api_key, submit)
+                raise RuntimeError("Generation cancelled")
             resp = self._http.get(status_url, headers=self._headers(api_key), timeout=30)
             # fal's queue status endpoint returns 202 while IN_QUEUE/IN_PROGRESS and 200 when
             # COMPLETED — both carry a JSON {"status": ...} body. Only 4xx/5xx is a real failure.

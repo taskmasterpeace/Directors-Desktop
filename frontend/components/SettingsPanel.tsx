@@ -148,7 +148,7 @@ export function SettingsPanel({
               type="button"
               disabled={disabled}
               onClick={() => setLoraBrowserOpen(true)}
-              className="flex-1 px-3 py-1.5 text-xs text-left bg-zinc-800 border border-zinc-700 rounded-lg hover:border-purple-500/40 truncate disabled:opacity-50"
+              className="flex-1 px-3 py-1.5 text-xs text-left bg-zinc-800 border border-zinc-700 rounded-lg hover:border-blue-500/40 truncate disabled:opacity-50"
             >
               {settings.loraPath
                 ? settings.loraPath.split(/[/\\]/).pop()

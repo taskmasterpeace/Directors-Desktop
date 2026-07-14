@@ -4,6 +4,7 @@ import { ProjectProvider, useProjects } from './contexts/ProjectContext'
 import { KeyboardShortcutsProvider } from './contexts/KeyboardShortcutsContext'
 import { AppSettingsProvider, useAppSettings } from './contexts/AppSettingsContext'
 import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal'
+import { ConfirmProvider } from './components/ConfirmDialog'
 import { useBackend } from './hooks/use-backend'
 import { logger } from './lib/logger'
 import { Home } from './views/Home'
@@ -15,6 +16,7 @@ import { Styles } from './views/Styles'
 import { References } from './views/References'
 import { Wildcards } from './views/Wildcards'
 import { PromptLibrary } from './views/PromptLibrary'
+import ClipTool from './views/ClipTool'
 import { LaunchGate } from './components/FirstRunSetup'
 import { PythonSetup } from './components/PythonSetup'
 import { SettingsModal, type SettingsTabId } from './components/SettingsModal'
@@ -478,6 +480,8 @@ function AppContent() {
         return <Wildcards />
       case 'prompt-library':
         return <PromptLibrary />
+      case 'clip-tool':
+        return <ClipTool />
       default:
         return <Home />
     }
@@ -572,8 +576,10 @@ export default function App() {
     <ProjectProvider>
       <KeyboardShortcutsProvider>
         <AppSettingsProvider>
-          <AppContent />
-          <KeyboardShortcutsModal />
+          <ConfirmProvider>
+            <AppContent />
+            <KeyboardShortcutsModal />
+          </ConfirmProvider>
         </AppSettingsProvider>
       </KeyboardShortcutsProvider>
     </ProjectProvider>

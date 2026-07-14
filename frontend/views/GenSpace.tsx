@@ -13,6 +13,7 @@ import { useGeneration } from '../hooks/use-generation'
 import { useRetake } from '../hooks/use-retake'
 import type { Asset } from '../types/project'
 import { GenerationErrorDialog } from '../components/GenerationErrorDialog'
+import { useConfirm } from '../components/ConfirmDialog'
 import { copyToAssetFolder } from '../lib/asset-copy'
 import { fileUrlToPath } from '../lib/url-to-path'
 import {
@@ -115,6 +116,7 @@ function AssetCard({
       {/* Favorite heart - always visible when favorited */}
       {isFavorite && !isHovered && (
         <button
+          aria-label="Toggle favorite"
           onClick={(e) => { e.stopPropagation(); onToggleFavorite?.() }}
           className="absolute top-2 left-2 p-1.5 rounded-lg bg-black/40 backdrop-blur-md text-white transition-colors z-10"
         >
@@ -130,6 +132,7 @@ function AssetCard({
         <div className="absolute top-2 left-2 right-2 flex items-center justify-between">
           <div className="flex items-center gap-1.5">
             <button
+              aria-label="Toggle favorite"
               onClick={(e) => { e.stopPropagation(); onToggleFavorite?.() }}
               className={`p-1.5 rounded-lg backdrop-blur-md transition-colors ${
                 isFavorite ? 'bg-white/20 text-white' : 'bg-black/40 text-white hover:bg-black/60'
@@ -178,6 +181,7 @@ function AssetCard({
           
           <div className="flex items-center gap-1.5">
             <button
+              aria-label="Download"
               onClick={handleDownload}
               className="p-1.5 rounded-lg bg-black/40 backdrop-blur-md text-white hover:bg-black/60 transition-colors"
             >
@@ -194,6 +198,7 @@ function AssetCard({
               {formatTime(currentTime)}
             </div>
             <button
+              aria-label="Toggle mute"
               onClick={(e) => { e.stopPropagation(); setIsMuted(!isMuted) }}
               className="p-1.5 rounded-lg bg-black/40 backdrop-blur-md text-white hover:bg-black/60 transition-colors"
             >
@@ -205,6 +210,7 @@ function AssetCard({
         {/* Delete button (subtle, bottom right for images) */}
         {asset.type === 'image' && (
           <button
+            aria-label="Delete asset"
             onClick={(e) => { e.stopPropagation(); onDelete() }}
             className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-red-600/70 backdrop-blur-md text-white hover:bg-red-500 transition-colors opacity-0 group-hover:opacity-100"
           >
@@ -541,7 +547,7 @@ function PromptBar({
         {mode === 'image' && !editSourceImage && (
           <div
             className={`relative w-10 h-10 mx-2 mt-2 rounded-lg border-2 border-dashed transition-colors flex items-center justify-center flex-shrink-0 cursor-pointer ${
-              isDragOver ? 'border-purple-500 bg-purple-500/10' : 'border-zinc-700 hover:border-zinc-500'
+              isDragOver ? 'border-blue-500 bg-blue-500/10' : 'border-zinc-700 hover:border-zinc-500'
             }`}
             onDragOver={(e) => { e.preventDefault(); setIsDragOver(true) }}
             onDragLeave={() => setIsDragOver(false)}
@@ -606,6 +612,7 @@ function PromptBar({
               <>
                 <img src={inputImage} alt="" className="w-full h-full object-cover rounded-md" />
                 <button
+                  aria-label="Remove image"
                   onClick={(e) => { e.stopPropagation(); onInputImageChange(null) }}
                   className="absolute -top-1 -right-1 p-0.5 rounded-full bg-zinc-800 text-zinc-400 hover:text-white z-10"
                 >
@@ -641,6 +648,7 @@ function PromptBar({
               <>
                 <Music className="h-4 w-4 text-emerald-400" />
                 <button
+                  aria-label="Remove audio"
                   onClick={(e) => { e.stopPropagation(); onInputAudioChange(null) }}
                   className="absolute -top-1 -right-1 p-0.5 rounded-full bg-zinc-800 text-zinc-400 hover:text-white z-10"
                 >
@@ -676,6 +684,7 @@ function PromptBar({
               <>
                 <img src={lastFrameUrl} alt="" className="w-full h-full object-cover rounded-md" />
                 <button
+                  aria-label="Remove last frame"
                   onClick={(e) => { e.stopPropagation(); onLastFrameChange(null) }}
                   className="absolute -top-1 -right-1 p-0.5 rounded-full bg-zinc-800 text-zinc-400 hover:text-white z-10"
                 >
@@ -1078,6 +1087,7 @@ const DEFAULT_VIDEO_SETTINGS = {
 
 export function GenSpace() {
   const { currentProject, currentProjectId, addAsset, addTakeToAsset, deleteAsset, toggleFavorite, genSpaceEditImageUrl, setGenSpaceEditImageUrl, setGenSpaceEditMode, genSpaceAudioUrl, setGenSpaceAudioUrl, genSpaceRetakeSource, setGenSpaceRetakeSource, setPendingRetakeUpdate } = useProjects()
+  const confirm = useConfirm()
   const { shouldVideoGenerateWithLtxApi, forceApiGenerations, settings: appSettings, credits } = useAppSettings()
   const [mode, setMode] = useState<'image' | 'video' | 'retake'>('video')
   const [prompt, setPrompt] = useState('')
@@ -1495,10 +1505,14 @@ export function GenSpace() {
     }
   }
   
-  const handleDelete = (assetId: string) => {
-    if (currentProjectId) {
-      deleteAsset(currentProjectId, assetId)
-    }
+  const handleDelete = async (assetId: string) => {
+    if (!currentProjectId) return
+    const ok = await confirm({
+      title: 'Delete this asset?',
+      message: 'This removes it from the project. This cannot be undone.',
+      confirmLabel: 'Delete',
+    })
+    if (ok) deleteAsset(currentProjectId, assetId)
   }
   
   const handleDragStart = (e: React.DragEvent, asset: Asset) => {
@@ -1653,6 +1667,7 @@ export function GenSpace() {
 
             <div ref={sizeMenuRef} className="relative">
               <button
+                aria-label="Change gallery size"
                 onClick={() => setShowSizeMenu(!showSizeMenu)}
                 className={`p-2 rounded-md transition-colors ${
                   showSizeMenu ? 'bg-zinc-800 text-white' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
@@ -1700,15 +1715,17 @@ export function GenSpace() {
                 <div className="relative rounded-xl overflow-hidden bg-zinc-800 aspect-video">
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
                     <div className="relative w-16 h-16 mb-3">
-                      <div className="absolute inset-0 rounded-full border-2 border-violet-500/30" />
-                      <div className="absolute inset-0 rounded-full border-2 border-violet-500 border-t-transparent animate-spin" />
+                      <div className="absolute inset-0 rounded-full border-2 border-blue-500/30" />
+                      <div className="absolute inset-0 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
                       <div className="absolute inset-2 rounded-full bg-zinc-800 flex items-center justify-center">
-                        <Sparkles className="h-6 w-6 text-violet-400" />
+                        <Sparkles className="h-6 w-6 text-blue-400" />
                       </div>
                     </div>
                     <p className="text-sm text-zinc-400">{statusMessage || 'Generating...'}</p>
                     <div className="w-32 h-1 bg-zinc-700 rounded-full mt-2 overflow-hidden">
-                      <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${estimatedSeconds && elapsedSeconds ? Math.min((elapsedSeconds / estimatedSeconds) * 100, 95) : Math.max(progress, 2)}%` }} />
+                      {/* Drive the bar from the backend's real per-job progress, not
+                          elapsed/estimated time (which freezes at 95% on long jobs). */}
+                      <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${Math.max(progress, 2)}%` }} />
                     </div>
                     <p className="text-xs text-zinc-500 mt-1">
                       {elapsedSeconds > 0
@@ -1803,6 +1820,7 @@ export function GenSpace() {
         >
           {/* Previous button */}
           <button
+            aria-label="Previous"
             onClick={(e) => { e.stopPropagation(); goToPrev() }}
             disabled={!canGoPrev}
             className={`absolute left-4 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full backdrop-blur-md transition-all ${
@@ -1816,6 +1834,7 @@ export function GenSpace() {
 
           {/* Next button */}
           <button
+            aria-label="Next"
             onClick={(e) => { e.stopPropagation(); goToNext() }}
             disabled={!canGoNext}
             className={`absolute right-4 top-1/2 -translate-y-1/2 z-10 p-3 rounded-full backdrop-blur-md transition-all ${
@@ -1835,6 +1854,7 @@ export function GenSpace() {
                 {selectedIndex + 1} / {filteredAssets.length}
               </span>
               <button
+                aria-label="Close"
                 onClick={() => setSelectedAsset(null)}
                 className="p-2 rounded-md text-zinc-400 hover:text-white transition-colors"
               >

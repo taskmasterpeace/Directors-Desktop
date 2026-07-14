@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import type { Project, Asset, AssetTake, ViewType, ProjectTab, Timeline } from '../types/project'
 import { createDefaultTimeline } from '../types/project'
 import { loadStoryToTimeline, type StoryFile } from '../lib/story-loader'
@@ -52,6 +52,7 @@ interface ProjectContextType {
   openReferences: () => void
   openWildcards: () => void
   openPromptLibrary: () => void
+  openClipTool: () => void
   
   // Cross-view communication (editor → gen space)
   genSpaceEditImageUrl: string | null
@@ -559,56 +560,77 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const openPromptLibrary = useCallback(() => {
     setCurrentView('prompt-library')
   }, [])
-  
+
+  const openClipTool = useCallback(() => {
+    setCurrentView('clip-tool')
+  }, [])
+
+  // Memoize so consumers only re-render when a value they read actually changes,
+  // not on every ProjectProvider render. Setters and useCallback'd handlers are
+  // stable; only the state values below drive updates.
+  const value = useMemo(() => ({
+    currentView,
+    setCurrentView,
+    currentProjectId,
+    setCurrentProjectId,
+    currentTab,
+    setCurrentTab,
+    projects,
+    currentProject,
+    createProject,
+    deleteProject,
+    renameProject,
+    updateProject,
+    addAsset,
+    deleteAsset,
+    updateAsset,
+    addTakeToAsset,
+    deleteTakeFromAsset,
+    setAssetActiveTake,
+    toggleFavorite,
+    addTimeline,
+    deleteTimeline,
+    renameTimeline,
+    duplicateTimeline,
+    setActiveTimeline,
+    updateTimeline,
+    getActiveTimeline,
+    openProject,
+    importPaletteMv,
+    goHome,
+    openPlayground,
+    openGallery,
+    openCharacters,
+    openStyles,
+    openReferences,
+    openWildcards,
+    openPromptLibrary,
+    openClipTool,
+    genSpaceEditImageUrl,
+    setGenSpaceEditImageUrl,
+    genSpaceEditMode,
+    setGenSpaceEditMode,
+    genSpaceAudioUrl,
+    setGenSpaceAudioUrl,
+    genSpaceRetakeSource,
+    setGenSpaceRetakeSource,
+    pendingRetakeUpdate,
+    setPendingRetakeUpdate,
+  }), [
+    currentView, currentProjectId, currentTab, projects, currentProject,
+    createProject, deleteProject, renameProject, updateProject,
+    addAsset, deleteAsset, updateAsset, addTakeToAsset, deleteTakeFromAsset,
+    setAssetActiveTake, toggleFavorite, addTimeline, deleteTimeline,
+    renameTimeline, duplicateTimeline, setActiveTimeline, updateTimeline,
+    getActiveTimeline, openProject, importPaletteMv, goHome, openPlayground,
+    openGallery, openCharacters, openStyles, openReferences, openWildcards,
+    openPromptLibrary, openClipTool,
+    genSpaceEditImageUrl, genSpaceEditMode, genSpaceAudioUrl,
+    genSpaceRetakeSource, pendingRetakeUpdate,
+  ])
+
   return (
-    <ProjectContext.Provider value={{
-      currentView,
-      setCurrentView,
-      currentProjectId,
-      setCurrentProjectId,
-      currentTab,
-      setCurrentTab,
-      projects,
-      currentProject,
-      createProject,
-      deleteProject,
-      renameProject,
-      updateProject,
-      addAsset,
-      deleteAsset,
-      updateAsset,
-      addTakeToAsset,
-      deleteTakeFromAsset,
-      setAssetActiveTake,
-      toggleFavorite,
-      addTimeline,
-      deleteTimeline,
-      renameTimeline,
-      duplicateTimeline,
-      setActiveTimeline,
-      updateTimeline,
-      getActiveTimeline,
-      openProject,
-      importPaletteMv,
-      goHome,
-      openPlayground,
-      openGallery,
-      openCharacters,
-      openStyles,
-      openReferences,
-      openWildcards,
-      openPromptLibrary,
-      genSpaceEditImageUrl,
-      setGenSpaceEditImageUrl,
-      genSpaceEditMode,
-      setGenSpaceEditMode,
-      genSpaceAudioUrl,
-      setGenSpaceAudioUrl,
-      genSpaceRetakeSource,
-      setGenSpaceRetakeSource,
-      pendingRetakeUpdate,
-      setPendingRetakeUpdate,
-    }}>
+    <ProjectContext.Provider value={value}>
       {children}
     </ProjectContext.Provider>
   )

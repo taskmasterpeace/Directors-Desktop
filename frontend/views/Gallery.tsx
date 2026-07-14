@@ -118,6 +118,7 @@ export function Gallery() {
       {/* Header */}
       <header className="flex items-center gap-3 px-6 py-4 border-b border-zinc-800 shrink-0">
         <button
+          aria-label="Back"
           onClick={goHome}
           className="h-8 w-8 flex items-center justify-center rounded-md text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
         >
@@ -224,6 +225,7 @@ export function Gallery() {
 
                   {/* Delete button */}
                   <button
+                    aria-label="Delete"
                     onClick={(e) => { e.stopPropagation(); void handleDelete(item) }}
                     className="absolute top-2 right-2 p-1.5 rounded bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/80"
                   >
@@ -274,6 +276,7 @@ export function Gallery() {
             onClick={e => e.stopPropagation()}
           >
             <button
+              aria-label="Close preview"
               onClick={() => setPreviewItem(null)}
               className="absolute -top-10 right-0 p-2 text-zinc-400 hover:text-white transition-colors"
             >

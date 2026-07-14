@@ -27,7 +27,7 @@ export function LtxLogo({ className = "h-6" }: LtxLogoProps) {
       <circle cx="58" cy="36" r="7" fill="#F39C12" />
       <circle cx="78" cy="36" r="7" fill="#3498DB" />
       <circle cx="94" cy="46" r="7" fill="#2ECC71" />
-      <circle cx="98" cy="66" r="6" fill="#9B59B6" />
+      <circle cx="98" cy="66" r="6" fill="#2B61FF" />
       <circle cx="34" cy="62" r="6" fill="#E67E22" />
       {/* Thumb hole */}
       <circle cx="56" cy="80" r="12" fill="#1a1a1a" />

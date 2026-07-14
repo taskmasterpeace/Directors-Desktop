@@ -39,7 +39,7 @@ export interface ColorLabelDef {
 }
 
 export const COLOR_LABELS: ColorLabelDef[] = [
-  { id: 'violet',    label: 'Violet',    color: '#8b5cf6', bg: 'bg-violet-700/50',  border: 'border-violet-500', dot: 'bg-violet-500' },
+  { id: 'slate',     label: 'Slate',     color: '#64748b', bg: 'bg-slate-700/50',  border: 'border-slate-500', dot: 'bg-slate-500' },
   { id: 'blue',      label: 'Blue',      color: '#3b82f6', bg: 'bg-blue-700/50',      border: 'border-blue-500',   dot: 'bg-blue-500' },
   { id: 'cyan',      label: 'Cyan',      color: '#06b6d4', bg: 'bg-cyan-700/50',      border: 'border-cyan-500',   dot: 'bg-cyan-500' },
   { id: 'teal',      label: 'Teal',      color: '#14b8a6', bg: 'bg-teal-700/50',      border: 'border-teal-500',   dot: 'bg-teal-500' },

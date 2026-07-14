@@ -129,6 +129,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   extractVideoFrame: (videoUrl: string, seekTime: number, width?: number, quality?: number): Promise<{ path: string; url: string }> =>
     ipcRenderer.invoke('extract-video-frame', videoUrl, seekTime, width, quality),
 
+  // Trim a fixed-length segment out of a source video (Clip Tool)
+  clipTrim: (data: { inputUrl: string; startSeconds: number; lengthSeconds: number; outputPath: string }): Promise<{ success: boolean; outputPath?: string; error?: string }> =>
+    ipcRenderer.invoke('clip-trim', data),
+
   // Write a log line to the session log file
   writeLog: (level: string, message: string): Promise<void> =>
     ipcRenderer.invoke('write-log', level, message),
@@ -217,6 +221,7 @@ declare global {
       removePythonSetupProgress: () => void
       onBackendHealthStatus: (cb: (data: BackendHealthStatus) => void) => (() => void)
       extractVideoFrame: (videoUrl: string, seekTime: number, width?: number, quality?: number) => Promise<{ path: string; url: string }>
+      clipTrim: (data: { inputUrl: string; startSeconds: number; lengthSeconds: number; outputPath: string }) => Promise<{ success: boolean; outputPath?: string; error?: string }>
       writeLog: (level: string, message: string) => Promise<void>
       getAnalyticsState: () => Promise<{ analyticsEnabled: boolean; installationId: string }>
       setAnalyticsEnabled: (enabled: boolean) => Promise<void>

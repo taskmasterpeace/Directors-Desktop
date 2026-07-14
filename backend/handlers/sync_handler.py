@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -311,11 +312,17 @@ class SyncHandler:
     ) -> None:
         """Download LoRA weights and register in local catalog."""
         lora_id = lora.get("id", "unknown")
-        filename = f"palette_{lora_id}.safetensors"
-        dest = self._loras_dir / filename
+        # The id comes from a remote API response — sanitize it before using it
+        # as a filename so a value like "../../evil" can't escape the loras dir.
+        safe_id = re.sub(r"[^A-Za-z0-9_-]", "", str(lora_id)) or "unknown"
+        filename = f"palette_{safe_id}.safetensors"
+        dest = (self._loras_dir / filename).resolve()
+        loras_root = self._loras_dir.resolve()
+        if not (dest == loras_root / filename and dest.parent == loras_root):
+            raise RuntimeError(f"Refusing to write LoRA outside the loras dir: {filename}")
 
         if not dest.exists():
-            logger.info("Downloading LoRA %s from %s", lora_id, weights_url)
+            logger.info("Downloading LoRA %s from %s", safe_id, weights_url)
             resp = self._http.get(weights_url, timeout=300)
             if resp.status_code != 200:
                 raise RuntimeError(f"Download failed: HTTP {resp.status_code}")

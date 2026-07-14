@@ -76,6 +76,28 @@ def test_cancel_marks_running_api_generation(test_state):
     assert out.id == "api-gen-1"
 
 
+def test_gpu_and_api_generations_run_concurrently(test_state):
+    # The two slots are independent: a running API job must not block a GPU job.
+    test_state.generation.start_api_generation("api-gen-1")
+    test_state.pipelines.load_gpu_pipeline("fast")
+    test_state.generation.start_generation("gpu-gen-1")  # must not raise
+    assert test_state.generation.is_generation_running() is True
+
+
+def test_slot_scoped_cancel_leaves_other_slot_running(test_state):
+    # Cancelling one slot must not abort a generation running on the other slot.
+    test_state.pipelines.load_gpu_pipeline("fast")
+    test_state.generation.start_generation("gpu-gen-1")
+    test_state.generation.start_api_generation("api-gen-1")
+
+    out = test_state.generation.cancel_generation(slot="api")
+    assert out.status == "cancelling"
+    assert out.id == "api-gen-1"
+
+    # The GPU generation is untouched.
+    assert test_state.generation.is_generation_cancelled() is False
+
+
 def test_gpu_cancel_state_not_affected_by_stale_api_cancel_state(test_state):
     test_state.generation.start_api_generation("api-gen-1")
     test_state.generation.cancel_generation()

@@ -317,7 +317,7 @@ export function LaunchGate({
               <circle cx="58" cy="36" r="7" fill="#F39C12"/>
               <circle cx="78" cy="36" r="7" fill="#3498DB"/>
               <circle cx="94" cy="46" r="7" fill="#2ECC71"/>
-              <circle cx="98" cy="66" r="6" fill="#9B59B6"/>
+              <circle cx="98" cy="66" r="6" fill="#2B61FF"/>
               <circle cx="34" cy="62" r="6" fill="#E67E22"/>
               <circle cx="56" cy="80" r="12" fill="#1a1a1a"/>
               <circle cx="56" cy="80" r="9" fill="#111"/>
@@ -385,7 +385,7 @@ export function LaunchGate({
                           fontSize: 13,
                           fontWeight: 600,
                           cursor: 'pointer',
-                          background: 'linear-gradient(125deg, #A98BD9, #6D28D9)',
+                          background: 'linear-gradient(125deg, #5B82FF, #1A50E0)',
                           border: 'none',
                           color: '#ffffff',
                         }}
@@ -402,7 +402,7 @@ export function LaunchGate({
                       gap: 10
                     }}>
                       <svg width="20" height="20" viewBox="0 0 24 24" style={{ animation: 'spin 1s linear infinite' }}>
-                        <circle cx="12" cy="12" r="10" stroke="#6D28D9" strokeWidth="3" fill="none" strokeDasharray="31.4 31.4" strokeLinecap="round" />
+                        <circle cx="12" cy="12" r="10" stroke="#1A50E0" strokeWidth="3" fill="none" strokeDasharray="31.4 31.4" strokeLinecap="round" />
                       </svg>
                       <span style={{ color: '#a0a0a0', fontSize: 13 }}>Loading license...</span>
                     </div>
@@ -536,7 +536,7 @@ export function LaunchGate({
                     LTX API Key
                     <span style={{
                       fontSize: 11,
-                      color: '#A98BD9',
+                      color: '#5B82FF',
                       marginLeft: 8,
                       fontWeight: 400
                     }}>
@@ -562,7 +562,7 @@ export function LaunchGate({
                 />
                 <p style={{ fontSize: 11, color: '#888', marginTop: 8 }}>
                   {ltxApiKey ? (
-                    <span style={{ color: '#6D28D9' }}>
+                    <span style={{ color: '#1A50E0' }}>
                       ✓ Text encoder download will be skipped (using API instead)
                     </span>
                   ) : (
@@ -673,7 +673,7 @@ export function LaunchGate({
                         fontSize: 13,
                         fontWeight: 600,
                         cursor: 'pointer',
-                        background: 'linear-gradient(125deg, #A98BD9, #6D28D9)',
+                        background: 'linear-gradient(125deg, #5B82FF, #1A50E0)',
                         border: 'none',
                         color: '#ffffff',
                       }}
@@ -694,7 +694,7 @@ export function LaunchGate({
                   <span style={{ fontSize: 13, fontWeight: 500 }}>
                     {(downloadProgress?.totalProgress || 0) > 85 ? 'Installing...' : 'Downloading...'}
                   </span>
-                  <span style={{ fontSize: 13, color: '#A98BD9', fontWeight: 600 }}>
+                  <span style={{ fontSize: 13, color: '#5B82FF', fontWeight: 600 }}>
                     {Math.round(downloadProgress?.totalProgress || 0)}%
                   </span>
                 </div>
@@ -708,7 +708,7 @@ export function LaunchGate({
                 }}>
                   <div style={{
                     height: '100%',
-                    background: 'linear-gradient(125deg, #A98BD9, #6D28D9, #194DF9)',
+                    background: 'linear-gradient(125deg, #5B82FF, #2B61FF, #1A50E0)',
                     backgroundSize: '200% 200%',
                     animation: 'gradientShift 3s ease infinite',
                     borderRadius: 3,
@@ -734,7 +734,7 @@ export function LaunchGate({
                   {/* Speed and ETA */}
                   <div style={{ display: 'flex', gap: 16, marginLeft: 16, flexShrink: 0 }}>
                     {downloadProgress && downloadProgress.speedBytesPerSec > 0 && (
-                      <span style={{ color: '#6D28D9', fontWeight: 500 }}>
+                      <span style={{ color: '#1A50E0', fontWeight: 500 }}>
                         {(downloadProgress.speedBytesPerSec / (1024 * 1024)).toFixed(1)} MB/s
                       </span>
                     )}
@@ -782,7 +782,7 @@ export function LaunchGate({
               <div style={{
                 width: 72,
                 height: 72,
-                background: 'linear-gradient(125deg, #A98BD9, #6D28D9, #194DF9)',
+                background: 'linear-gradient(125deg, #5B82FF, #2B61FF, #1A50E0)',
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',

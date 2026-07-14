@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, cast
+from typing import Any, Callable, cast
 
 from services.http_client.http_client import HTTPClient
 from services.services_utils import JSONValue
@@ -51,6 +51,7 @@ class ReplicateVideoClientImpl:
         reference_audio: list[str] | None = None,  # noqa: ARG002 - Seedance 1.5 has no refs
         seed: int | None = None,
         camera_fixed: bool = False,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> bytes:
         replicate_model = _MODEL_ROUTES.get(model)
         if replicate_model is None:
@@ -73,8 +74,20 @@ class ReplicateVideoClientImpl:
             input_payload=input_payload,
         )
 
-        output_url = self._wait_for_output(api_key, prediction)
+        output_url = self._wait_for_output(api_key, prediction, should_cancel)
         return self._download_video(api_key, output_url)
+
+    def _cancel_prediction(self, api_key: str, prediction: dict[str, Any]) -> None:
+        cancel_url = prediction.get("urls", {}).get("cancel")
+        if not isinstance(cancel_url, str) or not cancel_url:
+            prediction_id = prediction.get("id", "")
+            if not prediction_id:
+                return
+            cancel_url = f"{self._base_url}/predictions/{prediction_id}/cancel"
+        try:
+            self._http.post(cancel_url, headers=self._headers(api_key), json_payload={}, timeout=30)
+        except Exception as exc:  # best-effort; we're aborting regardless
+            logger.warning("Failed to cancel Replicate prediction: %s", exc)
 
     @staticmethod
     def _build_input(
@@ -135,7 +148,12 @@ class ReplicateVideoClientImpl:
 
         return self._json_object(response.json(), context="create prediction")
 
-    def _wait_for_output(self, api_key: str, prediction: dict[str, Any]) -> str:
+    def _wait_for_output(
+        self,
+        api_key: str,
+        prediction: dict[str, Any],
+        should_cancel: Callable[[], bool] | None = None,
+    ) -> str:
         status = prediction.get("status", "")
         if status == "succeeded":
             return self._extract_output_url(prediction)
@@ -151,6 +169,11 @@ class ReplicateVideoClientImpl:
 
         deadline = time.monotonic() + _POLL_TIMEOUT_SECONDS
         while time.monotonic() < deadline:
+            # Stop polling and tell Replicate to cancel so the user isn't billed
+            # for a prediction they aborted.
+            if should_cancel is not None and should_cancel():
+                self._cancel_prediction(api_key, prediction)
+                raise RuntimeError("Generation cancelled")
             time.sleep(_POLL_INTERVAL_SECONDS)
             resp = self._http.get(poll_url, headers=self._headers(api_key), timeout=30)
             if resp.status_code != 200:

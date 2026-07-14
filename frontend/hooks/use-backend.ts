@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { logger } from '../lib/logger'
+import { resetBackendInfo } from '../lib/backend-auth'
 
 interface BackendStatus {
   connected: boolean
@@ -140,6 +141,12 @@ export function useBackend(): UseBackendReturn {
 
   const handleBackendStatus = useCallback(async (payload: BackendHealthStatusPayload) => {
     setProcessStatus(payload.status)
+
+    // A restart mints a new token/port — drop the cached backend info so the
+    // next request re-resolves against the freshly started backend.
+    if (payload.status === 'restarting' || payload.status === 'alive') {
+      resetBackendInfo()
+    }
 
     if (payload.status === 'alive') {
       const healthy = await checkHealth()

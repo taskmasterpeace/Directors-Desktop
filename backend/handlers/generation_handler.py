@@ -24,7 +24,9 @@ GenerationSlot = Literal["gpu", "api"]
 class GenerationHandler(StateHandlerBase):
     @with_state_lock
     def start_generation(self, generation_id: str) -> None:
-        if self.is_generation_running():
+        # Only the GPU slot must be free — the API slot runs independently and
+        # a concurrent cloud job must not block a local GPU job (and vice versa).
+        if isinstance(self._gpu_generation(), GenerationRunning):
             raise RuntimeError("Generation already in progress")
         if self.state.gpu_slot is None:
             raise RuntimeError("No active GPU pipeline")
@@ -36,7 +38,7 @@ class GenerationHandler(StateHandlerBase):
 
     @with_state_lock
     def start_api_generation(self, generation_id: str) -> None:
-        if self.is_generation_running():
+        if isinstance(self.state.api_generation, GenerationRunning):
             raise RuntimeError("Generation already in progress")
 
         self.state.api_generation = GenerationRunning(
@@ -114,8 +116,12 @@ class GenerationHandler(StateHandlerBase):
                 return
 
     @with_state_lock
-    def cancel_generation(self) -> CancelResponse:
-        match self._running_slot():
+    def cancel_generation(self, slot: GenerationSlot | None = None) -> CancelResponse:
+        # When `slot` is given, cancel only that slot's generation. This lets the
+        # queue route cancel the running job on a specific slot without aborting
+        # an unrelated job running on the other slot.
+        target = slot if slot is not None else self._running_slot()
+        match target:
             case "gpu":
                 match self.state.gpu_slot:
                     case GpuSlot(generation=GenerationRunning(id=generation_id)):
@@ -135,17 +141,19 @@ class GenerationHandler(StateHandlerBase):
             case _:
                 pass
 
-        match self.state.gpu_slot:
-            case GpuSlot(generation=GenerationCancelled(id=generation_id)):
-                return CancelResponse(status="cancelling", id=generation_id)
-            case _:
-                pass
+        if slot in (None, "gpu"):
+            match self.state.gpu_slot:
+                case GpuSlot(generation=GenerationCancelled(id=generation_id)):
+                    return CancelResponse(status="cancelling", id=generation_id)
+                case _:
+                    pass
 
-        match self.state.api_generation:
-            case GenerationCancelled(id=generation_id):
-                return CancelResponse(status="cancelling", id=generation_id)
-            case _:
-                pass
+        if slot in (None, "api"):
+            match self.state.api_generation:
+                case GenerationCancelled(id=generation_id):
+                    return CancelResponse(status="cancelling", id=generation_id)
+                case _:
+                    pass
 
         return CancelResponse(status="no_active_generation")
 

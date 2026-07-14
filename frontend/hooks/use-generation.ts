@@ -170,6 +170,11 @@ function getPhaseMessage(phase: string): string {
   }
 }
 
+const POLL_INTERVAL_MS = 500
+const POLL_TIMEOUT_MS = 8000
+// ~5s of consecutive failures before we declare the backend dead.
+const MAX_POLL_FAILURES = 10
+
 // Convert a file system path to a file:// URL
 function pathToFileUrl(filePath: string): string {
   const normalized = filePath.replace(/\\/g, '/')
@@ -195,114 +200,149 @@ export function useGeneration(): UseGenerationReturn {
 
   // Track the most recently submitted job ID for cancel
   const activeJobIdRef = useRef<string | null>(null)
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const startedAtRef = useRef<number | null>(null)
+  // Consecutive poll failures — used to detect a dead backend instead of
+  // spinning forever in "Generating…".
+  const pollFailuresRef = useRef(0)
 
-  // Start polling the queue status. Cleans up automatically when no active jobs remain.
+  const stopPolling = useCallback(() => {
+    if (pollTimeoutRef.current) {
+      clearTimeout(pollTimeoutRef.current)
+      pollTimeoutRef.current = null
+    }
+  }, [])
+
+  // Poll the queue status with a self-scheduling loop (no overlapping requests)
+  // and a per-request timeout. Stops when our job finishes, when the user
+  // cancels, or when the backend has been unreachable for too long.
   const startPolling = useCallback(() => {
-    if (pollIntervalRef.current) return // already polling
+    if (pollTimeoutRef.current) return // already polling
+    pollFailuresRef.current = 0
 
-    const poll = async () => {
-      try {
-        const backendUrl = await window.electronAPI.getBackendUrl()
-        const res = await fetch(`${backendUrl}/api/queue/status`)
-        if (!res.ok) return
-        const data: { jobs: QueueJob[] } = await res.json()
-        const jobs: QueueJob[] = data.jobs
-
-        // Derive progress from the most-recently active job
-        const activeId = activeJobIdRef.current
-        const activeJob = activeId ? jobs.find(j => j.id === activeId) : null
-
-        // Only consider *our* active job as running — stale/other jobs shouldn't block the UI
-        const hasRunning = activeJob
-          ? (activeJob.status === 'queued' || activeJob.status === 'running')
-          : false
-
-        setState(prev => {
-          const next = { ...prev, jobs }
-
-          if (activeJob) {
-            next.progress = activeJob.progress
-            next.statusMessage = getPhaseMessage(activeJob.phase)
-
-            // Track elapsed time from when the job started running
-            if (activeJob.status === 'running' && !startedAtRef.current) {
-              startedAtRef.current = Date.now()
-            }
-            if (startedAtRef.current) {
-              next.elapsedSeconds = Math.floor((Date.now() - startedAtRef.current) / 1000)
-            }
-
-            // Compute estimated total time for video jobs
-            if ((activeJob.type === 'video' || activeJob.type === 'long_video') && next.estimatedSeconds === null) {
-              next.estimatedSeconds = getEstimatedSeconds(activeJob)
-            }
-
-            if (activeJob.status === 'complete') {
-              next.isGenerating = hasRunning
-              next.progress = 100
-              next.statusMessage = 'Complete!'
-
-              next.lastModel = activeJob.model
-
-              if ((activeJob.type === 'video' || activeJob.type === 'long_video') && activeJob.result_paths.length > 0) {
-                const rawPath = activeJob.result_paths[0]
-                next.videoUrl = pathToFileUrl(rawPath)
-                next.videoPath = rawPath
-              } else if (activeJob.type === 'image' && activeJob.result_paths.length > 0) {
-                const fileUrls = activeJob.result_paths.map(pathToFileUrl)
-                next.imageUrl = fileUrls[0]
-                next.imageUrls = fileUrls
-              }
-
-              // Clear active job so we don't keep overwriting state
-              activeJobIdRef.current = null
-              startedAtRef.current = null
-            } else if (activeJob.status === 'error') {
-              next.isGenerating = hasRunning
-              next.error = activeJob.error || 'Generation failed'
-              activeJobIdRef.current = null
-              startedAtRef.current = null
-            } else if (activeJob.status === 'cancelled') {
-              next.isGenerating = hasRunning
-              next.statusMessage = 'Cancelled'
-              activeJobIdRef.current = null
-              startedAtRef.current = null
-            }
-          } else {
-            next.isGenerating = hasRunning
-          }
-
-          return next
-        })
-
-        // Stop polling when nothing is active
-        if (!hasRunning) {
-          if (pollIntervalRef.current) {
-            clearInterval(pollIntervalRef.current)
-            pollIntervalRef.current = null
-          }
-        }
-      } catch {
-        // Ignore polling errors
-      }
+    const scheduleNext = () => {
+      pollTimeoutRef.current = setTimeout(() => void runPoll(), POLL_INTERVAL_MS)
     }
 
-    // Fire immediately, then every 500ms
-    void poll()
-    pollIntervalRef.current = setInterval(poll, 500)
+    const runPoll = async () => {
+      pollTimeoutRef.current = null
+
+      let jobs: QueueJob[]
+      try {
+        const backendUrl = await window.electronAPI.getBackendUrl()
+        const controller = new AbortController()
+        const timer = setTimeout(() => controller.abort(), POLL_TIMEOUT_MS)
+        let res: Response
+        try {
+          res = await fetch(`${backendUrl}/api/queue/status`, { signal: controller.signal })
+        } finally {
+          clearTimeout(timer)
+        }
+        if (!res.ok) throw new Error(`status ${res.status}`)
+        const data: unknown = await res.json()
+        if (!data || !Array.isArray((data as { jobs?: unknown }).jobs)) {
+          throw new Error('malformed queue status response')
+        }
+        jobs = (data as { jobs: QueueJob[] }).jobs
+      } catch {
+        pollFailuresRef.current += 1
+        // Only treat repeated failures as fatal while we actually have a job in
+        // flight; otherwise just stop quietly.
+        if (activeJobIdRef.current && pollFailuresRef.current >= MAX_POLL_FAILURES) {
+          activeJobIdRef.current = null
+          startedAtRef.current = null
+          setState(prev => ({
+            ...prev,
+            isGenerating: false,
+            statusMessage: '',
+            error: 'Lost connection to the generation backend. It may have crashed — check the logs.',
+          }))
+          return // stop polling
+        }
+        if (activeJobIdRef.current) scheduleNext()
+        return
+      }
+
+      pollFailuresRef.current = 0
+
+      // Derive progress from the most-recently active job
+      const activeId = activeJobIdRef.current
+      const activeJob = activeId ? jobs.find(j => j.id === activeId) : null
+
+      // Only consider *our* active job as running — stale/other jobs shouldn't block the UI
+      const hasRunning = activeJob
+        ? (activeJob.status === 'queued' || activeJob.status === 'running')
+        : false
+
+      setState(prev => {
+        const next = { ...prev, jobs }
+
+        if (activeJob) {
+          next.progress = activeJob.progress
+          next.statusMessage = getPhaseMessage(activeJob.phase)
+
+          // Track elapsed time from when the job started running
+          if (activeJob.status === 'running' && !startedAtRef.current) {
+            startedAtRef.current = Date.now()
+          }
+          if (startedAtRef.current) {
+            next.elapsedSeconds = Math.floor((Date.now() - startedAtRef.current) / 1000)
+          }
+
+          // Compute estimated total time for video jobs
+          if ((activeJob.type === 'video' || activeJob.type === 'long_video') && next.estimatedSeconds === null) {
+            next.estimatedSeconds = getEstimatedSeconds(activeJob)
+          }
+
+          if (activeJob.status === 'complete') {
+            next.isGenerating = hasRunning
+            next.progress = 100
+            next.statusMessage = 'Complete!'
+
+            next.lastModel = activeJob.model
+
+            if ((activeJob.type === 'video' || activeJob.type === 'long_video') && activeJob.result_paths.length > 0) {
+              const rawPath = activeJob.result_paths[0]
+              next.videoUrl = pathToFileUrl(rawPath)
+              next.videoPath = rawPath
+            } else if (activeJob.type === 'image' && activeJob.result_paths.length > 0) {
+              const fileUrls = activeJob.result_paths.map(pathToFileUrl)
+              next.imageUrl = fileUrls[0]
+              next.imageUrls = fileUrls
+            }
+
+            // Clear active job so we don't keep overwriting state
+            activeJobIdRef.current = null
+            startedAtRef.current = null
+          } else if (activeJob.status === 'error') {
+            next.isGenerating = hasRunning
+            next.error = activeJob.error || 'Generation failed'
+            activeJobIdRef.current = null
+            startedAtRef.current = null
+          } else if (activeJob.status === 'cancelled') {
+            next.isGenerating = hasRunning
+            next.statusMessage = 'Cancelled'
+            activeJobIdRef.current = null
+            startedAtRef.current = null
+          }
+        } else {
+          next.isGenerating = hasRunning
+        }
+
+        return next
+      })
+
+      // Keep polling only while our job is still active.
+      if (hasRunning) scheduleNext()
+    }
+
+    void runPoll()
   }, [])
 
   // Clean up polling on unmount
   useEffect(() => {
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current)
-        pollIntervalRef.current = null
-      }
-    }
-  }, [])
+    return () => stopPolling()
+  }, [stopPolling])
 
   const generate = useCallback(async (
     prompt: string,
@@ -427,21 +467,26 @@ export function useGeneration(): UseGenerationReturn {
     const jobId = activeJobIdRef.current
     if (!jobId) return
 
+    // Make cancel authoritative: clear our active job and stop the poll loop up
+    // front so an in-flight tick can't flip the UI back to "Generating…".
+    activeJobIdRef.current = null
+    startedAtRef.current = null
+    stopPolling()
+    setState(prev => ({
+      ...prev,
+      isGenerating: false,
+      statusMessage: 'Cancelled',
+    }))
+
     try {
       const backendUrl = await window.electronAPI.getBackendUrl()
       await fetch(`${backendUrl}/api/queue/cancel/${jobId}`, {
         method: 'POST',
       })
     } catch {
-      // Ignore errors from cancel request
+      // Ignore errors from cancel request — the UI is already in a terminal state.
     }
-
-    setState(prev => ({
-      ...prev,
-      isGenerating: false,
-      statusMessage: 'Cancelled',
-    }))
-  }, [])
+  }, [stopPolling])
 
   const generateImage = useCallback(async (
     prompt: string,

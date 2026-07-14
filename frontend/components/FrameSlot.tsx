@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback, useEffect } from 'react'
 import { X, ImageIcon } from 'lucide-react'
 
 interface FrameSlotProps {
@@ -8,17 +8,41 @@ interface FrameSlotProps {
   disabled?: boolean
 }
 
+function pathToFileUrl(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, '/')
+  return normalized.startsWith('/') ? `file://${normalized}` : `file:///${normalized}`
+}
+
 export function FrameSlot({ label, imageUrl, onImageSet, disabled }: FrameSlotProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isDragOver, setIsDragOver] = useState(false)
+  // Any object URL we created, so we can revoke it on replace/clear/unmount.
+  const blobUrlRef = useRef<string | null>(null)
+
+  const revokeBlob = useCallback(() => {
+    if (blobUrlRef.current) {
+      URL.revokeObjectURL(blobUrlRef.current)
+      blobUrlRef.current = null
+    }
+  }, [])
+
+  useEffect(() => revokeBlob, [revokeBlob])
 
   const handleFile = useCallback((file: File) => {
     if (!file.type.startsWith('image/')) return
-    const url = URL.createObjectURL(file)
-    // For Electron, we need the real path. file.path is available in Electron's File objects.
+    revokeBlob()
+    // In Electron the File has a real path — display it via file:// and skip the
+    // blob entirely (no leak). Only fall back to a blob URL when there's no path.
     const path = (file as File & { path?: string }).path || null
+    let url: string
+    if (path) {
+      url = pathToFileUrl(path)
+    } else {
+      url = URL.createObjectURL(file)
+      blobUrlRef.current = url
+    }
     onImageSet(url, path)
-  }, [onImageSet])
+  }, [onImageSet, revokeBlob])
 
   const handlePaste = useCallback((e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items
@@ -64,6 +88,7 @@ export function FrameSlot({ label, imageUrl, onImageSet, disabled }: FrameSlotPr
 
   const handleClear = (e: React.MouseEvent) => {
     e.stopPropagation()
+    revokeBlob()
     onImageSet(null, null)
   }
 

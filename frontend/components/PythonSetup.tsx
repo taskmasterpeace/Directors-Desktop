@@ -203,7 +203,7 @@ export function PythonSetup({ onReady }: PythonSetupProps) {
                     fontSize: 13,
                     fontWeight: 600,
                     cursor: 'pointer',
-                    background: 'linear-gradient(125deg, #A98BD9, #6D28D9)',
+                    background: 'linear-gradient(125deg, #5B82FF, #1A50E0)',
                     border: 'none',
                     color: '#ffffff',
                   }}
@@ -223,7 +223,7 @@ export function PythonSetup({ onReady }: PythonSetupProps) {
                   <span style={{ fontSize: 13, fontWeight: 500 }}>
                     {statusLabel}
                   </span>
-                  <span style={{ fontSize: 13, color: '#A98BD9', fontWeight: 600 }}>
+                  <span style={{ fontSize: 13, color: '#5B82FF', fontWeight: 600 }}>
                     {percent}%
                   </span>
                 </div>
@@ -237,7 +237,7 @@ export function PythonSetup({ onReady }: PythonSetupProps) {
                 }}>
                   <div style={{
                     height: '100%',
-                    background: 'linear-gradient(125deg, #A98BD9, #6D28D9, #194DF9)',
+                    background: 'linear-gradient(125deg, #5B82FF, #2B61FF, #1A50E0)',
                     backgroundSize: '200% 200%',
                     animation: 'gradientShift 3s ease infinite',
                     borderRadius: 3,
@@ -263,7 +263,7 @@ export function PythonSetup({ onReady }: PythonSetupProps) {
 
                   <div style={{ display: 'flex', gap: 16, marginLeft: 16, flexShrink: 0 }}>
                     {progress && progress.speed > 0 && (
-                      <span style={{ color: '#6D28D9', fontWeight: 500 }}>
+                      <span style={{ color: '#1A50E0', fontWeight: 500 }}>
                         {(progress.speed / (1024 * 1024)).toFixed(1)} MB/s
                       </span>
                     )}
