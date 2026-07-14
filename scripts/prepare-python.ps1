@@ -248,6 +248,17 @@ except ImportError as e:
 
 $TestScript | & $PythonExe -
 
+# ============================================================
+# Write the deps hash used by the app to detect env changes.
+# Content = SHA-256 of the resolved requirements. electron-builder ships the
+# repo-root copy as extraResources (python-deps-hash.txt); the in-bundle copy
+# (deps-hash.txt) travels with python-embed. Both must match at runtime.
+# ============================================================
+$DepsHash = (Get-FileHash -Path $RequirementsFile -Algorithm SHA256).Hash.ToLower()
+Set-Content -Path (Join-Path $OutputPath "deps-hash.txt") -Value $DepsHash -NoNewline -Encoding utf8
+Set-Content -Path (Join-Path $ProjectDir "python-deps-hash.txt") -Value $DepsHash -NoNewline -Encoding utf8
+Write-Host "Wrote deps hash: $DepsHash" -ForegroundColor Green
+
 # Calculate size
 $Size = (Get-ChildItem -Path $OutputPath -Recurse | Measure-Object -Property Length -Sum).Sum
 $SizeGB = [math]::Round($Size / 1GB, 2)

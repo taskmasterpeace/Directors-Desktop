@@ -234,6 +234,20 @@ except ImportError as e:
     sys.exit(1)
 "
 
+# ============================================================
+# Write the deps hash used by the app to detect env changes (and required by
+# electron-builder's extraResources). Content = SHA-256 of the resolved
+# requirements; write both the repo-root and in-bundle copies.
+# ============================================================
+if command -v shasum >/dev/null 2>&1; then
+    DEPS_HASH=$(shasum -a 256 "$REQUIREMENTS_FILE" | cut -d' ' -f1)
+else
+    DEPS_HASH=$(sha256sum "$REQUIREMENTS_FILE" | cut -d' ' -f1)
+fi
+printf '%s' "$DEPS_HASH" > "$OUTPUT_PATH/deps-hash.txt"
+printf '%s' "$DEPS_HASH" > "$PROJECT_DIR/python-deps-hash.txt"
+echo "  Wrote deps hash: $DEPS_HASH"
+
 # Calculate size
 SIZE_BYTES=$(du -sb "$OUTPUT_PATH" 2>/dev/null | cut -f1 || du -sk "$OUTPUT_PATH" | awk '{print $1 * 1024}')
 SIZE_GB=$(echo "scale=2; $SIZE_BYTES / 1073741824" | bc)
