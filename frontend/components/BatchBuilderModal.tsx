@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { X, Plus, Trash2, Copy, Upload, Grid3X3, List, FileText, Play, AlertCircle, Layers, Film } from 'lucide-react'
 import type { BatchSubmitRequest, BatchJobItem, SweepAxis } from '@/types/batch'
 import { parseCSV, parseJSON, parseRange } from '@/lib/batch-import'
@@ -65,6 +65,16 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
   const [gridAxes, setGridAxes] = useState<GridAxis[]>([
     { id: nextRowId(), param: 'loraWeight', valuesInput: '0.3-1.0:8' },
   ])
+
+  // Close on Escape, matching the app's other modals.
+  useEffect(() => {
+    if (!isOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isOpen, onClose])
 
   if (!isOpen) return null
 
@@ -198,13 +208,20 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
   ]
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      onClick={onClose}
+      role="presentation"
+    >
       <div
         className="w-[900px] max-h-[85vh] rounded-xl border flex flex-col overflow-hidden"
         style={{
           background: 'oklch(0.18 0.02 250)',
           borderColor: 'oklch(0.32 0.03 250)',
         }}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b" style={{ borderColor: 'oklch(0.32 0.03 250)' }}>

@@ -1,5 +1,6 @@
 import { Download, Heart, Search, Trash2, X, FolderOpen, Package } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
+import { useConfirm } from './ConfirmDialog'
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -61,6 +62,7 @@ function formatNumber(n: number): string {
 // ── Component ──────────────────────────────────────────────────────
 
 export function LoraBrowser({ isOpen, onClose, onSelectLora }: LoraBrowserProps) {
+  const confirm = useConfirm()
   const [activeTab, setActiveTab] = useState<'browse' | 'library'>('library')
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<CivitaiLoraResult[]>([])
@@ -164,11 +166,17 @@ export function LoraBrowser({ isOpen, onClose, onSelectLora }: LoraBrowserProps)
 
   const deleteLora = useCallback(async (id: string) => {
     if (!backendUrl) return
+    const ok = await confirm({
+      title: 'Delete this LoRA?',
+      message: 'It will be removed from your library. This cannot be undone.',
+      confirmLabel: 'Delete',
+    })
+    if (!ok) return
     try {
       await fetch(`${backendUrl}/api/lora/library/${id}`, { method: 'DELETE' })
       await loadLibrary()
     } catch { /* ignore */ }
-  }, [backendUrl, loadLibrary])
+  }, [backendUrl, loadLibrary, confirm])
 
   const selectLibraryLora = useCallback((entry: LoraLibraryEntry) => {
     onSelectLora(entry.file_path, entry.trigger_phrase, 1.0)

@@ -13,6 +13,7 @@ import { useGeneration } from '../hooks/use-generation'
 import { useRetake } from '../hooks/use-retake'
 import type { Asset } from '../types/project'
 import { GenerationErrorDialog } from '../components/GenerationErrorDialog'
+import { useConfirm } from '../components/ConfirmDialog'
 import { copyToAssetFolder } from '../lib/asset-copy'
 import { fileUrlToPath } from '../lib/url-to-path'
 import {
@@ -1078,6 +1079,7 @@ const DEFAULT_VIDEO_SETTINGS = {
 
 export function GenSpace() {
   const { currentProject, currentProjectId, addAsset, addTakeToAsset, deleteAsset, toggleFavorite, genSpaceEditImageUrl, setGenSpaceEditImageUrl, setGenSpaceEditMode, genSpaceAudioUrl, setGenSpaceAudioUrl, genSpaceRetakeSource, setGenSpaceRetakeSource, setPendingRetakeUpdate } = useProjects()
+  const confirm = useConfirm()
   const { shouldVideoGenerateWithLtxApi, forceApiGenerations, settings: appSettings, credits } = useAppSettings()
   const [mode, setMode] = useState<'image' | 'video' | 'retake'>('video')
   const [prompt, setPrompt] = useState('')
@@ -1495,10 +1497,14 @@ export function GenSpace() {
     }
   }
   
-  const handleDelete = (assetId: string) => {
-    if (currentProjectId) {
-      deleteAsset(currentProjectId, assetId)
-    }
+  const handleDelete = async (assetId: string) => {
+    if (!currentProjectId) return
+    const ok = await confirm({
+      title: 'Delete this asset?',
+      message: 'This removes it from the project. This cannot be undone.',
+      confirmLabel: 'Delete',
+    })
+    if (ok) deleteAsset(currentProjectId, assetId)
   }
   
   const handleDragStart = (e: React.DragEvent, asset: Asset) => {
