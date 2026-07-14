@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Folder, FolderOpen, MoreVertical, Trash2, Pencil, Sparkles, Image, UserCircle, Palette, ImageIcon, Braces, BookOpen, LogOut, LogIn, Key } from 'lucide-react'
+import { Plus, Folder, FolderOpen, MoreVertical, Trash2, Pencil, Sparkles, Image, UserCircle, Palette, ImageIcon, Braces, BookOpen, LogOut, LogIn, Key, Scissors } from 'lucide-react'
 import { useProjects } from '../contexts/ProjectContext'
 import { useAppSettings } from '../contexts/AppSettingsContext'
 import { LtxLogo } from '../components/LtxLogo'
@@ -114,7 +114,7 @@ function ProjectCard({ project, onOpen, onDelete, onRename, onSetAssetFolder }: 
 }
 
 export function Home() {
-  const { projects, createProject, deleteProject, renameProject, updateProject, openProject, importPaletteMv, openPlayground, openGallery, openCharacters, openStyles, openReferences, openWildcards, openPromptLibrary } = useProjects()
+  const { projects, createProject, deleteProject, renameProject, updateProject, openProject, importPaletteMv, openPlayground, openGallery, openCharacters, openStyles, openReferences, openWildcards, openPromptLibrary, openClipTool } = useProjects()
 
   const [importingMv, setImportingMv] = useState(false)
   const [importMvError, setImportMvError] = useState<string | null>(null)
@@ -408,6 +408,13 @@ export function Home() {
             >
               <BookOpen className="h-4 w-4" />
               Prompt Library
+            </button>
+            <button
+              onClick={openClipTool}
+              className="w-full px-3 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white text-left text-sm flex items-center gap-2 transition-colors"
+            >
+              <Scissors className="h-4 w-4" />
+              Clip Tool
             </button>
           </div>
         </nav>

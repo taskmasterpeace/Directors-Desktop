@@ -15,6 +15,7 @@ import { Styles } from './views/Styles'
 import { References } from './views/References'
 import { Wildcards } from './views/Wildcards'
 import { PromptLibrary } from './views/PromptLibrary'
+import ClipTool from './views/ClipTool'
 import { LaunchGate } from './components/FirstRunSetup'
 import { PythonSetup } from './components/PythonSetup'
 import { SettingsModal, type SettingsTabId } from './components/SettingsModal'
@@ -478,6 +479,8 @@ function AppContent() {
         return <Wildcards />
       case 'prompt-library':
         return <PromptLibrary />
+      case 'clip-tool':
+        return <ClipTool />
       default:
         return <Home />
     }

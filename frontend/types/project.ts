@@ -412,7 +412,7 @@ export interface Project {
   assetSavePath?: string // Folder where generated assets are saved (default: Downloads/Ltx Desktop Assets/{name})
 }
 
-export type ViewType = 'home' | 'project' | 'playground' | 'gallery' | 'characters' | 'styles' | 'references' | 'wildcards' | 'prompt-library'
+export type ViewType = 'home' | 'project' | 'playground' | 'gallery' | 'characters' | 'styles' | 'references' | 'wildcards' | 'prompt-library' | 'clip-tool'
 export type ProjectTab = 'gen-space' | 'video-editor'
 
 // Default tracks for new timelines

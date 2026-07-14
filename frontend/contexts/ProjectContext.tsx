@@ -52,6 +52,7 @@ interface ProjectContextType {
   openReferences: () => void
   openWildcards: () => void
   openPromptLibrary: () => void
+  openClipTool: () => void
   
   // Cross-view communication (editor → gen space)
   genSpaceEditImageUrl: string | null
@@ -559,7 +560,11 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const openPromptLibrary = useCallback(() => {
     setCurrentView('prompt-library')
   }, [])
-  
+
+  const openClipTool = useCallback(() => {
+    setCurrentView('clip-tool')
+  }, [])
+
   return (
     <ProjectContext.Provider value={{
       currentView,
@@ -598,6 +603,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       openReferences,
       openWildcards,
       openPromptLibrary,
+      openClipTool,
       genSpaceEditImageUrl,
       setGenSpaceEditImageUrl,
       genSpaceEditMode,
