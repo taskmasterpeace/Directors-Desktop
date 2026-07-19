@@ -4,7 +4,7 @@ import {
   ZoomIn, Film, Eye, FolderOpen, RotateCcw, Volume2, VolumeX,
   FlipHorizontal2, FlipVertical2, Link2, Unlink2,
   ChevronLeft, ChevronRight, // IC-LORA HIDDEN: removed Sparkles
-  Video, Camera,
+  Video, Camera, Image as ImageIcon, Library,
 } from 'lucide-react'
 import type { Asset, TimelineClip, Track, TextOverlayStyle } from '../../types/project'
 import { TEXT_PRESETS } from '../../types/project'
@@ -53,6 +53,8 @@ export interface ClipContextMenuProps {
   setIcLoraSourceClipId: (v: string | null) => void
   setShowICLoraPanel: (v: boolean) => void
   onCaptureFrameForVideo: (clip: TimelineClip) => void
+  onCaptureFrameAsReference: (clip: TimelineClip) => void
+  onCaptureFrameToReferences: (clip: TimelineClip) => void
   onCreateVideoFromAudio: (clip: TimelineClip) => void
 }
 
@@ -132,6 +134,8 @@ export function ClipContextMenu({
   setIcLoraSourceClipId, // IC-LORA HIDDEN: still passed to SingleClipMenu
   setShowICLoraPanel, // IC-LORA HIDDEN: still passed to SingleClipMenu
   onCaptureFrameForVideo,
+  onCaptureFrameAsReference,
+  onCaptureFrameToReferences,
   onCreateVideoFromAudio,
 }: ClipContextMenuProps) {
   const close = () => setClipContextMenu(null)
@@ -249,6 +253,8 @@ export function ClipContextMenu({
           setIcLoraSourceClipId={setIcLoraSourceClipId}
           setShowICLoraPanel={setShowICLoraPanel}
           onCaptureFrameForVideo={onCaptureFrameForVideo}
+          onCaptureFrameAsReference={onCaptureFrameAsReference}
+          onCaptureFrameToReferences={onCaptureFrameToReferences}
           onCreateVideoFromAudio={onCreateVideoFromAudio}
           close={close}
         />
@@ -281,6 +287,8 @@ function SingleClipMenu({
   setAssetFilter, setSelectedBin, setTakesViewAssetId, setSelectedAssetIds,
   setI2vClipId, setI2vPrompt, onRetakeClip, setIcLoraSourceClipId: _setIcLoraSourceClipId, setShowICLoraPanel: _setShowICLoraPanel, // IC-LORA HIDDEN
   onCaptureFrameForVideo,
+  onCaptureFrameAsReference,
+  onCaptureFrameToReferences,
   onCreateVideoFromAudio,
   close,
 }: {
@@ -314,6 +322,8 @@ function SingleClipMenu({
   setIcLoraSourceClipId: (v: string | null) => void
   setShowICLoraPanel: (v: boolean) => void
   onCaptureFrameForVideo: (clip: TimelineClip) => void
+  onCaptureFrameAsReference: (clip: TimelineClip) => void
+  onCaptureFrameToReferences: (clip: TimelineClip) => void
   onCreateVideoFromAudio: (clip: TimelineClip) => void
   close: () => void
 }) {
@@ -546,7 +556,11 @@ function SingleClipMenu({
                 <span className="flex-1 truncate">Use Frame As...</span>
                 <ChevronRight className="h-3 w-3 text-zinc-500" />
               </button>
-              <div className="absolute left-full top-0 ml-0.5 min-w-[200px] bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 z-[70] hidden group-hover/capture:block">
+              <div className="absolute left-full top-0 ml-0.5 min-w-[220px] bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 z-[70] hidden group-hover/capture:block">
+                <MenuItem icon={ImageIcon} iconClass="text-amber-400" label="Reference Image (Gen Space)"
+                  onClick={() => { onCaptureFrameAsReference(contextClip); close() }} />
+                <MenuItem icon={Library} iconClass="text-amber-400" label="Save to References Library"
+                  onClick={() => { onCaptureFrameToReferences(contextClip); close() }} />
                 <MenuItem icon={Video} iconClass="text-blue-400" label="Generate Video in Gen Space"
                   onClick={() => { onCaptureFrameForVideo(contextClip); close() }} />
                 {isImage && (
