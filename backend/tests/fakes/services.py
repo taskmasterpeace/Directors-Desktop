@@ -354,6 +354,23 @@ class FakeUploadClient:
         return f"https://fake.fal/uploads/{file_name}"
 
 
+class FakeVideoTrimmer:
+    def __init__(self, probe_result: float = 5.0) -> None:
+        self.probe_result = probe_result
+        self.probe_calls: list[str] = []
+        self.trim_calls: list[tuple[str, float]] = []
+        self.raise_on_trim: Exception | None = None
+
+    def probe_duration(self, path: str) -> float:
+        self.probe_calls.append(path)
+        return self.probe_result
+
+    def trim_to(self, path: str, seconds: float) -> None:
+        self.trim_calls.append((path, seconds))
+        if self.raise_on_trim is not None:
+            raise self.raise_on_trim
+
+
 class FakePaletteImageClient:
     def __init__(self, result: bytes = b"fake-dp-image") -> None:
         self.result = result
@@ -973,6 +990,7 @@ class FakeServices:
         default_factory=lambda: FakeVideoAPIClient(result=b"fake-fal-video")
     )
     fal_upload_client: FakeUploadClient = field(default_factory=FakeUploadClient)
+    video_trimmer: FakeVideoTrimmer = field(default_factory=FakeVideoTrimmer)
     palette_image_client: FakePaletteImageClient = field(default_factory=FakePaletteImageClient)
     palette_sync_client: FakePaletteSyncClient = field(default_factory=FakePaletteSyncClient)
     fast_video_pipeline: FakeFastVideoPipeline = field(default_factory=FakeFastVideoPipeline)

@@ -360,6 +360,10 @@ class GenerateVideoRequest(BaseModel):
     referenceImagePaths: list[str] = Field(default_factory=list)
     audioReferencePaths: list[str] = Field(default_factory=list)
     videoReferencePaths: list[str] = Field(default_factory=list)
+    # Exact-length promise: providers round `duration` into their supported range
+    # (Seedance 1.5: 4-12s, 2.0: 4-15s; local LTX rounds to frame batches). When
+    # True, the output is trimmed back to exactly `duration` seconds after generation.
+    exactDuration: bool = False
 
 
 class GenerateLongVideoRequest(BaseModel):

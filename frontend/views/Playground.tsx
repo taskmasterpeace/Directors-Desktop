@@ -547,6 +547,7 @@ export function Playground() {
               estimatedSeconds={estimatedSeconds}
               modelName={lastModel}
               onExtendVideo={handleExtendVideo}
+              reservedSeconds={settings.exactDuration ? settings.duration : undefined}
             />
           )}
         </div>

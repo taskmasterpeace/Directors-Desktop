@@ -29,6 +29,7 @@ from services.video_api_client.video_api_client import VideoAPIClient
 from services.upload_client.upload_client import UploadClient
 from services.palette_image_client.palette_image_client import PaletteImageClient
 from services.video_processor.video_processor import VideoInfoPayload, VideoProcessor
+from services.video_trimmer.video_trimmer import VideoTrimmer
 
 VideoPipelineModelType = Literal["fast"]
 
@@ -62,4 +63,5 @@ __all__ = [
     "VideoAPIClient",
     "UploadClient",
     "PaletteImageClient",
+    "VideoTrimmer",
 ]

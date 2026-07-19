@@ -25,7 +25,7 @@ from server_utils.media_validation import (
     validate_image_file,
 )
 from server_utils.output_naming import make_output_path
-from services.interfaces import LTXAPIClient, UploadClient, VideoAPIClient
+from services.interfaces import LTXAPIClient, UploadClient, VideoAPIClient, VideoTrimmer
 from state.app_state_types import AppState
 from state.app_settings import should_video_generate_with_ltx_api
 
@@ -69,6 +69,7 @@ class VideoGenerationHandler(StateHandlerBase):
         video_api_client: VideoAPIClient,
         fal_video_client: VideoAPIClient,
         upload_client: UploadClient,
+        video_trimmer: VideoTrimmer,
         outputs_dir: Path,
         config: RuntimeConfig,
         camera_motion_prompts: dict[str, str],
@@ -82,6 +83,7 @@ class VideoGenerationHandler(StateHandlerBase):
         self._video_api_client = video_api_client
         self._fal_video_client = fal_video_client
         self._upload_client = upload_client
+        self._video_trimmer = video_trimmer
         self._outputs_dir = outputs_dir
         self._config = config
         self._camera_motion_prompts = camera_motion_prompts
@@ -175,6 +177,7 @@ class VideoGenerationHandler(StateHandlerBase):
                 lora_weight=req.loraWeight,
             )
 
+            self._maybe_conform_exact(output_path, req)
             self._generation.complete_generation(output_path)
             return GenerateVideoResponse(status="complete", video_path=output_path)
 
@@ -752,6 +755,7 @@ class VideoGenerationHandler(StateHandlerBase):
                 raise RuntimeError("Generation was cancelled")
 
             output_path = self._write_forced_api_video(video_bytes, model=req.model, prompt=req.prompt)
+            self._maybe_conform_exact(str(output_path), req)
             self._generation.update_progress("complete", 100, None, None)
             self._generation.complete_generation(str(output_path))
             return GenerateVideoResponse(status="complete", video_path=str(output_path))
@@ -840,6 +844,7 @@ class VideoGenerationHandler(StateHandlerBase):
                 raise RuntimeError("Generation was cancelled")
 
             output_path = self._write_forced_api_video(video_bytes, model=req.model, prompt=req.prompt)
+            self._maybe_conform_exact(str(output_path), req)
             self._generation.update_progress("complete", 100, None, None)
             self._generation.complete_generation(str(output_path))
             return GenerateVideoResponse(status="complete", video_path=str(output_path))
@@ -1007,6 +1012,7 @@ class VideoGenerationHandler(StateHandlerBase):
                 output_path.unlink(missing_ok=True)
                 raise RuntimeError("Generation was cancelled")
 
+            self._maybe_conform_exact(str(output_path), req)
             self._generation.update_progress("complete", 100, None, None)
             self._generation.complete_generation(str(output_path))
             return GenerateVideoResponse(status="complete", video_path=str(output_path))
@@ -1024,6 +1030,34 @@ class VideoGenerationHandler(StateHandlerBase):
         output_path = self._make_output_path(model=model, prompt=prompt)
         output_path.write_bytes(video_bytes)
         return output_path
+
+    def _maybe_conform_exact(self, output_path: str, req: GenerateVideoRequest) -> None:
+        """Trim the output to exactly ``req.duration`` seconds when the
+        exact-length promise is on. Providers round durations up into their
+        supported ranges (Seedance 1.5: 4-12s, 2.0: 4-15s; local LTX rounds to
+        frame batches), so a 3s request can come back 4s+ — this hands back
+        precisely what was asked for, audio included."""
+        if not req.exactDuration:
+            return
+        try:
+            seconds = float(req.duration)
+        except (TypeError, ValueError):
+            return
+        if seconds <= 0:
+            return
+        # An unreadable file means the generation itself is suspect — let it raise.
+        actual = self._video_trimmer.probe_duration(output_path)
+        if actual <= seconds + 0.05:
+            return
+        self._generation.update_progress("conforming_duration", 97, None, None)
+        try:
+            self._video_trimmer.trim_to(output_path, seconds)
+        except Exception:
+            # The video is fine, just longer than asked — deliver it rather than
+            # discarding a completed (possibly paid) generation over a trim error.
+            logger.warning(
+                "Exact-duration trim failed; delivering %.2fs output untrimmed", actual, exc_info=True
+            )
 
     @staticmethod
     def _parse_forced_numeric_field(raw_value: str, error_detail: str) -> int:

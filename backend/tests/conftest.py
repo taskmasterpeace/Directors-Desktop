@@ -78,6 +78,7 @@ def test_state(tmp_path: Path, fake_services: FakeServices):
         video_api_client=fake_services.video_api_client,
         fal_video_client=fake_services.fal_video_client,
         fal_upload_client=fake_services.fal_upload_client,
+        video_trimmer=fake_services.video_trimmer,
         palette_image_client=fake_services.palette_image_client,
         palette_sync_client=fake_services.palette_sync_client,
         fast_video_pipeline_class=type(fake_services.fast_video_pipeline),

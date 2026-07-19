@@ -163,6 +163,8 @@ function getPhaseMessage(phase: string): string {
       return 'Extracting last frame...'
     case 'concatenating':
       return 'Joining segments...'
+    case 'conforming_duration':
+      return 'Trimming to exact length...'
     case 'complete':
       return 'Complete!'
     default:
@@ -434,6 +436,7 @@ export function useGeneration(): UseGenerationReturn {
             ...(settings.referenceImagePaths?.length ? { referenceImagePaths: settings.referenceImagePaths } : {}),
             ...(isSeedance2 && settings.audioReferencePaths?.length ? { audioReferencePaths: settings.audioReferencePaths } : {}),
             ...(isSeedance2 && settings.videoReferencePaths?.length ? { videoReferencePaths: settings.videoReferencePaths } : {}),
+            ...(settings.exactDuration ? { exactDuration: true } : {}),
             ...(settings.loraPath ? { loraPath: settings.loraPath, loraWeight: settings.loraWeight ?? 1.0 } : {}),
           }
 
