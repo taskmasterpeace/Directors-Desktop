@@ -18,6 +18,7 @@ Backend --> Local models + GPU | External APIs (when API-backed)
 - **Frontend** (`frontend/`): React 18 + TypeScript + Tailwind CSS renderer
 - **Electron** (`electron/`): Main process managing app lifecycle, IPC, Python backend process, ffmpeg export. Renderer is sandboxed (`contextIsolation: true`, `nodeIntegration: false`).
 - **Backend** (`backend/`): Python FastAPI server (port 8000) handling ML model orchestration and generation
+- **Vendored editor core** (`vendor/openreel-core/`): OpenReel's editor engines (action-based undoable editing, timeline managers, WebCodecs playback/export), vendored per `vendor/openreel-core/PROVENANCE.md` and resolved via the `@openreel/core` Vite alias. Excluded from `typecheck:ts`; compile-checked by `pnpm typecheck:vendor`; exercised by the smoke suite in `vendor/openreel-core/smoke/`. Editor-foundation roadmap: `docs/superpowers/specs/2026-07-18-editor-foundation-design.md`.
 
 ## Common Commands
 
@@ -28,6 +29,7 @@ Backend --> Local models + GPU | External APIs (when API-backed)
 | `pnpm typecheck` | Run TypeScript (`tsc --noEmit`) and Python (`pyright`) type checks |
 | `pnpm typecheck:ts` | TypeScript only |
 | `pnpm typecheck:py` | Python pyright only (`cd backend && uv run pyright`) |
+| `pnpm typecheck:vendor` | Typecheck the vendored OpenReel core under its own strict tsconfig |
 | `pnpm backend:test` | Run Python pytest tests (`cd backend && uv sync --frozen --extra test --extra dev && uv run pytest -v --tb=short`) |
 | `pnpm build:frontend` | Vite frontend build only |
 | `pnpm build:win` / `pnpm build:mac` | Full platform builds (installer) |
@@ -52,6 +54,7 @@ PRs must pass: `pnpm typecheck` + `pnpm test:frontend` (vitest pure-function sui
 - **Styling**: Tailwind with custom semantic color tokens via CSS variables; utilities from `class-variance-authority` + `clsx` + `tailwind-merge`
 - **Views**: `Home.tsx`, `GenSpace.tsx`, `Project.tsx`, `Playground.tsx`, `VideoEditor.tsx` (largest frontend file), `editor/` subdirectory, plus library views (`Gallery.tsx`, `PromptLibrary.tsx`, `Characters.tsx`, `Styles.tsx`, `References.tsx`, `Wildcards.tsx`)
 - **Generation hook**: `useGeneration()` manages the full generate → poll → complete lifecycle. Submits jobs to `/api/queue/submit`, polls `/api/queue/status` every 500ms, maps backend phases to user-facing status messages.
+- **Frame extraction**: use `extractVideoFrame` from `frontend/lib/video-frames.ts` (hardware decode via offscreen `<video>` + canvas, ffmpeg IPC fallback, same `{path, url}` contract) — NOT `window.electronAPI.extractVideoFrame` directly.
 - **LoRA support**: `GenerationSettings` includes `loraPath`, `loraWeight`, `loraTriggerPhrase`, and `loraTriggerMode` (`'prepend' | 'append' | 'off'`). Trigger phrase is applied client-side before submission.
 - **No frontend tests** currently exist
 
