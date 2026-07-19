@@ -256,3 +256,79 @@ class TestSeedance20VideoReferences:
         )
         assert r.status_code == 400
         assert "seedance 2.0" in r.text.lower()
+
+
+class TestExactDuration:
+    """Exact-length promise: give it 3 seconds, get exactly 3 seconds back.
+
+    Providers round durations into their supported ranges (Seedance 1.5: 4-12s,
+    2.0: 4-15s), so the handler trims the delivered file back to the request.
+    """
+
+    def test_fal_output_is_trimmed_to_requested_seconds(self, client, test_state, fake_services):
+        test_state.state.app_settings.fal_api_key = "fal-key"
+        fake_services.video_trimmer.probe_result = 4.0  # Seedance 2.0 minimum
+
+        r = client.post(
+            "/api/generate",
+            json={"prompt": "a dog", "model": "seedance-2.0", "duration": "3", "exactDuration": True},
+        )
+
+        assert r.status_code == 200, r.text
+        body = r.json()
+        assert body["status"] == "complete"
+        trims = fake_services.video_trimmer.trim_calls
+        assert len(trims) == 1
+        assert trims[0][0] == body["video_path"]
+        assert trims[0][1] == 3.0
+
+    def test_replicate_output_is_trimmed_too(self, client, test_state, fake_services):
+        test_state.state.app_settings.replicate_api_key = "rep-key"
+        fake_services.video_trimmer.probe_result = 4.0  # Seedance 1.5 minimum
+
+        r = client.post(
+            "/api/generate",
+            json={"prompt": "a cat", "model": "seedance-1.5-pro", "duration": "3", "exactDuration": True},
+        )
+
+        assert r.status_code == 200, r.text
+        assert fake_services.video_trimmer.trim_calls == [(r.json()["video_path"], 3.0)]
+
+    def test_no_trim_when_output_already_matches(self, client, test_state, fake_services):
+        test_state.state.app_settings.fal_api_key = "fal-key"
+        fake_services.video_trimmer.probe_result = 5.02  # within the epsilon
+
+        r = client.post(
+            "/api/generate",
+            json={"prompt": "a dog", "model": "seedance-2.0", "duration": "5", "exactDuration": True},
+        )
+
+        assert r.status_code == 200, r.text
+        assert fake_services.video_trimmer.trim_calls == []
+
+    def test_no_probe_or_trim_without_the_flag(self, client, test_state, fake_services):
+        test_state.state.app_settings.fal_api_key = "fal-key"
+
+        r = client.post(
+            "/api/generate",
+            json={"prompt": "a dog", "model": "seedance-2.0", "duration": "5"},
+        )
+
+        assert r.status_code == 200, r.text
+        assert fake_services.video_trimmer.probe_calls == []
+        assert fake_services.video_trimmer.trim_calls == []
+
+    def test_trim_failure_still_delivers_the_video(self, client, test_state, fake_services):
+        test_state.state.app_settings.fal_api_key = "fal-key"
+        fake_services.video_trimmer.probe_result = 4.0
+        fake_services.video_trimmer.raise_on_trim = RuntimeError("ffmpeg exploded")
+
+        r = client.post(
+            "/api/generate",
+            json={"prompt": "a dog", "model": "seedance-2.0", "duration": "3", "exactDuration": True},
+        )
+
+        # The (possibly paid) generation is delivered untrimmed rather than discarded.
+        assert r.status_code == 200, r.text
+        assert r.json()["status"] == "complete"
+        assert r.json()["video_path"]

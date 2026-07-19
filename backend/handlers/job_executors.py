@@ -185,6 +185,7 @@ class GpuJobExecutor:
             referenceImagePaths=_str_list(params.get("referenceImagePaths")),
             audioReferencePaths=_str_list(params.get("audioReferencePaths")),
             videoReferencePaths=_str_list(params.get("videoReferencePaths")),
+            exactDuration=bool(params.get("exactDuration", False)),
             aspectRatio=str(params.get("aspectRatio", "16:9")),  # type: ignore[arg-type]
             loraPath=str(params.get("loraPath")) if params.get("loraPath") else None,
             loraWeight=float(params.get("loraWeight", 1.0)),
@@ -267,6 +268,7 @@ class ApiJobExecutor:
             referenceImagePaths=_str_list(params.get("referenceImagePaths")),
             audioReferencePaths=_str_list(params.get("audioReferencePaths")),
             videoReferencePaths=_str_list(params.get("videoReferencePaths")),
+            exactDuration=bool(params.get("exactDuration", False)),
             aspectRatio=str(params.get("aspectRatio", "16:9")),  # type: ignore[arg-type]
             loraPath=str(params.get("loraPath")) if params.get("loraPath") else None,
             loraWeight=float(params.get("loraWeight", 1.0)),

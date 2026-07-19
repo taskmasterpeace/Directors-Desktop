@@ -33,6 +33,8 @@ export interface GenerationSettings {
   referenceImagePaths?: string[]
   audioReferencePaths?: string[]
   videoReferencePaths?: string[]
+  // Exact-length promise: trim the output back to exactly `duration` seconds.
+  exactDuration?: boolean
 }
 
 interface SettingsPanelProps {
@@ -82,6 +84,25 @@ export function SettingsPanel({
   const durationOptions = forceApiGenerations
     ? [...getAllowedForcedApiDurations(settings.model, settings.videoResolution, settings.fps)]
     : [4, 5, 6, 8, 10, 12, 16, 20, 30, 60].filter(d => d <= localMaxDuration)
+
+  // Exact-length mode: whole-second stepper bounded by what the model can generate.
+  // Seedance 2.0 caps at 15s, 1.5 Pro at 12s (both floor at 4s — shorter requests
+  // generate at the floor and get trimmed back by the backend).
+  const SEEDANCE_MAX: Record<string, number> = {
+    'seedance-2.0': 15,
+    'seedance-2.0-fast': 15,
+    'seedance-1.5-pro': 12,
+  }
+  const maxExactDuration =
+    SEEDANCE_MAX[settings.model] ??
+    (forceApiGenerations
+      ? (durationOptions.length ? Math.max(...durationOptions) : 20)
+      : localMaxDuration)
+  const seedanceFloor = settings.model.startsWith('seedance') ? 4 : null
+  const exactLengthHint =
+    seedanceFloor && settings.duration < seedanceFloor
+      ? `Generates at the model minimum (${seedanceFloor}s), then trims back to ${settings.duration}s — audio kept.`
+      : 'Generates at the nearest supported length, then trims to the exact second — audio kept.'
   const resolutionOptions = forceApiGenerations
     ? (hasAudio ? ['1080p'] : [...FORCED_API_VIDEO_RESOLUTIONS])
     : ['1080p', '720p', '540p']
@@ -346,18 +367,37 @@ export function SettingsPanel({
 
       {/* Duration, Resolution, FPS Row */}
       <div className="grid grid-cols-3 gap-3">
-        <Select
-          label="Duration"
-          value={settings.duration}
-          onChange={(e) => handleChange('duration', parseInt(e.target.value))}
-          disabled={disabled}
-        >
-          {durationOptions.map((duration) => (
-            <option key={duration} value={duration}>
-              {duration} sec
-            </option>
-          ))}
-        </Select>
+        {settings.exactDuration ? (
+          <div>
+            <label className="block text-xs font-medium text-zinc-400 mb-1.5">Duration</label>
+            <input
+              type="number"
+              value={settings.duration}
+              min={1}
+              max={maxExactDuration}
+              step={1}
+              onChange={(e) => {
+                const v = Math.round(Number(e.target.value) || 1)
+                handleChange('duration', Math.max(1, Math.min(maxExactDuration, v)))
+              }}
+              disabled={disabled}
+              className="w-full px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-blue-500 disabled:opacity-50"
+            />
+          </div>
+        ) : (
+          <Select
+            label="Duration"
+            value={settings.duration}
+            onChange={(e) => handleChange('duration', parseInt(e.target.value))}
+            disabled={disabled}
+          >
+            {durationOptions.map((duration) => (
+              <option key={duration} value={duration}>
+                {duration} sec
+              </option>
+            ))}
+          </Select>
+        )}
 
         <Select
           label="Resolution"
@@ -385,6 +425,24 @@ export function SettingsPanel({
           ))}
         </Select>
       </div>
+
+      {/* Exact length: generate at the model's nearest supported duration, then
+          trim back to precisely the requested seconds (whole-second steps). */}
+      <label className="flex items-start gap-2 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={!!settings.exactDuration}
+          onChange={(e) => handleChange('exactDuration', e.target.checked)}
+          disabled={disabled}
+          className="mt-0.5 h-3.5 w-3.5 rounded border-zinc-600 bg-zinc-800 accent-blue-500"
+        />
+        <span className="text-xs text-zinc-300">
+          Exact length — return exactly {settings.duration}s
+          <span className="block text-[10px] text-zinc-500 mt-0.5">
+            {exactLengthHint}
+          </span>
+        </span>
+      </label>
 
       {/* Aspect Ratio */}
       <Select

@@ -15,6 +15,8 @@ interface VideoPlayerProps {
   estimatedSeconds?: number | null
   modelName?: string | null
   onExtendVideo?: (frameUrl: string, framePath: string) => void
+  /** Exact-length mode: the seconds reserved for this generation (shown as a placeholder). */
+  reservedSeconds?: number
 }
 
 function formatTime(seconds: number): string {
@@ -31,7 +33,7 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   'seedance-2.0-fast': 'Seedance 2.0 Fast',
 }
 
-export function VideoPlayer({ videoUrl, videoPath, videoResolution, isGenerating, progress, statusMessage, elapsedSeconds, estimatedSeconds, modelName, onExtendVideo }: VideoPlayerProps) {
+export function VideoPlayer({ videoUrl, videoPath, videoResolution, isGenerating, progress, statusMessage, elapsedSeconds, estimatedSeconds, modelName, onExtendVideo, reservedSeconds }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const progressRef = useRef<HTMLDivElement>(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -305,6 +307,11 @@ export function VideoPlayer({ videoUrl, videoPath, videoResolution, isGenerating
             <p className="text-sm text-muted-foreground mb-4">
               {statusMessage}
             </p>
+            {reservedSeconds != null && (
+              <span className="mb-4 inline-flex items-center gap-1.5 rounded-md border border-blue-500/40 bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-400">
+                Reserving exactly {reservedSeconds}s
+              </span>
+            )}
             <div className="w-64">
               {/* Time-based progress bar when estimate available, otherwise use backend progress */}
               <div className="h-2 bg-secondary rounded-full overflow-hidden">

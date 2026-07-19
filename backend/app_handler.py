@@ -51,6 +51,7 @@ from services.interfaces import (
     TaskRunner,
     TextEncoder,
     VideoProcessor,
+    VideoTrimmer,
 )
 from services.model_scanner.model_scanner import ModelScanner
 from state.app_state_types import AppState, StartupPending, TextEncoderState
@@ -75,6 +76,7 @@ class AppHandler:
         video_api_client: VideoAPIClient,
         fal_video_client: VideoAPIClient,
         fal_upload_client: UploadClient,
+        video_trimmer: VideoTrimmer,
         palette_image_client: PaletteImageClient,
         palette_sync_client: PaletteSyncClient,
         fast_video_pipeline_class: type[FastVideoPipeline],
@@ -103,6 +105,7 @@ class AppHandler:
         self.video_api_client = video_api_client
         self.fal_video_client = fal_video_client
         self.fal_upload_client = fal_upload_client
+        self.video_trimmer = video_trimmer
         self.palette_sync_client = palette_sync_client
         self.fast_video_pipeline_class = fast_video_pipeline_class
         self.gguf_video_pipeline_class = gguf_video_pipeline_class
@@ -200,6 +203,7 @@ class AppHandler:
             video_api_client=video_api_client,
             fal_video_client=fal_video_client,
             upload_client=fal_upload_client,
+            video_trimmer=video_trimmer,
             outputs_dir=config.outputs_dir,
             config=config,
             camera_motion_prompts=config.camera_motion_prompts,
@@ -362,6 +366,7 @@ class ServiceBundle:
     video_api_client: VideoAPIClient
     fal_video_client: VideoAPIClient
     fal_upload_client: UploadClient
+    video_trimmer: VideoTrimmer
     palette_image_client: PaletteImageClient
     palette_sync_client: PaletteSyncClient
     fast_video_pipeline_class: type[FastVideoPipeline]
@@ -404,6 +409,7 @@ def build_default_service_bundle(config: RuntimeConfig) -> ServiceBundle:
     from services.text_encoder.ltx_text_encoder import LTXTextEncoder
     from services.palette_sync_client.palette_sync_client_impl import PaletteSyncClientImpl
     from services.video_processor.video_processor_impl import VideoProcessorImpl
+    from services.video_trimmer.video_trimmer_impl import VideoTrimmerImpl
 
     http = HTTPClientImpl()
 
@@ -424,6 +430,7 @@ def build_default_service_bundle(config: RuntimeConfig) -> ServiceBundle:
         video_api_client=ReplicateVideoClientImpl(http=http),
         fal_video_client=FalVideoClientImpl(http=http),
         fal_upload_client=FalUploadClientImpl(http=http),
+        video_trimmer=VideoTrimmerImpl(),
         palette_image_client=PaletteImageClientImpl(http=http),
         palette_sync_client=PaletteSyncClientImpl(http=http),
         fast_video_pipeline_class=LTXFastVideoPipeline,
@@ -462,6 +469,7 @@ def build_initial_state(
         video_api_client=bundle.video_api_client,
         fal_video_client=bundle.fal_video_client,
         fal_upload_client=bundle.fal_upload_client,
+        video_trimmer=bundle.video_trimmer,
         palette_image_client=bundle.palette_image_client,
         palette_sync_client=bundle.palette_sync_client,
         fast_video_pipeline_class=bundle.fast_video_pipeline_class,
