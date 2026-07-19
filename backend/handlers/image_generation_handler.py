@@ -47,6 +47,27 @@ def _aspect_ratio_for(width: int, height: int) -> str:
     return min(_DP_ASPECT_RATIOS, key=lambda key: abs(_DP_ASPECT_RATIOS[key] - ratio))
 
 
+def _as_float(value: object, default: float) -> float:
+    """Coerce a modelParams value to float (bools excluded), else the default."""
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, (int, float)):
+        return float(value)
+    return default
+
+
+def _opt_float(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
+def _opt_str(value: object) -> str | None:
+    return value if isinstance(value, str) and value else None
+
+
 class ImageGenerationHandler(StateHandlerBase):
     def __init__(
         self,
@@ -83,21 +104,26 @@ class ImageGenerationHandler(StateHandlerBase):
         else:
             seed = int(time.time()) % 2147483647
 
+        # The job's model wins over the saved default, so whichever model the user
+        # picked in the UI is what actually runs.
+        image_model = req.model or settings.image_model
+
         # Director's Palette models are cloud-only — always take the API path, even if local
         # generation is otherwise enabled.
-        if self._config.force_api_generations or settings.image_model.startswith("dp-"):
+        if self._config.force_api_generations or image_model.startswith("dp-"):
             return self._generate_via_api(
                 prompt=req.prompt,
+                image_model=image_model,
                 width=width,
                 height=height,
                 num_inference_steps=req.numSteps,
                 seed=seed,
                 num_images=num_images,
                 reference_image_paths=req.referenceImagePaths,
+                model_params=req.modelParams,
             )
 
         try:
-            image_model = settings.image_model
             self._pipelines.load_image_model_to_gpu(image_model)
             self._generation.start_generation(generation_id)
             output_paths = self.generate_image(
@@ -234,16 +260,53 @@ class ImageGenerationHandler(StateHandlerBase):
             uris.append(f"data:{mime};base64,{b64}")
         return uris
 
+    def _upload_palette_references(self, api_key: str, paths: list[str]) -> list[str]:
+        """Upload local reference images to Palette storage, returning their public URLs.
+
+        v2's SSRF guard rejects base64 data URIs, so references must be hosted first.
+        Failed uploads are skipped (best-effort), matching `_encode_reference_images`.
+        """
+        urls: list[str] = []
+        for path in paths:
+            try:
+                validated = validate_image_file(path)
+                raw = validated.read_bytes()
+            except Exception:
+                logger.warning("Skipping unreadable Palette reference: %s", path, exc_info=True)
+                continue
+            suffix = validated.suffix.lower()
+            if suffix == ".png":
+                content_type = "image/png"
+            elif suffix == ".webp":
+                content_type = "image/webp"
+            else:
+                content_type = "image/jpeg"
+            try:
+                urls.append(
+                    self._palette_image_client.upload_reference(
+                        api_key=api_key,
+                        image_bytes=raw,
+                        file_name=validated.name,
+                        content_type=content_type,
+                    )
+                )
+            except Exception:
+                logger.warning("Palette reference upload failed: %s", path, exc_info=True)
+                continue
+        return urls
+
     def _generate_via_api(
         self,
         *,
         prompt: str,
+        image_model: str,
         width: int,
         height: int,
         num_inference_steps: int,
         seed: int,
         num_images: int,
         reference_image_paths: list[str] | None = None,
+        model_params: dict[str, object] | None = None,
     ) -> GenerateImageResponse:
         generation_id = uuid.uuid4().hex[:8]
         output_paths: list[Path] = []
@@ -251,7 +314,7 @@ class ImageGenerationHandler(StateHandlerBase):
 
         # Director's Palette image models (selected as "dp-<model>") run on the user's DP
         # account/credits via the dp_ API key — no Replicate key needed.
-        use_palette = settings.image_model.startswith("dp-")
+        use_palette = image_model.startswith("dp-")
 
         try:
             self._generation.start_api_generation(generation_id)
@@ -263,8 +326,23 @@ class ImageGenerationHandler(StateHandlerBase):
             elif not settings.replicate_api_key.strip():
                 raise HTTPError(500, "REPLICATE_API_KEY_NOT_CONFIGURED")
 
-            reference_image_urls = self._encode_reference_images(reference_image_paths or [])
             aspect_ratio = _aspect_ratio_for(width, height)
+            params = model_params or {}
+
+            palette_model = ""
+            palette_ref_urls: list[str] = []
+            reference_image_urls: list[str] = []
+            if use_palette:
+                palette_model = image_model.removeprefix("dp-")
+                # v2 rejects inline base64 (SSRF guard), so local reference images are
+                # uploaded to Palette storage first and referenced by their public URL.
+                palette_ref_urls = self._upload_palette_references(
+                    settings.palette_api_key, reference_image_paths or []
+                )
+                if palette_model == "qwen-image-edit" and not palette_ref_urls:
+                    raise HTTPError(400, "CAMERA_ANGLE_REQUIRES_REFERENCE")
+            else:
+                reference_image_urls = self._encode_reference_images(reference_image_paths or [])
 
             for idx in range(num_images):
                 if self._generation.is_generation_cancelled():
@@ -272,18 +350,33 @@ class ImageGenerationHandler(StateHandlerBase):
 
                 inference_progress = 15 + int((idx / num_images) * 60)
                 self._generation.update_progress("inference", inference_progress, None, None)
-                if use_palette:
+                if use_palette and palette_model == "qwen-image-edit":
+                    # Camera Angle: gizmo azimuth/elevation/distance → synchronous v2 route
+                    # (it builds the <sks> prompt + injects the multi-angle LoRA itself).
+                    image_bytes = self._palette_image_client.generate_camera_angle(
+                        api_key=settings.palette_api_key,
+                        image_url=palette_ref_urls[0],
+                        azimuth=_as_float(params.get("azimuth"), 0.0),
+                        elevation=_as_float(params.get("elevation"), 0.0),
+                        distance=_as_float(params.get("distance"), 5.0),
+                        prompt=prompt or None,
+                        lora_scale=_opt_float(params.get("loraScale")),
+                        aspect_ratio=_opt_str(params.get("aspectRatio")),
+                        output_format=_opt_str(params.get("outputFormat")),
+                    )
+                elif use_palette:
                     image_bytes = self._palette_image_client.generate_image(
                         api_key=settings.palette_api_key,
-                        model=settings.image_model.removeprefix("dp-"),
+                        model=palette_model,
                         prompt=prompt,
                         aspect_ratio=aspect_ratio,
-                        reference_image_urls=reference_image_urls,
+                        reference_image_urls=palette_ref_urls,
+                        params=params,
                     )
                 else:
                     image_bytes = self._image_api_client.generate_text_to_image(
                         api_key=settings.replicate_api_key,
-                        model=settings.image_model,
+                        model=image_model,
                         prompt=prompt,
                         width=width,
                         height=height,
@@ -298,7 +391,7 @@ class ImageGenerationHandler(StateHandlerBase):
                 download_progress = 75 + int(((idx + 1) / num_images) * 20)
                 self._generation.update_progress("downloading_output", download_progress, None, None)
 
-                output_path = make_output_path(self._outputs_dir, model=settings.image_model, prompt=prompt, ext="png")
+                output_path = make_output_path(self._outputs_dir, model=image_model, prompt=prompt, ext="png")
                 output_path.write_bytes(image_bytes)
                 output_paths.append(output_path)
 

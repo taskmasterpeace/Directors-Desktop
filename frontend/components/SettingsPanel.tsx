@@ -23,6 +23,11 @@ export interface GenerationSettings {
   imageResolution: string
   imageAspectRatio: string
   imageSteps: number
+  /** Per-surface image-model override; falls back to the global appSettings.imageModel. */
+  imageModel?: string
+  /** Per-model settings (gpt quality, camera azimuth/elevation/distance, loraScale …)
+   *  forwarded verbatim to the backend as `modelParams`. See lib/image-models.ts. */
+  imageModelParams?: Record<string, unknown>
   variations?: number  // Number of image variations to generate
   strength?: number  // Edit strength for img2img (0.0-1.0)
   loraPath?: string | null

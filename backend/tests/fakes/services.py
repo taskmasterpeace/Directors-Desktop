@@ -34,6 +34,7 @@ class HttpCall:
     json_payload: dict[str, Any] | None
     data: Any
     timeout: int
+    files: Any = None
 
 
 class FakeHTTPClient:
@@ -64,8 +65,9 @@ class FakeHTTPClient:
         json_payload: dict[str, Any] | None = None,
         data: Any = None,
         timeout: int = 30,
+        files: Any = None,
     ) -> FakeResponse:
-        self.calls.append(HttpCall("post", url, headers, json_payload, data, timeout))
+        self.calls.append(HttpCall("post", url, headers, json_payload, data, timeout, files))
         return self._dequeue("post")
 
     def get(
@@ -378,6 +380,23 @@ class FakePaletteImageClient:
     def __init__(self, result: bytes = b"fake-dp-image") -> None:
         self.result = result
         self.calls: list[dict[str, Any]] = []
+        self.upload_calls: list[dict[str, Any]] = []
+        self.camera_calls: list[dict[str, Any]] = []
+        self._upload_counter = 0
+
+    def upload_reference(
+        self,
+        *,
+        api_key: str,
+        image_bytes: bytes,
+        file_name: str = "reference.png",
+        content_type: str = "image/png",
+    ) -> str:
+        self._upload_counter += 1
+        self.upload_calls.append(
+            {"api_key": api_key, "size": len(image_bytes), "file_name": file_name, "content_type": content_type}
+        )
+        return f"https://fake.dp/uploads/{self._upload_counter}-{file_name}"
 
     def generate_image(
         self,
@@ -387,6 +406,7 @@ class FakePaletteImageClient:
         prompt: str,
         aspect_ratio: str = "16:9",
         reference_image_urls: list[str] | None = None,
+        params: dict[str, object] | None = None,
     ) -> bytes:
         self.calls.append(
             {
@@ -395,6 +415,35 @@ class FakePaletteImageClient:
                 "prompt": prompt,
                 "aspect_ratio": aspect_ratio,
                 "reference_image_urls": reference_image_urls,
+                "params": params,
+            }
+        )
+        return self.result
+
+    def generate_camera_angle(
+        self,
+        *,
+        api_key: str,
+        image_url: str,
+        azimuth: float,
+        elevation: float,
+        distance: float,
+        prompt: str | None = None,
+        lora_scale: float | None = None,
+        aspect_ratio: str | None = None,
+        output_format: str | None = None,
+    ) -> bytes:
+        self.camera_calls.append(
+            {
+                "api_key": api_key,
+                "image_url": image_url,
+                "azimuth": azimuth,
+                "elevation": elevation,
+                "distance": distance,
+                "prompt": prompt,
+                "lora_scale": lora_scale,
+                "aspect_ratio": aspect_ratio,
+                "output_format": output_format,
             }
         )
         return self.result

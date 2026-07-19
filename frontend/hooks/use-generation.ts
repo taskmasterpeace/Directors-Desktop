@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import type { GenerationSettings } from '../components/SettingsPanel'
 import { useAppSettings } from '../contexts/AppSettingsContext'
+import { migrateImageModelId } from '../lib/image-models'
 
 export interface QueueJob {
   id: string
@@ -99,6 +100,15 @@ const IMAGE_ASPECT_RATIO_VALUE: Record<string, number> = {
   '3:4': 3 / 4,
   '4:5': 4 / 5,
   '21:9': 21 / 9,
+}
+
+/**
+ * Which image model a job runs on: a per-surface override wins, otherwise the
+ * global app setting. Retired ids are migrated so a stale stored model can never
+ * strand generation (see lib/image-models.ts).
+ */
+function resolveImageModelId(settings: GenerationSettings, globalModel: string | undefined): string {
+  return migrateImageModelId(settings.imageModel || globalModel)
 }
 
 function getImageDimensions(settings: GenerationSettings): { width: number; height: number } {
@@ -559,7 +569,7 @@ export function useGeneration(): UseGenerationReturn {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'image',
-          model: appSettings.imageModel || 'flux-klein-9b',
+          model: resolveImageModelId(settings, appSettings.imageModel),
           params: {
             prompt: settings.loraTriggerPhrase && settings.loraTriggerMode !== 'off'
               ? settings.loraTriggerMode === 'append'
@@ -570,6 +580,8 @@ export function useGeneration(): UseGenerationReturn {
             height: dims.height,
             numSteps,
             numImages,
+            ...(settings.referenceImagePaths?.length ? { referenceImagePaths: settings.referenceImagePaths } : {}),
+            ...(settings.imageModelParams ? { modelParams: settings.imageModelParams } : {}),
             ...(settings.loraPath ? { loraPath: settings.loraPath, loraWeight: settings.loraWeight ?? 1.0 } : {}),
           },
         }),
@@ -621,7 +633,7 @@ export function useGeneration(): UseGenerationReturn {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           type: 'image',
-          model: appSettings.imageModel || 'flux-klein-9b',
+          model: resolveImageModelId(settings, appSettings.imageModel),
           params: {
             prompt: settings.loraTriggerPhrase && settings.loraTriggerMode !== 'off'
               ? settings.loraTriggerMode === 'append'
@@ -634,6 +646,12 @@ export function useGeneration(): UseGenerationReturn {
             height: 0,
             numSteps: settings.imageSteps || 4,
             numImages: 1,
+            // The edit source doubles as the reference for Palette models (Camera
+            // Angle requires exactly one), so hosted models get an input image too.
+            referenceImagePaths: settings.referenceImagePaths?.length
+              ? settings.referenceImagePaths
+              : [sourceImagePath],
+            ...(settings.imageModelParams ? { modelParams: settings.imageModelParams } : {}),
             ...(settings.loraPath ? { loraPath: settings.loraPath, loraWeight: settings.loraWeight ?? 1.0 } : {}),
           },
         }),

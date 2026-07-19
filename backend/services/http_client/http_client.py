@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Protocol
 
-from services.services_utils import JSONValue, RequestData
+from services.services_utils import JSONValue, MultipartFiles, RequestData
 
 
 class HttpTimeoutError(Exception):
@@ -41,6 +41,7 @@ class HTTPClient(Protocol):
         json_payload: Mapping[str, JSONValue] | None = None,
         data: RequestData = None,
         timeout: int = 30,
+        files: MultipartFiles | None = None,
     ) -> HttpResponseLike:
         ...
 
