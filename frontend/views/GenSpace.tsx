@@ -16,6 +16,7 @@ import { GenerationErrorDialog } from '../components/GenerationErrorDialog'
 import { useConfirm } from '../components/ConfirmDialog'
 import { copyToAssetFolder } from '../lib/asset-copy'
 import { fileUrlToPath } from '../lib/url-to-path'
+import { extractVideoFrame } from '../lib/video-frames'
 import {
   FORCED_API_VIDEO_FPS,
   FORCED_API_VIDEO_RESOLUTIONS,
@@ -1416,7 +1417,7 @@ export function GenSpace() {
     // Extract last frame from the video and set it as the first frame for next generation
     ;(async () => {
       try {
-        const result = await window.electronAPI.extractVideoFrame(asset.url, 9999)
+        const result = await extractVideoFrame(asset.url, 9999)
         if (result?.url) {
           setInputImage(result.url)
           setLastFrameUrl(null)

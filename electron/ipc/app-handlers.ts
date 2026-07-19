@@ -1,6 +1,7 @@
 import { app, ipcMain } from 'electron'
 import path from 'path'
 import fs from 'fs'
+import os from 'os'
 import { checkGPU } from '../gpu'
 import { isPythonReady, downloadPythonEmbed } from '../python-setup'
 import { getBackendHealthStatus, startPythonBackend, getBackendUrl, getAuthToken } from '../python-backend'
@@ -94,6 +95,12 @@ export function registerAppHandlers(): void {
 
   ipcMain.handle('get-downloads-path', () => {
     return app.getPath('downloads')
+  })
+
+  // Scratch space for renderer-produced artifacts (e.g. hardware-decoded video
+  // frames). Same tmpdir the ffmpeg frame extractor writes to; inside allowed roots.
+  ipcMain.handle('get-temp-path', () => {
+    return os.tmpdir()
   })
 
   ipcMain.handle('check-first-run', () => {

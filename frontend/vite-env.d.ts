@@ -37,6 +37,7 @@ interface Window {
     openLogFolder: () => Promise<boolean>
     getResourcePath: () => Promise<string | null>
     getDownloadsPath: () => Promise<string>
+    getTempPath: () => Promise<string>
     ensureDirectory: (dirPath: string) => Promise<{ success: boolean; error?: string }>
     showSaveDialog: (options: { title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) => Promise<string | null>
     saveFile: (filePath: string, data: string, encoding?: string) => Promise<{ success: boolean; path?: string; error?: string }>

@@ -20,6 +20,7 @@ import { useAppSettings } from '../contexts/AppSettingsContext'
 import { useGeneration } from '../hooks/use-generation'
 import { Button } from '../components/ui/button'
 import { logger } from '../lib/logger'
+import { extractVideoFrame } from '../lib/video-frames'
 import { Tooltip } from '../components/ui/tooltip'
 import { ExportModal } from '../components/ExportModal'
 import { MenuBar, type MenuDefinition } from '../components/MenuBar'
@@ -1555,7 +1556,7 @@ export function VideoEditor() {
 
       if (clip.type === 'video') {
         const seekTime = Math.max(0, currentTime - clip.startTime) * clip.speed + clip.trimStart
-        const { url } = await window.electronAPI.extractVideoFrame(clipSrc, seekTime, 1024, 2)
+        const { url } = await extractVideoFrame(clipSrc, seekTime, 1024, 2)
         return url // file:// URL
       }
       return clipSrc // image — already a file:// URL

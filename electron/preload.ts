@@ -53,6 +53,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Paths
   getDownloadsPath: (): Promise<string> => ipcRenderer.invoke('get-downloads-path'),
+  getTempPath: (): Promise<string> => ipcRenderer.invoke('get-temp-path'),
   ensureDirectory: (dirPath: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('ensure-directory', dirPath),
 
@@ -192,6 +193,7 @@ declare global {
       openLogFolder: () => Promise<boolean>
       getResourcePath: () => Promise<string | null>
       getDownloadsPath: () => Promise<string>
+      getTempPath: () => Promise<string>
       ensureDirectory: (dirPath: string) => Promise<{ success: boolean; error?: string }>
       showSaveDialog: (options: { title?: string; defaultPath?: string; filters?: { name: string; extensions: string[] }[] }) => Promise<string | null>
       saveFile: (filePath: string, data: string, encoding?: string) => Promise<{ success: boolean; path?: string; error?: string }>

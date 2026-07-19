@@ -3,6 +3,7 @@ import type { Asset, TimelineClip } from '../../types/project'
 import type { GenerationSettings } from '../../components/SettingsPanel'
 import { copyToAssetFolder } from '../../lib/asset-copy'
 import { fileUrlToPath } from '../../lib/url-to-path'
+import { extractVideoFrame } from '../../lib/video-frames'
 import { sanitizeForcedApiVideoSettings } from '../../lib/api-video-options'
 import { logger } from '../../lib/logger'
 
@@ -196,7 +197,7 @@ export function useRegeneration(params: UseRegenerationParams) {
         const clipSrc = resolveClipSrc(clips.find(c => c.id === clipId) || { asset, assetId: asset.id } as any)
         let framePath = ''
         if (asset.type === 'video' && clipSrc) {
-          const result = await window.electronAPI.extractVideoFrame(clipSrc, 0.1, 512, 3)
+          const result = await extractVideoFrame(clipSrc, 0.1, 512, 3)
           framePath = result.path
         } else if (asset.type === 'image' && clipSrc) {
           framePath = fileUrlToPath(clipSrc) || ''
