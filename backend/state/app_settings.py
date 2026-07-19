@@ -70,7 +70,7 @@ class AppSettings(SettingsBaseModel):
     palette_refresh_token: str = ""
     image_model: str = "flux-klein-9b"
     video_model: str = "ltx-fast"
-    use_local_text_encoder: bool = False
+    use_local_text_encoder: bool = True  # LTX cloud encoding is disabled fork-wide; local is the only path
     use_abliterated_text_encoder: bool = False
     fast_model: FastModelSettings = Field(default_factory=FastModelSettings)
     pro_model: ProModelSettings = Field(default_factory=ProModelSettings)
@@ -165,7 +165,7 @@ class SettingsResponse(SettingsBaseModel):
     has_palette_api_key: bool = False
     image_model: str = "flux-klein-9b"
     video_model: str = "ltx-fast"
-    use_local_text_encoder: bool = False
+    use_local_text_encoder: bool = True  # LTX cloud encoding is disabled fork-wide; local is the only path
     use_abliterated_text_encoder: bool = False
     fast_model: FastModelSettings = Field(default_factory=FastModelSettings)
     pro_model: ProModelSettings = Field(default_factory=ProModelSettings)
@@ -214,7 +214,13 @@ def to_settings_response(settings: AppSettings) -> SettingsResponse:
 
 
 def should_video_generate_with_ltx_api(*, force_api_generations: bool, settings: AppSettings) -> bool:
-    has_ltx_api_key = bool(settings.ltx_api_key.strip())
-    return force_api_generations or (
-        settings.user_prefers_ltx_api_video_generations and has_ltx_api_key
-    )
+    """Directors Desktop policy: NOTHING is ever sent to LTX/Lightricks.
+
+    This fork's only cloud providers are Replicate, fal, and Directors Palette.
+    The LTX cloud API is permanently disabled regardless of runtime config or
+    stored user preference (both parameters are kept so legacy settings files
+    and call sites stay compatible). Local generation with open LTX weights is
+    unaffected — it never leaves the machine.
+    """
+    _ = force_api_generations, settings
+    return False

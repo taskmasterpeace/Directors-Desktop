@@ -32,7 +32,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getNoticesText: (): Promise<string> => ipcRenderer.invoke('get-notices-text'),
   
   // Open specific app pages / folders
-  openLtxApiKeyPage: (): Promise<boolean> => ipcRenderer.invoke('open-ltx-api-key-page'),
   openReplicateApiKeyPage: (): Promise<boolean> => ipcRenderer.invoke('open-replicate-api-key-page'),
   openPaletteLoginPage: (): Promise<boolean> => ipcRenderer.invoke('open-palette-login-page'),
   openPaletteAuth: (): Promise<boolean> => ipcRenderer.invoke('open-palette-auth'),
@@ -185,7 +184,6 @@ declare global {
       completeSetup: () => Promise<boolean>
       fetchLicenseText: () => Promise<string>
       getNoticesText: () => Promise<string>
-      openLtxApiKeyPage: () => Promise<boolean>
       openParentFolderOfFile: (filePath: string) => Promise<void>
       showItemInFolder: (filePath: string) => Promise<void>
       getLogs: () => Promise<LogsResponse>

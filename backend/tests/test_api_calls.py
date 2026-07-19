@@ -5,7 +5,6 @@ from __future__ import annotations
 import uuid
 
 from services.interfaces import HttpTimeoutError
-from services.ltx_api_client.ltx_api_client import LTXAPIClientError, LTXRetakeResult
 from tests.fakes import FakeResponse
 
 
@@ -93,9 +92,6 @@ class TestRetake:
         writer.close()
         return str(video_file)
 
-    def _force_api(self, test_state) -> None:
-        test_state.config.force_api_generations = True
-
     def _base_payload(self, video_path: str) -> dict[str, object]:
         return {
             "video_path": video_path,
@@ -104,104 +100,19 @@ class TestRetake:
             "prompt": "make it dramatic",
         }
 
-    def test_happy_path_binary_response(self, client, test_state):
-        self._force_api(test_state)
-        test_state.state.app_settings.ltx_api_key = "test-key"
-        video_path = self._make_video(test_state)
-        test_state.ltx_api_client.retake_result = LTXRetakeResult(
-            video_bytes=b"\x00\x00\x00\x1cftypisom" + b"\x00" * 500,
-            result_payload=None,
-        )
-
-        r = client.post("/api/retake", json=self._base_payload(video_path))
-        assert r.status_code == 200
-        data = r.json()
-        assert data["status"] == "complete"
-        assert data["video_path"]
-
-    def test_happy_path_json_video_url(self, client, test_state):
-        self._force_api(test_state)
-        test_state.state.app_settings.ltx_api_key = "test-key"
-        video_path = self._make_video(test_state)
-        test_state.ltx_api_client.retake_result = LTXRetakeResult(
-            video_bytes=b"\x00\x00\x00\x1cftypisom" + b"\x00" * 500,
-            result_payload=None,
-        )
-
-        r = client.post("/api/retake", json=self._base_payload(video_path))
-        assert r.status_code == 200
-        assert r.json()["status"] == "complete"
+    # The LTX-cloud retake path was removed (fork policy: nothing is ever sent
+    # to LTX/Lightricks). Retake is local-only; validation tests below run
+    # before routing and are unchanged in behavior.
 
     def test_duration_too_short(self, client, test_state):
-        self._force_api(test_state)
-        test_state.state.app_settings.ltx_api_key = "test-key"
         video_path = self._make_video(test_state)
 
         r = client.post("/api/retake", json={"video_path": video_path, "start_time": 0, "duration": 1})
         assert r.status_code == 400
 
     def test_video_not_found(self, client, test_state):
-        self._force_api(test_state)
-        test_state.state.app_settings.ltx_api_key = "test-key"
         r = client.post("/api/retake", json={"video_path": "/nonexistent/video.mp4", "start_time": 0, "duration": 3})
         assert r.status_code == 400
-
-    def test_no_api_key(self, client, test_state):
-        self._force_api(test_state)
-        video_path = self._make_video(test_state)
-        r = client.post("/api/retake", json=self._base_payload(video_path))
-        assert r.status_code == 400
-
-    def test_upload_url_failure(self, client, test_state):
-        self._force_api(test_state)
-        test_state.state.app_settings.ltx_api_key = "test-key"
-        video_path = self._make_video(test_state)
-        test_state.ltx_api_client.raise_on_retake = LTXAPIClientError(401, "Failed to get upload URL: Unauthorized")
-
-        r = client.post("/api/retake", json=self._base_payload(video_path))
-        assert r.status_code == 401
-
-    def test_video_upload_failure(self, client, test_state):
-        self._force_api(test_state)
-        test_state.state.app_settings.ltx_api_key = "test-key"
-        video_path = self._make_video(test_state)
-        test_state.ltx_api_client.raise_on_retake = LTXAPIClientError(500, "Video upload failed: Storage error")
-
-        r = client.post("/api/retake", json=self._base_payload(video_path))
-        assert r.status_code == 500
-
-    def test_retake_api_422_safety_filter(self, client, test_state):
-        self._force_api(test_state)
-        test_state.state.app_settings.ltx_api_key = "test-key"
-        video_path = self._make_video(test_state)
-        test_state.ltx_api_client.raise_on_retake = LTXAPIClientError(422, "Content rejected by safety filters")
-
-        r = client.post("/api/retake", json=self._base_payload(video_path))
-        assert r.status_code == 422
-
-    def test_prompt_and_mode_forwarded(self, client, test_state):
-        self._force_api(test_state)
-        test_state.state.app_settings.ltx_api_key = "test-key"
-        video_path = self._make_video(test_state)
-        test_state.ltx_api_client.retake_result = LTXRetakeResult(
-            video_bytes=b"\x00\x00\x00\x1cftypisom" + b"\x00" * 500,
-            result_payload=None,
-        )
-
-        client.post(
-            "/api/retake",
-            json={
-                "video_path": video_path,
-                "start_time": 2.0,
-                "duration": 4.0,
-                "prompt": "epic explosion",
-                "mode": "replace_video_only",
-            },
-        )
-
-        retake_call = test_state.ltx_api_client.retake_calls[-1]
-        assert retake_call["prompt"] == "epic explosion"
-        assert retake_call["mode"] == "replace_video_only"
 
     def test_local_retake_happy_path(self, client, test_state, create_fake_model_files):
         create_fake_model_files(include_zit=False)
@@ -235,21 +146,24 @@ class TestRetake:
         assert retake_call["regenerate_video"] is True
         assert retake_call["regenerate_audio"] is False
 
-    def test_prefers_api_video_routes_retake_to_api(self, client, test_state, fake_services):
-        test_state.config.force_api_generations = False
+    def test_ltx_cloud_never_used_even_when_forced_and_preferred(
+        self, client, test_state, create_fake_model_files, fake_services
+    ):
+        # Fork policy: even with the config forcing API mode, an LTX key set,
+        # and the stored preference on, retake stays local and the LTX client
+        # is never called.
+        create_fake_model_files(include_zit=False)
+        test_state.config.force_api_generations = True
         test_state.state.app_settings.user_prefers_ltx_api_video_generations = True
         test_state.state.app_settings.ltx_api_key = "test-key"
-        video_path = self._make_video(test_state)
-        test_state.ltx_api_client.retake_result = LTXRetakeResult(
-            video_bytes=b"\x00\x00\x00\x1cftypisom" + b"\x00" * 500,
-            result_payload=None,
-        )
+        test_state.state.app_settings.use_local_text_encoder = True
 
+        video_path = self._make_valid_video(test_state)
         r = client.post("/api/retake", json=self._base_payload(video_path))
         assert r.status_code == 200
         assert r.json()["status"] == "complete"
-        assert len(test_state.ltx_api_client.retake_calls) == 1
-        assert len(fake_services.retake_pipeline.generate_calls) == 0
+        assert len(test_state.ltx_api_client.retake_calls) == 0
+        assert len(fake_services.retake_pipeline.generate_calls) == 1
 
     def test_prefers_api_video_without_key_falls_back_to_local_retake(
         self,

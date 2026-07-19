@@ -31,7 +31,7 @@ type RequiredModelsGateState = 'checking' | 'missing' | 'ready'
 function AppContent() {
   const { currentView } = useProjects()
   const { status, processStatus, isLoading: backendLoading, error: backendError } = useBackend()
-  const { settings, saveLtxApiKey, saveReplicateApiKey, forceApiGenerations, isLoaded, runtimePolicyLoaded, refreshSettings } = useAppSettings()
+  const { settings, saveReplicateApiKey, forceApiGenerations, isLoaded, runtimePolicyLoaded, refreshSettings } = useAppSettings()
 
   const [pythonReady, setPythonReady] = useState<boolean | null>(null)
   const [backendStarted, setBackendStarted] = useState(false)
@@ -71,7 +71,7 @@ function AppContent() {
   useEffect(() => {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent).detail ?? {}
-      const requiredKeys = Array.isArray(detail.requiredKeys) ? detail.requiredKeys : ['ltx']
+      const requiredKeys = Array.isArray(detail.requiredKeys) ? detail.requiredKeys : ['replicate']
       setApiGatewayRequest({
         requiredKeys,
         title: detail.title ?? 'Connect API Keys',
@@ -195,19 +195,6 @@ function AppContent() {
     })
   }, [])
 
-  const saveApiKeyForFirstRun = useCallback(
-    async (apiKey: string) => {
-      const trimmed = apiKey.trim()
-      if (!trimmed) {
-        throw new Error('Please enter a valid LTX API key.')
-      }
-
-      await saveLtxApiKey(trimmed)
-      setFirstRunFinalizeError(null)
-    },
-    [saveLtxApiKey],
-  )
-
   const isForcedFirstRun =
     setupState !== 'loading' && setupState.needsSetup && !setupState.needsLicense && forceApiGenerations
 
@@ -315,27 +302,9 @@ function AppContent() {
   const gatewaySections: ApiGatewaySection[] = useMemo(() => {
     if (!apiGatewayRequest) return []
 
-    const handleSaveLtxKey = async (apiKey: string) => {
-      if (isForcedFirstRun) {
-        await saveApiKeyForFirstRun(apiKey)
-        return
-      }
-      await saveLtxApiKey(apiKey)
-    }
-
+    // Directors Desktop: no LTX cloud section — this fork never talks to
+    // LTX/Lightricks. Cloud keys are Replicate / fal / Palette only.
     const sections: ApiGatewaySection[] = [
-      {
-        keyType: 'ltx',
-        title: 'LTX API',
-        description: 'Video generation, prompt enhancement, and cloud text encoding.',
-        required: apiGatewayRequest.requiredKeys.includes('ltx'),
-        isConfigured: settings.hasLtxApiKey,
-        inputLabel: 'LTX API key',
-        placeholder: 'Enter your LTX API key...',
-        onSave: handleSaveLtxKey,
-        onGetKey: () => window.electronAPI.openLtxApiKeyPage(),
-        getKeyLabel: 'Get LTX API key',
-      },
       {
         keyType: 'replicate',
         title: 'Replicate',
@@ -357,12 +326,8 @@ function AppContent() {
     })
   }, [
     apiGatewayRequest,
-    isForcedFirstRun,
-    saveApiKeyForFirstRun,
     saveReplicateApiKey,
-    saveLtxApiKey,
     settings.hasReplicateApiKey,
-    settings.hasLtxApiKey,
   ])
 
   if (pythonReady === null) {

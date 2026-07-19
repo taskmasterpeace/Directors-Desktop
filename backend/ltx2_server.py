@@ -173,7 +173,6 @@ DEFAULT_APP_SETTINGS = AppSettings()
 from app_factory import DEFAULT_ALLOWED_ORIGINS, create_app
 from state import RuntimeConfig, build_initial_state
 from runtime_config.model_download_specs import DEFAULT_MODEL_DOWNLOAD_SPECS, DEFAULT_REQUIRED_MODEL_TYPES
-from runtime_config.runtime_policy import decide_force_api_generations
 from state.app_state_types import ModelFileType
 from server_utils.model_layout_migration import migrate_legacy_models_layout
 from services.gpu_info.gpu_info_impl import GpuInfoImpl
@@ -185,25 +184,17 @@ LTX_API_BASE_URL = "https://api.ltx.video"
 
 
 def _resolve_force_api_generations() -> bool:
+    # Directors Desktop policy: the LTX cloud API is permanently disabled —
+    # nothing is ever sent to LTX/Lightricks. Generation is local (open
+    # weights on the user's GPU) or via Replicate / fal / Directors Palette.
     gpu_info = GpuInfoImpl()
-    system = platform.system()
-    cuda_available = gpu_info.get_cuda_available()
-    vram_gb = gpu_info.get_vram_total_gb()
-
-    # Server-owned source of truth for mode selection.
-    force_api_generations = decide_force_api_generations(
-        system=system,
-        cuda_available=cuda_available,
-        vram_gb=vram_gb,
-    )
     logger.info(
-        "Runtime policy force_api_generations=%s (system=%s cuda_available=%s vram_gb=%s)",
-        force_api_generations,
-        system,
-        cuda_available,
-        vram_gb,
+        "LTX cloud API disabled by policy (system=%s cuda_available=%s vram_gb=%s) — local + Replicate/fal/Palette only",
+        platform.system(),
+        gpu_info.get_cuda_available(),
+        gpu_info.get_vram_total_gb(),
     )
-    return force_api_generations
+    return False
 
 
 FORCE_API_GENERATIONS = _resolve_force_api_generations()

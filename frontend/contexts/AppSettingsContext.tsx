@@ -141,7 +141,10 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
   const [isLoaded, setIsLoaded] = useState(false)
   const [runtimePolicyLoaded, setRuntimePolicyLoaded] = useState(false)
   const [backendUrl, setBackendUrl] = useState<string | null>(null)
-  const [forceApiGenerations, setForceApiGenerations] = useState(true)
+  // Directors Desktop policy: the LTX cloud API is disabled fork-wide, so
+  // "forced API" mode can never be on. The runtime-policy endpoint (which now
+  // always reports false) is still read so the loading gate behaves the same.
+  const [forceApiGenerations, setForceApiGenerations] = useState(false)
   const [backendProcessStatus, setBackendProcessStatus] = useState<BackendProcessStatus | null>(null)
   const [credits, setCredits] = useState<CreditInfo>({ balance_cents: null, pricing: null })
   const creditsPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -177,8 +180,9 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
         }
       } catch {
         if (!cancelled) {
-          // Fail closed until policy can be read.
-          setForceApiGenerations(true)
+          // LTX cloud is disabled fork-wide — an unreadable policy never
+          // forces generations to a cloud we refuse to use.
+          setForceApiGenerations(false)
         }
       } finally {
         if (!cancelled) {
@@ -420,8 +424,9 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
     }
   }, [backendUrl, backendProcessStatus, settings.hasPaletteApiKey, refreshCredits])
 
-  const shouldVideoGenerateWithLtxApi =
-    forceApiGenerations || (settings.userPrefersLtxApiVideoGenerations && settings.hasLtxApiKey)
+  // Hard policy: nothing is ever sent to LTX/Lightricks. Cloud generation is
+  // Replicate / fal / Directors Palette only; everything else runs locally.
+  const shouldVideoGenerateWithLtxApi = false
 
   const contextValue = useMemo<AppSettingsContextValue>(
     () => ({

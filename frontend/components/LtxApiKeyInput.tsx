@@ -57,16 +57,5 @@ export function ApiKeyHelperRow({ stopPropagation, label = 'Get API key', onOpen
   )
 }
 
-interface LtxApiKeyHelperRowProps {
-  stopPropagation?: boolean
-}
-
-export function LtxApiKeyHelperRow({ stopPropagation }: LtxApiKeyHelperRowProps) {
-  return (
-    <ApiKeyHelperRow
-      stopPropagation={stopPropagation}
-      label="Get API key"
-      onOpenKey={() => window.electronAPI.openLtxApiKeyPage()}
-    />
-  )
-}
+// LtxApiKeyHelperRow removed: this fork never uses the LTX cloud API. The
+// generic input + helper row above are reused for Replicate/fal/etc.

@@ -202,6 +202,18 @@ class LTXTextEncoder:
         return None
 
     def encode_via_api(self, prompt: str, api_key: str, checkpoint_path: str, enhance_prompt: bool) -> TextEncodingResult | None:
+        # Directors Desktop policy: never send prompts (or anything else) to the
+        # LTX cloud API. Text encoding must use the local encoder — download it
+        # via Settings if missing.
+        _ = api_key, checkpoint_path, enhance_prompt
+        logger.error(
+            "LTX cloud prompt-embedding is disabled by policy; download the local "
+            "text encoder to generate. Prompt was NOT sent anywhere. (prompt length=%d)",
+            len(prompt),
+        )
+        return None
+
+    def _encode_via_api_disabled(self, prompt: str, api_key: str, checkpoint_path: str, enhance_prompt: bool) -> TextEncodingResult | None:
         model_id = self.get_model_id_from_checkpoint(checkpoint_path)
         if not model_id:
             return None

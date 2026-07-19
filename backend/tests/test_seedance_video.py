@@ -333,44 +333,23 @@ class TestExactDuration:
         assert fake_services.video_trimmer.probe_calls == []
         assert fake_services.video_trimmer.trim_calls == []
 
-    def test_forced_api_ceils_off_list_duration_and_trims_back(
-        self, client, test_state, fake_services
-    ):
-        # The LTX API only takes discrete durations (6/8/10...): exact mode
-        # generates at the smallest one covering the request, then trims.
+    def test_forced_api_config_never_reaches_ltx_cloud(self, client, test_state, fake_services):
+        # Fork policy: even a config that forces API mode routes locally — the
+        # LTX cloud is never called, and exact-duration still conforms.
         test_state.config.force_api_generations = True
         test_state.state.app_settings.ltx_api_key = "api-key"
-        fake_services.video_trimmer.probe_result = 6.0
+        test_state.state.app_settings.fal_api_key = "fal-key"
+        fake_services.video_trimmer.probe_result = 4.0
 
         r = client.post(
             "/api/generate",
-            json={
-                "prompt": "x",
-                "model": "fast",
-                "resolution": "1080p",
-                "duration": "3",
-                "fps": "24",
-                "exactDuration": True,
-            },
+            json={"prompt": "a dog", "model": "seedance-2.0", "duration": "3", "exactDuration": True},
         )
 
         assert r.status_code == 200, r.text
-        t2v = fake_services.ltx_api_client.text_to_video_calls
-        assert len(t2v) == 1
-        assert t2v[0]["duration"] == 6.0
+        assert fake_services.ltx_api_client.text_to_video_calls == []
+        assert fake_services.ltx_api_client.image_to_video_calls == []
         assert fake_services.video_trimmer.trim_calls == [(r.json()["video_path"], 3.0)]
-
-    def test_forced_api_off_list_duration_still_400_without_exact_mode(
-        self, client, test_state
-    ):
-        test_state.config.force_api_generations = True
-        test_state.state.app_settings.ltx_api_key = "api-key"
-        r = client.post(
-            "/api/generate",
-            json={"prompt": "x", "model": "fast", "resolution": "1080p", "duration": "3", "fps": "24"},
-        )
-        assert r.status_code == 400
-        assert "INVALID_FORCED_API_DURATION" in r.text
 
     def test_trim_failure_still_delivers_the_video(self, client, test_state, fake_services):
         test_state.state.app_settings.fal_api_key = "fal-key"

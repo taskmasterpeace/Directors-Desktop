@@ -4,7 +4,7 @@ import { Button } from './ui/button'
 import { ModelGuideDialog } from './ModelGuideDialog'
 import { useAppSettings, type AppSettings } from '../contexts/AppSettingsContext'
 import { logger } from '../lib/logger'
-import { ApiKeyHelperRow, LtxApiKeyInput, LtxApiKeyHelperRow } from './LtxApiKeyInput'
+import { ApiKeyHelperRow, LtxApiKeyInput } from './LtxApiKeyInput'
 
 interface TextEncoderStatus {
   downloaded: boolean
@@ -21,12 +21,9 @@ interface SettingsModalProps {
 type TabId = 'general' | 'apiKeys' | 'inference' | 'promptEnhancer' | 'models' | 'about'
 
 export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProps) {
-  const { settings, updateSettings, saveLtxApiKey, saveReplicateApiKey, saveFalApiKey, saveGeminiApiKey, saveOpenrouterApiKey, saveCivitaiApiKey, refreshSettings, forceApiGenerations } = useAppSettings()
+  const { settings, updateSettings, saveReplicateApiKey, saveFalApiKey, saveGeminiApiKey, saveOpenrouterApiKey, saveCivitaiApiKey, refreshSettings } = useAppSettings()
   const onSettingsChange = (next: AppSettings) => updateSettings(next)
   const [activeTab, setActiveTab] = useState<TabId>('general')
-  const [ltxApiKeyInput, setLtxApiKeyInput] = useState('')
-  const ltxApiKeyInputRef = useRef<HTMLInputElement>(null)
-  const [focusLtxApiKeyInputOnTabChange, setFocusLtxApiKeyInputOnTabChange] = useState(false)
   const [replicateApiKeyInput, setReplicateApiKeyInput] = useState('')
   const replicateApiKeyInputRef = useRef<HTMLInputElement>(null)
   const [falApiKeyInput, setFalApiKeyInput] = useState('')
@@ -109,19 +106,6 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
     window.addEventListener('palette-auth-updated', onUpdated)
     return () => window.removeEventListener('palette-auth-updated', onUpdated)
   }, [refreshSettings])
-
-  useEffect(() => {
-    if (!isOpen || activeTab !== 'apiKeys' || !focusLtxApiKeyInputOnTabChange) return
-
-    const frameId = window.requestAnimationFrame(() => {
-      ltxApiKeyInputRef.current?.focus()
-    })
-    setFocusLtxApiKeyInputOnTabChange(false)
-
-    return () => {
-      window.cancelAnimationFrame(frameId)
-    }
-  }, [activeTab, focusLtxApiKeyInputOnTabChange, isOpen])
 
   // Fetch app version when About tab is shown
   useEffect(() => {
@@ -249,19 +233,6 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
     onSettingsChange({
       ...settings,
       useLocalTextEncoder: !settings.useLocalTextEncoder,
-    })
-  }
-
-  const openApiKeysAndFocusLtxInput = () => {
-    setActiveTab('apiKeys')
-    setFocusLtxApiKeyInputOnTabChange(true)
-  }
-
-  const handlePromptCacheSizeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const size = Math.max(0, Math.min(1000, parseInt(e.target.value) || 100))
-    onSettingsChange({
-      ...settings,
-      promptCacheSize: size,
     })
   }
 
@@ -435,55 +406,6 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
         <div className="px-6 py-5 space-y-6 h-[60vh] overflow-y-auto">
           {activeTab === 'general' && (
             <>
-              {!forceApiGenerations && (
-                <div className="space-y-4">
-                  <div className="flex items-center gap-2">
-                    <Film className="h-4 w-4 text-blue-400" />
-                    <h3 className="text-sm font-semibold text-white">Videos Generation</h3>
-                  </div>
-
-                  <div
-                    className={`bg-zinc-800/50 rounded-lg p-4 border-2 transition-colors cursor-pointer ${
-                      settings.userPrefersLtxApiVideoGenerations ? 'border-blue-500' : 'border-transparent hover:border-zinc-600'
-                    }`}
-                    onClick={() => {
-                      if (!settings.hasLtxApiKey) {
-                        openApiKeysAndFocusLtxInput()
-                        return
-                      }
-                      onSettingsChange({
-                        ...settings,
-                        userPrefersLtxApiVideoGenerations: !settings.userPrefersLtxApiVideoGenerations,
-                      })
-                    }}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <Zap className="h-4 w-4 text-blue-400" />
-                          <span className="text-sm font-medium text-white">Generate With API</span>
-                        </div>
-                        <p className="text-xs text-zinc-400 mt-1">
-                          Use LTX API for video generation when an LTX API key is configured.
-                        </p>
-                      </div>
-                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                        settings.userPrefersLtxApiVideoGenerations ? 'border-blue-500 bg-blue-500' : 'border-zinc-600'
-                      }`}>
-                        {settings.userPrefersLtxApiVideoGenerations && <Check className="h-3 w-3 text-white" />}
-                      </div>
-                    </div>
-
-                    {!settings.hasLtxApiKey && (
-                      <div className="mt-2 text-xs text-amber-400 flex items-center gap-1.5">
-                        <AlertCircle className="h-3 w-3" />
-                        API key required — configure it in the API Keys tab.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
               {/* Text Encoding Section */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
@@ -495,68 +417,9 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                 </div>
 
                 <p className="text-xs text-zinc-500 leading-relaxed">
-                  Text encoding converts your prompt into data the AI understands. Choose how to do this.
+                  Text encoding runs locally on your machine. This build never sends prompts to the
+                  LTX cloud — the local encoder is the only option.
                 </p>
-
-                {/* LTX API Option (Default) */}
-                <div
-                  className={`bg-zinc-800/50 rounded-lg p-4 border-2 transition-colors cursor-pointer ${
-                    !settings.useLocalTextEncoder ? 'border-blue-500' : 'border-transparent hover:border-zinc-600'
-                  }`}
-                  onClick={() => {
-                    if (!settings.useLocalTextEncoder) return
-                    if (!settings.hasLtxApiKey) {
-                      openApiKeysAndFocusLtxInput()
-                      return
-                    }
-                    handleToggleLocalEncoder()
-                  }}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <Zap className="h-4 w-4 text-blue-400" />
-                        <span className="text-sm font-medium text-white">LTX API</span>
-                        <span className="text-xs px-1.5 py-0.5 bg-blue-500/20 text-blue-400 rounded">Recommended</span>
-                      </div>
-                      <p className="text-xs text-zinc-400 mt-1">
-                        Fast cloud-based text encoding (~1 second). Requires an LTX API key configured in the API Keys tab.
-                      </p>
-                    </div>
-                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                      !settings.useLocalTextEncoder ? 'border-blue-500 bg-blue-500' : 'border-zinc-600'
-                    }`}>
-                      {!settings.useLocalTextEncoder && <Check className="h-3 w-3 text-white" />}
-                    </div>
-                  </div>
-
-                  {/* Warning when selected but no key */}
-                  {!settings.useLocalTextEncoder && !settings.hasLtxApiKey && (
-                    <div className="mt-2 text-xs text-amber-400 flex items-center gap-1.5">
-                      <AlertCircle className="h-3 w-3" />
-                      API key required — configure it in the API Keys tab.
-                    </div>
-                  )}
-
-                  {/* Prompt Cache Size — only relevant for API text encoding */}
-                  {!settings.useLocalTextEncoder && settings.hasLtxApiKey && (
-                    <div className="flex items-center justify-between mt-3 pt-3 border-t border-zinc-700/50">
-                      <div>
-                        <label className="text-xs text-white">Prompt Cache</label>
-                        <p className="text-xs text-zinc-500">Skip repeat encoding calls</p>
-                      </div>
-                      <input
-                        type="number"
-                        min="0"
-                        max="1000"
-                        value={settings.promptCacheSize ?? 100}
-                        onChange={handlePromptCacheSizeChange}
-                        onClick={(e) => e.stopPropagation()}
-                        className="w-16 px-2 py-1 bg-zinc-700 border border-zinc-600 rounded text-xs text-white text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  )}
-                </div>
 
                 {/* Local Encoder Option */}
                 <div
@@ -833,66 +696,8 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
 
           {activeTab === 'apiKeys' && (
             <>
-              {/* LTX API Key Section */}
+              {/* LTX cloud key section removed: this fork never talks to LTX/Lightricks. */}
               <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-blue-400" />
-                  <h3 className="text-sm font-semibold text-white">LTX API</h3>
-                </div>
-
-                <p className="text-xs text-zinc-500 leading-relaxed">
-                  Your LTX API key is used for cloud text encoding, prompt enhancement, and Pro generation.
-                  Add your key below to unlock these features.
-                </p>
-
-                <div className="bg-zinc-800/50 rounded-lg p-4 space-y-3">
-                  <div className="flex gap-2">
-                    <LtxApiKeyInput
-                      ref={ltxApiKeyInputRef}
-                      value={ltxApiKeyInput}
-                      onChange={(e) => setLtxApiKeyInput(e.target.value)}
-                      placeholder={settings.hasLtxApiKey ? 'Enter new key to replace...' : 'Enter your LTX API key...'}
-                      stopPropagation
-                      className="flex-1"
-                    />
-                    <button
-                      onClick={() => {
-                        const trimmed = ltxApiKeyInput.trim()
-                        if (!trimmed) return
-                        void saveLtxApiKey(trimmed)
-                        setLtxApiKeyInput('')
-                      }}
-                      disabled={!ltxApiKeyInput.trim()}
-                      className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-500 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
-                    >
-                      Save Key
-                    </button>
-                  </div>
-                  <LtxApiKeyHelperRow stopPropagation />
-                  <div className="flex items-center justify-between">
-                    <div className={`text-xs px-2 py-1 rounded inline-flex items-center gap-1.5 ${
-                      settings.hasLtxApiKey
-                        ? 'bg-green-500/10 text-green-400'
-                        : 'bg-amber-500/10 text-amber-400'
-                    }`}>
-                      {settings.hasLtxApiKey ? (
-                        <>
-                          <Check className="h-3 w-3" />
-                          Key configured
-                        </>
-                      ) : (
-                        <>
-                          <AlertCircle className="h-3 w-3" />
-                          API key required
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* FAL API Key Section */}
-              <div className="space-y-4 pt-4 border-t border-zinc-800">
                 <div className="flex items-center gap-2">
                   <KeyRound className="h-4 w-4 text-cyan-400" />
                   <h3 className="text-sm font-semibold text-white">Replicate</h3>

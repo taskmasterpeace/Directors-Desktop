@@ -22,7 +22,8 @@ class TestGetSettings:
         assert data["hasReplicateApiKey"] is False
         assert data["imageModel"] == "flux-klein-9b"
         assert data["videoModel"] == "ltx-fast"
-        assert data["useLocalTextEncoder"] is False
+        # Fork policy: LTX cloud encoding is disabled, local is the only path.
+        assert data["useLocalTextEncoder"] is True
         assert data["fastModel"] == {"useUpscaler": True}
         assert data["proModel"] == {"steps": 20, "useUpscaler": True}
         assert data["promptCacheSize"] == 100
