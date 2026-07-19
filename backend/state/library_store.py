@@ -56,6 +56,18 @@ class AudioReference:
     created_at: str = ""
 
 
+RecipeKind = Literal["location", "wardrobe", "style"]
+
+
+@dataclass
+class Recipe:
+    id: str
+    name: str
+    kind: RecipeKind
+    text: str = ""
+    created_at: str = ""
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -90,11 +102,13 @@ class LibraryStore:
         self._styles_file = self._dir / "styles.json"
         self._references_file = self._dir / "references.json"
         self._audio_file = self._dir / "audio.json"
+        self._recipes_file = self._dir / "recipes.json"
 
         self._characters: list[Character] = _load_json_list(self._characters_file, Character)
         self._styles: list[Style] = _load_json_list(self._styles_file, Style)
         self._references: list[Reference] = _load_json_list(self._references_file, Reference)
         self._audio: list[AudioReference] = _load_json_list(self._audio_file, AudioReference)
+        self._recipes: list[Recipe] = _load_json_list(self._recipes_file, Recipe)
 
     # ------------------------------------------------------------------
     # Characters
@@ -289,6 +303,47 @@ class LibraryStore:
         return False
 
     # ------------------------------------------------------------------
+    # Recipes (named prompt snippets: locations / wardrobe / style)
+    # ------------------------------------------------------------------
+
+    def list_recipes(self, kind: RecipeKind | None = None) -> list[Recipe]:
+        if kind is None:
+            return list(self._recipes)
+        return [r for r in self._recipes if r.kind == kind]
+
+    def get_recipe(self, recipe_id: str) -> Recipe | None:
+        for r in self._recipes:
+            if r.id == recipe_id:
+                return r
+        return None
+
+    def create_recipe(
+        self,
+        *,
+        name: str,
+        kind: RecipeKind,
+        text: str,
+    ) -> Recipe:
+        recipe = Recipe(
+            id=_new_id(),
+            name=name,
+            kind=kind,
+            text=text,
+            created_at=_now_iso(),
+        )
+        self._recipes.append(recipe)
+        self._save_recipes()
+        return recipe
+
+    def delete_recipe(self, recipe_id: str) -> bool:
+        before = len(self._recipes)
+        self._recipes = [r for r in self._recipes if r.id != recipe_id]
+        if len(self._recipes) < before:
+            self._save_recipes()
+            return True
+        return False
+
+    # ------------------------------------------------------------------
     # Persistence helpers
     # ------------------------------------------------------------------
 
@@ -303,3 +358,6 @@ class LibraryStore:
 
     def _save_audio(self) -> None:
         _write_json(self._audio_file, [asdict(a) for a in self._audio])
+
+    def _save_recipes(self) -> None:
+        _write_json(self._recipes_file, [asdict(r) for r in self._recipes])

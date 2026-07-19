@@ -207,3 +207,80 @@ class TestReferences:
     def test_invalid_category_rejected(self, client):
         r = client.post("/api/library/references", json={"name": "X", "category": "invalid"})
         assert r.status_code == 422
+
+
+class TestRecipes:
+    def test_list_empty(self, client):
+        r = client.get("/api/library/recipes")
+        assert r.status_code == 200
+        assert r.json()["recipes"] == []
+
+    def test_create_recipe(self, client):
+        r = client.post("/api/library/recipes", json={
+            "name": "Rooftop Bar",
+            "kind": "location",
+            "text": "a neon-lit rooftop bar at night, city skyline behind",
+        })
+        assert r.status_code == 200
+        data = r.json()
+        assert data["name"] == "Rooftop Bar"
+        assert data["kind"] == "location"
+        assert data["text"] == "a neon-lit rooftop bar at night, city skyline behind"
+        assert "id" in data
+        assert "created_at" in data
+
+    def test_list_after_create(self, client):
+        client.post("/api/library/recipes", json={"name": "Rooftop", "kind": "location", "text": "rooftop bar"})
+        client.post("/api/library/recipes", json={"name": "Trench", "kind": "wardrobe", "text": "beige trench coat"})
+        r = client.get("/api/library/recipes")
+        assert r.status_code == 200
+        names = [rec["name"] for rec in r.json()["recipes"]]
+        assert "Rooftop" in names
+        assert "Trench" in names
+
+    def test_filter_by_kind(self, client):
+        client.post("/api/library/recipes", json={"name": "Rooftop", "kind": "location", "text": "rooftop bar"})
+        client.post("/api/library/recipes", json={"name": "Trench", "kind": "wardrobe", "text": "beige trench coat"})
+        client.post("/api/library/recipes", json={"name": "Alley", "kind": "location", "text": "rain-slick alley"})
+
+        r = client.get("/api/library/recipes?kind=location")
+        recipes = r.json()["recipes"]
+        assert len(recipes) == 2
+        assert all(rec["kind"] == "location" for rec in recipes)
+
+        r = client.get("/api/library/recipes?kind=wardrobe")
+        recipes = r.json()["recipes"]
+        assert len(recipes) == 1
+        assert recipes[0]["name"] == "Trench"
+
+    def test_filter_empty_kind(self, client):
+        client.post("/api/library/recipes", json={"name": "Rooftop", "kind": "location", "text": "rooftop bar"})
+
+        r = client.get("/api/library/recipes?kind=style")
+        assert r.json()["recipes"] == []
+
+    def test_delete_recipe(self, client):
+        r = client.post("/api/library/recipes", json={"name": "Rooftop", "kind": "location", "text": "rooftop bar"})
+        rid = r.json()["id"]
+
+        r = client.delete(f"/api/library/recipes/{rid}")
+        assert r.status_code == 200
+
+        r = client.get("/api/library/recipes")
+        assert len(r.json()["recipes"]) == 0
+
+    def test_delete_nonexistent_returns_404(self, client):
+        r = client.delete("/api/library/recipes/doesnotexist")
+        assert r.status_code == 404
+
+    def test_create_empty_name_returns_400(self, client):
+        r = client.post("/api/library/recipes", json={"name": "  ", "kind": "style", "text": "soft film grain"})
+        assert r.status_code == 400
+
+    def test_create_empty_text_returns_400(self, client):
+        r = client.post("/api/library/recipes", json={"name": "Grain", "kind": "style", "text": "  "})
+        assert r.status_code == 400
+
+    def test_invalid_kind_rejected(self, client):
+        r = client.post("/api/library/recipes", json={"name": "X", "kind": "invalid", "text": "y"})
+        assert r.status_code == 422
