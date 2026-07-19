@@ -316,6 +316,7 @@ class VideoGenerationHandler(StateHandlerBase):
         camera_motion: VideoCameraMotion = "none",
         lora_path: str | None = None,
         lora_weight: float = 1.0,
+        exact_duration: bool = False,
     ) -> str:
         """Generate a long video by chaining I2V + extend segments.
 
@@ -404,6 +405,8 @@ class VideoGenerationHandler(StateHandlerBase):
             )
             logger.info("[long] Final video: %s (%d segments)", output_path, len(segment_paths))
 
+            if exact_duration:
+                self._conform_exact_output(str(output_path), float(target_duration))
             self._generation.complete_generation(str(output_path))
             return str(output_path)
 
@@ -568,6 +571,7 @@ class VideoGenerationHandler(StateHandlerBase):
                     output_path.unlink()
                 raise RuntimeError("Generation was cancelled")
 
+            self._maybe_conform_exact(str(output_path), req)
             self._generation.update_progress("complete", 100, total_steps, total_steps)
             self._generation.complete_generation(str(output_path))
             return GenerateVideoResponse(status="complete", video_path=str(output_path))
@@ -803,6 +807,20 @@ class VideoGenerationHandler(StateHandlerBase):
                 raise HTTPError(400, "Seedance 2.0 supports at most 3 audio references.")
             if len(req.videoReferencePaths) > 3:
                 raise HTTPError(400, "Seedance 2.0 supports at most 3 video references.")
+            # Enforce the <=15s reference contract locally — a fast 400 beats
+            # minutes of upload followed by a confusing provider-side failure.
+            for ref_path in req.videoReferencePaths:
+                normalized_ref = normalize_optional_path(ref_path)
+                if normalized_ref is None or not Path(normalized_ref).exists():
+                    continue  # missing files are skipped by the upload loop below
+                try:
+                    ref_seconds = self._video_trimmer.probe_duration(normalized_ref)
+                except Exception as exc:
+                    raise HTTPError(
+                        400, f"Could not read video reference: {Path(normalized_ref).name}"
+                    ) from exc
+                if ref_seconds > 15.5:
+                    raise HTTPError(400, "Video references must be 15 seconds or shorter.")
 
             # Reference arrays are uploaded to hosted URLs (never inlined as base64).
             reference_images: list[str] = []
@@ -941,8 +959,11 @@ class VideoGenerationHandler(StateHandlerBase):
                 fps = self._parse_forced_numeric_field(req.fps, "INVALID_FORCED_API_FPS")
                 if fps not in FORCED_API_ALLOWED_FPS:
                     raise HTTPError(400, "INVALID_FORCED_API_FPS")
-                if duration not in _get_allowed_durations(api_model_id, resolution_label, fps):
-                    raise HTTPError(400, "INVALID_FORCED_API_DURATION")
+                duration = self._resolve_forced_api_duration(
+                    duration,
+                    _get_allowed_durations(api_model_id, resolution_label, fps),
+                    req.exactDuration,
+                )
 
                 generate_audio = self._parse_audio_flag(req.audio)
                 self._generation.update_progress("uploading_image", 20, None, None)
@@ -977,8 +998,11 @@ class VideoGenerationHandler(StateHandlerBase):
                 fps = self._parse_forced_numeric_field(req.fps, "INVALID_FORCED_API_FPS")
                 if fps not in FORCED_API_ALLOWED_FPS:
                     raise HTTPError(400, "INVALID_FORCED_API_FPS")
-                if duration not in _get_allowed_durations(api_model_id, resolution_label, fps):
-                    raise HTTPError(400, "INVALID_FORCED_API_DURATION")
+                duration = self._resolve_forced_api_duration(
+                    duration,
+                    _get_allowed_durations(api_model_id, resolution_label, fps),
+                    req.exactDuration,
+                )
 
                 generate_audio = self._parse_audio_flag(req.audio)
                 t2v_last_frame_uri: str | None = None
@@ -1031,18 +1055,12 @@ class VideoGenerationHandler(StateHandlerBase):
         output_path.write_bytes(video_bytes)
         return output_path
 
-    def _maybe_conform_exact(self, output_path: str, req: GenerateVideoRequest) -> None:
-        """Trim the output to exactly ``req.duration`` seconds when the
-        exact-length promise is on. Providers round durations up into their
-        supported ranges (Seedance 1.5: 4-12s, 2.0: 4-15s; local LTX rounds to
-        frame batches), so a 3s request can come back 4s+ — this hands back
-        precisely what was asked for, audio included."""
-        if not req.exactDuration:
-            return
-        try:
-            seconds = float(req.duration)
-        except (TypeError, ValueError):
-            return
+    def _conform_exact_output(self, output_path: str, seconds: float) -> None:
+        """Trim the output to exactly ``seconds`` when it came back longer.
+        Providers round durations up into their supported ranges (Seedance 1.5:
+        4-12s, 2.0: 4-15s; local LTX rounds to frame batches), so a 3s request
+        can come back 4s+ — this hands back precisely what was asked for,
+        audio included."""
         if seconds <= 0:
             return
         # An unreadable file means the generation itself is suspect — let it raise.
@@ -1058,6 +1076,28 @@ class VideoGenerationHandler(StateHandlerBase):
             logger.warning(
                 "Exact-duration trim failed; delivering %.2fs output untrimmed", actual, exc_info=True
             )
+
+    def _maybe_conform_exact(self, output_path: str, req: GenerateVideoRequest) -> None:
+        if not req.exactDuration:
+            return
+        try:
+            seconds = float(req.duration)
+        except (TypeError, ValueError):
+            return
+        self._conform_exact_output(output_path, seconds)
+
+    @staticmethod
+    def _resolve_forced_api_duration(requested: int, allowed: set[int], exact: bool) -> int:
+        """The LTX API only accepts discrete durations. Normally an off-list
+        request is a 400; in exact-length mode we generate at the smallest
+        allowed duration that covers the request (the conform step trims the
+        output back to the requested seconds)."""
+        if requested in allowed:
+            return requested
+        if not exact:
+            raise HTTPError(400, "INVALID_FORCED_API_DURATION")
+        larger = [d for d in allowed if d >= requested]
+        return min(larger) if larger else max(allowed)
 
     @staticmethod
     def _parse_forced_numeric_field(raw_value: str, error_detail: str) -> int:

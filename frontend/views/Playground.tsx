@@ -60,6 +60,12 @@ export function Playground() {
   const [lastFrameUrl, setLastFrameUrl] = useState<string | null>(null)
   const [lastFramePath, setLastFramePath] = useState<string | null>(null)
   const [isEnhancing, setIsEnhancing] = useState(false)
+  // Preflight problems we catch before submitting (e.g. references that would
+  // be silently dropped) — rendered in the same slot as generation errors.
+  const [preflightError, setPreflightError] = useState<string | null>(null)
+  // Snapshot of the exact-length request taken at submit, so the placeholder
+  // badge describes the RUNNING job even if settings change mid-flight.
+  const [activeReservedSeconds, setActiveReservedSeconds] = useState<number | null>(null)
 
   const { status, processStatus } = useBackend()
 
@@ -70,24 +76,37 @@ export function Playground() {
 
   // Animate-still handoff (Shot Animator flow): a still image arrives from the
   // editor/gallery preloaded as the image-to-video start frame on Seedance 2.0;
-  // the user writes the motion direction.
+  // the user writes the motion direction. When generations are forced through
+  // the LTX API, Seedance isn't selectable — the still animates via the LTX
+  // API instead of fighting the sanitizer.
   useEffect(() => {
     if (!pendingAnimateImage) return
     const { url, prompt: seedPrompt } = pendingAnimateImage
     setPendingAnimateImage(null)
     setMode('image-to-video')
     setSelectedImage(url)
-    setSettings((prev) => ({ ...prev, model: 'seedance-2.0' }))
+    if (!shouldVideoGenerateWithLtxApi) {
+      setSettings((prev) => ({ ...prev, model: 'seedance-2.0' }))
+    }
     if (seedPrompt) setPrompt(seedPrompt)
     requestAnimationFrame(() => promptRef.current?.focus())
-  }, [pendingAnimateImage, setPendingAnimateImage])
+  }, [pendingAnimateImage, setPendingAnimateImage, shouldVideoGenerateWithLtxApi])
 
   // Clip Tool handoff: attach a freshly trimmed clip as a Seedance 2.0 video
   // reference and seed the prompt so the user describes the changes they want.
+  // Video references only exist on Seedance 2.0 — under forced-LTX-API mode the
+  // sanitizer would strip the model and the reference would be silently dropped
+  // at submit, so refuse loudly instead of attaching something that can't work.
   useEffect(() => {
     if (!pendingClipReference) return
     const clipPath = pendingClipReference.path
     setPendingClipReference(null)
+    if (shouldVideoGenerateWithLtxApi) {
+      setPreflightError(
+        'Video references need Seedance 2.0, which is unavailable while generations are forced through the LTX API. The clip was not attached.',
+      )
+      return
+    }
     setMode('text-to-video')
     setSettings((prev) => ({
       ...prev,
@@ -96,7 +115,7 @@ export function Playground() {
     }))
     setPrompt((prev) => (prev.includes('@Video1') ? prev : `@Video1 ${prev}`.trimEnd() + ' '))
     requestAnimationFrame(() => promptRef.current?.focus())
-  }, [pendingClipReference, setPendingClipReference])
+  }, [pendingClipReference, setPendingClipReference, shouldVideoGenerateWithLtxApi])
 
   // Force pro model + resolution when audio is attached (A2V only supports pro @ 1080p 16:9)
   useEffect(() => {
@@ -200,9 +219,23 @@ export function Playground() {
         ? sanitizeForcedApiVideoSettings(settings)
         : settings
       if (!prompt.trim()) return
+      // Never silently drop attached video references: if sanitizing stripped
+      // the Seedance model they require, refuse instead of paying for a
+      // generation the user didn't ask for.
+      const hasVideoRefs = (settings.videoReferencePaths?.length ?? 0) > 0
+      const isSeedance2Model =
+        effectiveVideoSettings.model === 'seedance-2.0' || effectiveVideoSettings.model === 'seedance-2.0-fast'
+      if (hasVideoRefs && !isSeedance2Model) {
+        setPreflightError(
+          'Video references require Seedance 2.0. Switch the model to Seedance 2.0 (or remove the @Video reference) and generate again.',
+        )
+        return
+      }
+      setPreflightError(null)
       const imagePath = selectedImage ? fileUrlToPath(selectedImage) : (firstFramePath || null)
       const audioPath = selectedAudio ? fileUrlToPath(selectedAudio) : null
       if (audioPath) effectiveVideoSettings.model = 'pro'
+      setActiveReservedSeconds(settings.exactDuration ? settings.duration : null)
       generate(prompt, imagePath, effectiveVideoSettings, audioPath, lastFramePath)
     }
   }
@@ -234,6 +267,8 @@ export function Playground() {
 
   const handleClearAll = () => {
     setPrompt('')
+    setPreflightError(null)
+    setActiveReservedSeconds(null)
     setSelectedImage(null)
     setSelectedAudio(null)
     setFirstFrameUrl(null)
@@ -442,6 +477,13 @@ export function Playground() {
               />
             )}
 
+            {/* Preflight problems (caught before submitting) */}
+            {preflightError && (
+              <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg text-sm">
+                <span className="text-amber-400">{preflightError}</span>
+              </div>
+            )}
+
             {/* Error Display */}
             {(generationError || retakeError) && (
               <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg text-sm">
@@ -547,7 +589,7 @@ export function Playground() {
               estimatedSeconds={estimatedSeconds}
               modelName={lastModel}
               onExtendVideo={handleExtendVideo}
-              reservedSeconds={settings.exactDuration ? settings.duration : undefined}
+              reservedSeconds={activeReservedSeconds ?? undefined}
             />
           )}
         </div>

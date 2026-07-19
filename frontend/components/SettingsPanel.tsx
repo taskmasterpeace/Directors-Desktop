@@ -432,7 +432,25 @@ export function SettingsPanel({
         <input
           type="checkbox"
           checked={!!settings.exactDuration}
-          onChange={(e) => handleChange('exactDuration', e.target.checked)}
+          onChange={(e) => {
+            const on = e.target.checked
+            // Turning exact mode off returns to the preset dropdown — snap a
+            // custom duration (e.g. 3s) to the nearest preset so the Select
+            // never sits on a value it has no option for.
+            if (!on && durationOptions.length > 0 && !durationOptions.includes(settings.duration)) {
+              const nearest = durationOptions.reduce((a, b) =>
+                Math.abs(b - settings.duration) < Math.abs(a - settings.duration) ? b : a,
+              )
+              const next = { ...settings, exactDuration: false, duration: nearest }
+              onSettingsChange(
+                forceApiGenerations && !isImageMode
+                  ? sanitizeForcedApiVideoSettings(next, { hasAudio })
+                  : next,
+              )
+            } else {
+              handleChange('exactDuration', on)
+            }
+          }}
           disabled={disabled}
           className="mt-0.5 h-3.5 w-3.5 rounded border-zinc-600 bg-zinc-800 accent-blue-500"
         />

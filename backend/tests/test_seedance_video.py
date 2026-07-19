@@ -217,6 +217,21 @@ class TestSeedance20VideoReferences:
         assert r.status_code == 400
         assert "3" in r.text and "video" in r.text.lower()
 
+    def test_video_reference_longer_than_15s_returns_400(
+        self, client, test_state, fake_services, tmp_path
+    ):
+        test_state.state.app_settings.fal_api_key = "fal-key"
+        fake_services.video_trimmer.probe_result = 30.0
+        clip = self._write_clip(tmp_path)
+        r = client.post(
+            "/api/generate",
+            json={"prompt": "x", "model": "seedance-2.0", "duration": "6", "videoReferencePaths": [clip]},
+        )
+        assert r.status_code == 400
+        assert "15 seconds" in r.text
+        # Rejected before any upload happened.
+        assert fake_services.fal_upload_client.calls == []
+
     def test_unsupported_video_format_returns_400(self, client, test_state, tmp_path):
         test_state.state.app_settings.fal_api_key = "fal-key"
         p = tmp_path / "ref.avi"
@@ -317,6 +332,45 @@ class TestExactDuration:
         assert r.status_code == 200, r.text
         assert fake_services.video_trimmer.probe_calls == []
         assert fake_services.video_trimmer.trim_calls == []
+
+    def test_forced_api_ceils_off_list_duration_and_trims_back(
+        self, client, test_state, fake_services
+    ):
+        # The LTX API only takes discrete durations (6/8/10...): exact mode
+        # generates at the smallest one covering the request, then trims.
+        test_state.config.force_api_generations = True
+        test_state.state.app_settings.ltx_api_key = "api-key"
+        fake_services.video_trimmer.probe_result = 6.0
+
+        r = client.post(
+            "/api/generate",
+            json={
+                "prompt": "x",
+                "model": "fast",
+                "resolution": "1080p",
+                "duration": "3",
+                "fps": "24",
+                "exactDuration": True,
+            },
+        )
+
+        assert r.status_code == 200, r.text
+        t2v = fake_services.ltx_api_client.text_to_video_calls
+        assert len(t2v) == 1
+        assert t2v[0]["duration"] == 6.0
+        assert fake_services.video_trimmer.trim_calls == [(r.json()["video_path"], 3.0)]
+
+    def test_forced_api_off_list_duration_still_400_without_exact_mode(
+        self, client, test_state
+    ):
+        test_state.config.force_api_generations = True
+        test_state.state.app_settings.ltx_api_key = "api-key"
+        r = client.post(
+            "/api/generate",
+            json={"prompt": "x", "model": "fast", "resolution": "1080p", "duration": "3", "fps": "24"},
+        )
+        assert r.status_code == 400
+        assert "INVALID_FORCED_API_DURATION" in r.text
 
     def test_trim_failure_still_delivers_the_video(self, client, test_state, fake_services):
         test_state.state.app_settings.fal_api_key = "fal-key"
