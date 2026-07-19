@@ -1097,8 +1097,14 @@ const DEFAULT_VIDEO_SETTINGS = {
   audio: true,
 }
 
+type GenSpaceSettings = typeof DEFAULT_VIDEO_SETTINGS & {
+  referenceImagePaths?: string[]
+  audioReferencePaths?: string[]
+  videoReferencePaths?: string[]
+}
+
 export function GenSpace() {
-  const { currentProject, currentProjectId, addAsset, addTakeToAsset, deleteAsset, toggleFavorite, genSpaceEditImageUrl, setGenSpaceEditImageUrl, setGenSpaceEditMode, genSpaceAudioUrl, setGenSpaceAudioUrl, genSpaceRetakeSource, setGenSpaceRetakeSource, setPendingRetakeUpdate } = useProjects()
+  const { currentProject, currentProjectId, addAsset, addTakeToAsset, deleteAsset, toggleFavorite, genSpaceEditImageUrl, setGenSpaceEditImageUrl, setGenSpaceEditMode, genSpaceAudioUrl, setGenSpaceAudioUrl, genSpaceRetakeSource, setGenSpaceRetakeSource, setPendingRetakeUpdate, pendingReferenceImage, setPendingReferenceImage } = useProjects()
   const confirm = useConfirm()
   const { shouldVideoGenerateWithLtxApi, forceApiGenerations, settings: appSettings, credits } = useAppSettings()
   const [mode, setMode] = useState<'image' | 'video' | 'retake'>('video')
@@ -1127,7 +1133,7 @@ export function GenSpace() {
   const [editSourceImage, setEditSourceImage] = useState<{ url: string; path: string } | null>(null)
   const [editStrength, setEditStrength] = useState(0.65)
   const [showBatchModal, setShowBatchModal] = useState(false)
-  const [settings, setSettings] = useState(() => ({ ...DEFAULT_VIDEO_SETTINGS }))
+  const [settings, setSettings] = useState<GenSpaceSettings>(() => ({ ...DEFAULT_VIDEO_SETTINGS }))
   const applyForcedVideoSettings = useCallback(
     (next: { model: string; duration: number; videoResolution: string; fps: number; audio: boolean; aspectRatio: string; imageResolution: string; variations: number }) => {
       if (!shouldVideoGenerateWithLtxApi || mode !== 'video') return next
@@ -1192,6 +1198,20 @@ export function GenSpace() {
       setPrompt('')
     }
   }, [genSpaceEditImageUrl, setGenSpaceEditImageUrl, setGenSpaceEditMode])
+
+  // Handle a captured video frame from the editor: attach it as a Seedance 2.0
+  // reference image (omni-reference @Image), switching to video mode + model.
+  useEffect(() => {
+    if (!pendingReferenceImage) return
+    const { path } = pendingReferenceImage
+    setPendingReferenceImage(null)
+    setMode('video')
+    setSettings((prev) => {
+      const existing = prev.referenceImagePaths ?? []
+      if (existing.includes(path)) return prev
+      return { ...prev, model: 'seedance-2.0', referenceImagePaths: [...existing, path] }
+    })
+  }, [pendingReferenceImage, setPendingReferenceImage])
 
   // Handle incoming audio from the Video Editor for A2V
   useEffect(() => {

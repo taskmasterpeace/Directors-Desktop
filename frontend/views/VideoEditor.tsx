@@ -84,7 +84,7 @@ export function VideoEditor() {
     addTimeline, deleteTimeline, renameTimeline, duplicateTimeline,
     setActiveTimeline, updateTimeline, getActiveTimeline,
     setCurrentTab, setGenSpaceEditImageUrl, setGenSpaceEditMode, setGenSpaceAudioUrl,
-    setGenSpaceRetakeSource, pendingRetakeUpdate, setPendingRetakeUpdate,
+    setGenSpaceRetakeSource, pendingRetakeUpdate, setPendingRetakeUpdate, setPendingReferenceImage,
   } = useProjects()
   const confirm = useConfirm()
 
@@ -436,6 +436,14 @@ export function VideoEditor() {
   
   const assets = currentProject?.assets || []
   const timelines = currentProject?.timelines || []
+
+  // Transient confirmation for frame-capture actions (no global toast system).
+  const [frameActionMsg, setFrameActionMsg] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
+  useEffect(() => {
+    if (!frameActionMsg) return
+    const t = setTimeout(() => setFrameActionMsg(null), 2800)
+    return () => clearTimeout(t)
+  }, [frameActionMsg])
 
   // Undo/redo/clipboard (extracted hook)
   const {
@@ -1574,6 +1582,66 @@ export function VideoEditor() {
     setGenSpaceEditImageUrl(dataUrl)
     setCurrentTab('gen-space')
   }, [extractCurrentFrame, setGenSpaceEditImageUrl, setGenSpaceEditMode, setCurrentTab])
+
+  // Persist a just-extracted frame (which lives in a temp dir) to a stable
+  // location so it survives as a reference. Returns the persisted absolute path.
+  const persistFrame = useCallback(async (frameUrl: string): Promise<string | null> => {
+    try {
+      const { data } = await window.electronAPI.readLocalFile(frameUrl)
+      const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0))
+      const downloads = await window.electronAPI.getDownloadsPath()
+      const dir = `${downloads}/DirectorsDesktop/frames`
+      const ensured = await window.electronAPI.ensureDirectory(dir)
+      if (!ensured.success) throw new Error(ensured.error || 'Could not create frames folder')
+      const name = `frame_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.jpg`
+      const saved = await window.electronAPI.saveBinaryFile(`${dir}/${name}`, bytes.buffer)
+      if (!saved.success || !saved.path) throw new Error(saved.error || 'Failed to save frame')
+      return saved.path
+    } catch (err) {
+      logger.error(`Failed to persist frame: ${err}`)
+      return null
+    }
+  }, [])
+
+  // Capture the current frame and attach it as a Seedance 2.0 reference image
+  // in Gen Space (omni-reference @Image) — use a still from a video as a
+  // reference for the next generation.
+  const handleCaptureFrameAsReference = useCallback(async (clip: TimelineClip) => {
+    const frameUrl = await extractCurrentFrame(clip)
+    if (!frameUrl) return
+    const persisted = await persistFrame(frameUrl)
+    if (!persisted) { setFrameActionMsg({ kind: 'error', text: 'Could not capture the frame.' }); return }
+    setPendingReferenceImage({ path: persisted })
+    setCurrentTab('gen-space')
+  }, [extractCurrentFrame, persistFrame, setPendingReferenceImage, setCurrentTab])
+
+  // Capture the current frame and save it to the References library so it's a
+  // reusable reference everywhere (ReferencePicker, @-mentions, future Shot Creator).
+  const handleCaptureFrameToReferences = useCallback(async (clip: TimelineClip) => {
+    const frameUrl = await extractCurrentFrame(clip)
+    if (!frameUrl) return
+    const persisted = await persistFrame(frameUrl)
+    if (!persisted) { setFrameActionMsg({ kind: 'error', text: 'Could not capture the frame.' }); return }
+    try {
+      const backendUrl = await window.electronAPI.getBackendUrl()
+      const clipAsset = clip.assetId ? assets.find((a) => a.id === clip.assetId) : clip.asset
+      const clipName = (clipAsset?.prompt?.replace(/^Imported:\s*/, '') || 'Clip').slice(0, 40)
+      const res = await fetch(`${backendUrl}/api/library/references`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `Frame · ${clipName} @ ${formatTime(currentTime)}`,
+          category: 'other',
+          image_path: persisted,
+        }),
+      })
+      if (!res.ok) throw new Error(`create ${res.status}`)
+      setFrameActionMsg({ kind: 'ok', text: 'Saved frame to References' })
+    } catch (err) {
+      logger.error(`Failed to save frame to references: ${err}`)
+      setFrameActionMsg({ kind: 'error', text: 'Failed to save to References.' })
+    }
+  }, [extractCurrentFrame, persistFrame, assets, currentTime])
 
   // Navigate to Gen Space with audio pre-populated for A2V
   const handleCreateVideoFromAudio = useCallback((clip: TimelineClip) => {
@@ -4200,6 +4268,8 @@ export function VideoEditor() {
             setIcLoraSourceClipId={_setIcLoraSourceClipId}
             setShowICLoraPanel={_setShowICLoraPanel}
             onCaptureFrameForVideo={handleCaptureFrameForVideo}
+            onCaptureFrameAsReference={handleCaptureFrameAsReference}
+            onCaptureFrameToReferences={handleCaptureFrameToReferences}
             onCreateVideoFromAudio={handleCreateVideoFromAudio}
           />
         )
@@ -4207,6 +4277,19 @@ export function VideoEditor() {
       
       
       
+      {/* Transient frame-capture confirmation */}
+      {frameActionMsg && (
+        <div
+          className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] px-4 py-2 rounded-lg text-sm font-medium shadow-xl border ${
+            frameActionMsg.kind === 'ok'
+              ? 'bg-emerald-600/90 border-emerald-500 text-white'
+              : 'bg-red-600/90 border-red-500 text-white'
+          }`}
+        >
+          {frameActionMsg.text}
+        </div>
+      )}
+
       <ExportModal
         open={showExportModal}
         onClose={() => setShowExportModal(false)}
