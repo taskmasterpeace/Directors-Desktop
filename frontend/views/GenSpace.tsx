@@ -1397,7 +1397,7 @@ type GenSpaceSettings = typeof DEFAULT_VIDEO_SETTINGS & {
 }
 
 export function GenSpace() {
-  const { currentProject, currentProjectId, addAsset, addTakeToAsset, deleteAsset, toggleFavorite, genSpaceEditImageUrl, setGenSpaceEditImageUrl, setGenSpaceEditMode, genSpaceAudioUrl, setGenSpaceAudioUrl, genSpaceRetakeSource, setGenSpaceRetakeSource, setPendingRetakeUpdate, pendingReferenceImage, setPendingReferenceImage } = useProjects()
+  const { currentProject, currentProjectId, addAsset, addTakeToAsset, deleteAsset, toggleFavorite, genSpaceEditImageUrl, setGenSpaceEditImageUrl, genSpaceEditMode, setGenSpaceEditMode, genSpaceAudioUrl, setGenSpaceAudioUrl, genSpaceRetakeSource, setGenSpaceRetakeSource, setPendingRetakeUpdate, pendingReferenceImage, setPendingReferenceImage } = useProjects()
   const confirm = useConfirm()
   const { shouldVideoGenerateWithLtxApi, forceApiGenerations, settings: appSettings, credits } = useAppSettings()
   const [mode, setMode] = useState<'image' | 'video' | 'retake'>('video')
@@ -1476,21 +1476,27 @@ export function GenSpace() {
   }>({ videoUrl: null, videoPath: null, duration: undefined })
   const [activeRetakeSource, setActiveRetakeSource] = useState<GenSpaceRetakeSource | null>(null)
   
-  // Handle incoming frame from the Video Editor for editing
+  // Handle incoming frame from the Video Editor. The producer says which tool it
+  // wants: 'video' = use the frame as an I2V start image; anything else = image
+  // edit. (Previously genSpaceEditMode was never read, so "Generate Video in Gen
+  // Space" wrongly dropped users into image editing.)
   useEffect(() => {
     if (genSpaceEditImageUrl) {
-      const editMode = genSpaceEditImageUrl
+      const frameUrl = genSpaceEditImageUrl
+      const requestedMode = genSpaceEditMode
       setGenSpaceEditImageUrl(null)
       setGenSpaceEditMode(null)
-      // Route to image edit mode
-      const filePath = fileUrlToPath(editMode)
-      if (filePath) {
+      const filePath = fileUrlToPath(frameUrl)
+      if (requestedMode === 'video') {
+        setMode('video')
+        setInputImage(frameUrl)
+      } else if (filePath) {
         setMode('image')
-        setEditSourceImage({ url: editMode, path: filePath })
+        setEditSourceImage({ url: frameUrl, path: filePath })
       }
       setPrompt('')
     }
-  }, [genSpaceEditImageUrl, setGenSpaceEditImageUrl, setGenSpaceEditMode])
+  }, [genSpaceEditImageUrl, genSpaceEditMode, setGenSpaceEditImageUrl, setGenSpaceEditMode])
 
   // Handle a captured video frame from the editor: attach it as a Seedance 2.0
   // reference image (omni-reference @Image), switching to video mode + model.

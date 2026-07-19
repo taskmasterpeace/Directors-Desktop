@@ -89,9 +89,6 @@ class ImageGenerationHandler(StateHandlerBase):
         self._palette_image_client = palette_image_client
 
     def generate(self, req: GenerateImageRequest) -> GenerateImageResponse:
-        if self._generation.is_generation_running():
-            raise HTTPError(409, "Generation already in progress")
-
         width = (req.width // 16) * 16
         height = (req.height // 16) * 16
         num_images = max(1, min(12, req.numImages))
@@ -109,7 +106,9 @@ class ImageGenerationHandler(StateHandlerBase):
         image_model = req.model or settings.image_model
 
         # Director's Palette models are cloud-only — always take the API path, even if local
-        # generation is otherwise enabled.
+        # generation is otherwise enabled. NB: the busy guard lives BELOW this branch
+        # (mirroring the video handler) so a running local GPU job doesn't 409 the
+        # independent api slot.
         if self._config.force_api_generations or image_model.startswith("dp-"):
             return self._generate_via_api(
                 prompt=req.prompt,
@@ -122,6 +121,10 @@ class ImageGenerationHandler(StateHandlerBase):
                 reference_image_paths=req.referenceImagePaths,
                 model_params=req.modelParams,
             )
+
+        # Local GPU path only: one local generation at a time.
+        if self._generation.is_generation_running():
+            raise HTTPError(409, "Generation already in progress")
 
         try:
             self._pipelines.load_image_model_to_gpu(image_model)
@@ -350,6 +353,15 @@ class ImageGenerationHandler(StateHandlerBase):
                 )
                 if palette_model == "qwen-image-edit" and not palette_ref_urls:
                     raise HTTPError(400, "CAMERA_ANGLE_REQUIRES_REFERENCE")
+                # If the user attached references but none survived upload, fail
+                # loudly instead of silently generating (and charging) without
+                # the likeness they asked for.
+                if reference_image_paths and not palette_ref_urls:
+                    raise HTTPError(502, "REFERENCE_UPLOAD_FAILED")
+                # Camera Angle output is deterministic per angle — extra copies
+                # would be identical images at full credit cost.
+                if palette_model == "qwen-image-edit":
+                    num_images = 1
             else:
                 reference_image_urls = self._encode_reference_images(reference_image_paths or [])
 
@@ -380,7 +392,9 @@ class ImageGenerationHandler(StateHandlerBase):
                         prompt=prompt,
                         aspect_ratio=aspect_ratio,
                         reference_image_urls=palette_ref_urls,
-                        params=params,
+                        # Vary the seed per image so numImages=N yields N distinct
+                        # results instead of N identical charges.
+                        params={**params, "seed": seed + idx},
                     )
                 else:
                     image_bytes = self._image_api_client.generate_text_to_image(

@@ -4,6 +4,7 @@ import { useProjects } from '../contexts/ProjectContext'
 import { LtxLogo } from '../components/LtxLogo'
 import { Button } from '../components/ui/button'
 import { logger } from '../lib/logger'
+import { toImgSrc } from '../lib/path-to-img-src'
 
 // Working taxonomy: People / Places / Wardrobe / Styles (shared with Palette going
 // forward). props/other are legacy — old items still show under Other.
@@ -298,7 +299,7 @@ export function References() {
               >
                 <div className="aspect-square bg-zinc-800 flex items-center justify-center overflow-hidden">
                   <img
-                    src={ref.image_path}
+                    src={toImgSrc(ref.image_path)}
                     alt={ref.name}
                     className="w-full h-full object-cover"
                   />
@@ -370,7 +371,7 @@ export function References() {
                 <label className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1.5 block">Image</label>
                 {formImage ? (
                   <div className="relative w-full aspect-video rounded-lg overflow-hidden border border-zinc-700 mb-2">
-                    <img src={formImage} alt="" className="w-full h-full object-cover" />
+                    <img src={toImgSrc(formImage)} alt="" className="w-full h-full object-cover" />
                     <button
                       onClick={() => setFormImage('')}
                       className="absolute top-2 right-2 bg-black/70 rounded p-1"

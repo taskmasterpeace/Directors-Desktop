@@ -1,4 +1,5 @@
 import { Download, Heart, Search, Trash2, X, FolderOpen, Package } from 'lucide-react'
+import { toImgSrc } from '../lib/path-to-img-src'
 import { useCallback, useEffect, useState } from 'react'
 import { useConfirm } from './ConfirmDialog'
 
@@ -420,7 +421,7 @@ function CivitaiCard({ item, isDownloading, onDownload }: {
 
 // ── Library Tab ────────────────────────────────────────────────────
 
-function LibraryTab({ library, backendUrl, onSelect, onDelete }: {
+function LibraryTab({ library, backendUrl: _backendUrl, onSelect, onDelete }: {
   library: LoraLibraryEntry[]
   backendUrl: string
   onSelect: (entry: LoraLibraryEntry) => void
@@ -450,7 +451,7 @@ function LibraryTab({ library, backendUrl, onSelect, onDelete }: {
               entry.thumbnail_url.startsWith('http') ? (
                 <img src={entry.thumbnail_url} alt={entry.name} className="w-full h-full object-cover" loading="lazy" />
               ) : (
-                <img src={`${backendUrl}/api/lora/thumbnail/${entry.id}`} alt={entry.name} className="w-full h-full object-cover" loading="lazy" />
+                <img src={toImgSrc(entry.thumbnail_url)} alt={entry.name} className="w-full h-full object-cover" loading="lazy" />
               )
             ) : (
               <div className="w-full h-full flex items-center justify-center text-zinc-700">

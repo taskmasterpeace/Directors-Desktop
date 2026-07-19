@@ -182,7 +182,11 @@ def test_dp_image_model_threads_model_params(test_state, fake_services):
     assert result.status == "complete"
     calls = fake_services.palette_image_client.calls
     assert len(calls) == 1
-    assert calls[0]["params"] == {"resolution": "2K", "personGeneration": "allow_adult"}
+    sent = calls[0]["params"]
+    assert sent["resolution"] == "2K"
+    assert sent["personGeneration"] == "allow_adult"
+    # The handler injects a per-image seed so numImages=N gives N distinct results.
+    assert isinstance(sent.get("seed"), int)
 
 
 def test_job_model_overrides_saved_setting(test_state, fake_services):
@@ -250,6 +254,18 @@ def test_dp_camera_angle_without_reference_errors(test_state):
         test_state.image_generation.generate(
             GenerateImageRequest(prompt="x", width=512, height=512, numImages=1, numSteps=4)
         )
+
+
+def test_dp_models_route_to_api_slot(test_state):
+    """dp- models are cloud-only: they must never occupy the gpu slot.
+
+    Regression: determine_slot only knew the seedance/nano set, so dp- image
+    jobs landed on "gpu" — blocking local generation during cloud polls,
+    colliding with api-slot jobs, and dodging credit deduction.
+    """
+    for model in ("dp-nano-banana-2", "dp-nano-banana-2-lite", "dp-gpt-image-2", "dp-qwen-image-edit"):
+        assert test_state.determine_slot(model) == "api"
+    assert test_state.determine_slot("z-image-turbo") == "gpu"
 
 
 def test_dp_image_model_without_palette_key_errors(test_state):

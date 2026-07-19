@@ -133,7 +133,7 @@ export async function preDownloadPythonForUpdate(
   }
 
   const baseUrl = (isDev && process.env.LTX_PYTHON_URL?.replace(/^["']+|["']+$/g, ''))
-    || `https://github.com/Lightricks/ltx-desktop/releases/download/v${newVersion}`
+    || `https://github.com/taskmasterpeace/Directors-Desktop/releases/download/v${newVersion}`
 
   // Fetch the new version's deps hash
   let newHash: string | null = null
@@ -240,7 +240,11 @@ function readHash(filePath: string): string | null {
 // Primary: GitHub Releases (multi-part, version-based)
 // Fallback: public CDN bucket (single file, deps-hash-based)
 
-const FALLBACK_CDN_BASE = 'https://storage.googleapis.com/ltx-desktop-artifacts'
+// Fork policy: NO Lightricks infrastructure, ever. The upstream GCS fallback
+// bucket (storage.googleapis.com/ltx-desktop-artifacts) was Lightricks-controlled
+// and has been removed — the fork's own GitHub Releases are the only source, so
+// release builds MUST publish the python-embed-win32 archive parts.
+const FALLBACK_CDN_BASE: string | null = null
 
 function getArchiveBase(): string {
   // LTX_PYTHON_URL is a dev-only override for testing with local archives.
@@ -249,10 +253,11 @@ function getArchiveBase(): string {
     return process.env.LTX_PYTHON_URL.replace(/^["']+|["']+$/g, '')
   }
   const version = app.getVersion()
-  return `https://github.com/Lightricks/ltx-desktop/releases/download/v${version}`
+  return `https://github.com/taskmasterpeace/Directors-Desktop/releases/download/v${version}`
 }
 
 function getFallbackArchiveUrl(): string | null {
+  if (!FALLBACK_CDN_BASE) return null
   const hash = readHash(getBundledHashPath())
   if (!hash) return null
   return `${FALLBACK_CDN_BASE}/python-embed-win32/${hash}/python-embed-win32.tar.gz`

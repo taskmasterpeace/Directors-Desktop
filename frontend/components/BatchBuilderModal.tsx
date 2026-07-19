@@ -196,8 +196,8 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
       }
     }
 
-    await batch.submit(request)
-    onClose()
+    // Stay open on failure so the error banner is visible.
+    if (await batch.submit(request)) onClose()
   }
 
   const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
@@ -231,6 +231,12 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
             <X className="w-5 h-5" style={{ color: 'oklch(0.65 0.04 250)' }} />
           </button>
         </div>
+
+        {batch.submitError && (
+          <div className="px-6 py-2 text-xs text-red-400 border-b" style={{ borderColor: 'oklch(0.32 0.03 250)' }}>
+            Batch submit failed: {batch.submitError}
+          </div>
+        )}
 
         {/* Tabs + Target */}
         <div className="flex items-center justify-between px-6 py-3 border-b" style={{ borderColor: 'oklch(0.32 0.03 250)' }}>
@@ -275,8 +281,7 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
               target={target}
               isRunning={batch.isRunning}
               onSubmit={async (request) => {
-                await batch.submit(request)
-                onClose()
+                if (await batch.submit(request)) onClose()
               }}
             />
           )}
@@ -285,8 +290,7 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
               target={target}
               isRunning={batch.isRunning}
               onSubmit={async (request) => {
-                await batch.submit(request)
-                onClose()
+                if (await batch.submit(request)) onClose()
               }}
             />
           )}
