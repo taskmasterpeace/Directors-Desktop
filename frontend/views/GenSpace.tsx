@@ -24,7 +24,12 @@ import {
   migrateImageModelId,
   coerceAspectRatio,
 } from '../lib/image-models'
-import { CAMERA_PRESETS } from '../lib/shot-creator/camera-angle'
+import {
+  DEFAULT_CAMERA_ANGLE,
+  getCameraAngleDescription,
+  type CameraAngle,
+} from '../lib/shot-creator/camera-angle'
+import { CameraAnglePad } from '../components/CameraAnglePad'
 
 /** Friendly labels for the aspect ratios the image models expose. */
 const IMAGE_ASPECT_LABELS: Record<string, string> = {
@@ -336,14 +341,6 @@ function LightricksIcon({ className }: { className?: string }) {
   )
 }
 
-function ZitIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M19.113 12.2515H16.5605L14.008 8.63382L6.04545 19.9068H8.60348L14.0079 12.2518L16.5605 12.2515L11.156 19.9068H13.721L19.113 12.2515V15.8693L16.2716 19.9073V22.0063H2L14.008 5L19.113 12.2515Z" fill="currentColor"/>
-      <path d="M26 22.0064L21.9704 22.0063V19.9151L19.113 15.8693V12.2515L26 22.0064Z" fill="currentColor"/>
-    </svg>
-  )
-}
 
 // Square icon for aspect ratio
 function AspectIcon({ className }: { className?: string }) {
@@ -356,6 +353,45 @@ function AspectIcon({ className }: { className?: string }) {
 
 // Prompt bar component matching the design
 // Two-row layout: prompt row on top, settings row below
+/** Same chrome as SettingsDropdown, but hosts arbitrary content (e.g. the camera pad). */
+function SettingsPopover({
+  trigger,
+  title,
+  children,
+}: {
+  trigger: React.ReactNode
+  title: string
+  children: React.ReactNode
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setIsOpen(false)
+    }
+    if (isOpen) document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isOpen])
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`flex shrink-0 items-center gap-1 whitespace-nowrap px-2 py-1.5 rounded-md transition-colors ${isOpen ? 'bg-zinc-700 hover:bg-zinc-700' : 'hover:bg-zinc-800'}`}
+      >
+        {trigger}
+      </button>
+      {isOpen && (
+        <div className="absolute bottom-full left-0 mb-2 bg-zinc-800 border border-zinc-700 rounded-md p-2.5 shadow-xl z-[9999]">
+          <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2">{title}</div>
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function PromptBar({
   mode,
   onModeChange,
@@ -420,6 +456,7 @@ function PromptBar({
     imageResolution: string
     variations: number
     audio?: boolean
+    exactDuration?: boolean
     referenceImagePaths?: string[]
     audioReferencePaths?: string[]
     videoReferencePaths?: string[]
@@ -846,6 +883,7 @@ function PromptBar({
                       : m.provider === 'local'
                         ? `${m.displayName} · local GPU`
                         : `${m.displayName} · Replicate key`,
+                  icon: <span className="text-sm leading-none">{m.icon}</span>,
                   disabled: m.provider === 'replicate' && !hasReplicateApiKey,
                   tooltip:
                     m.provider === 'replicate' && !hasReplicateApiKey
@@ -855,7 +893,7 @@ function PromptBar({
               )}
               trigger={
                 <>
-                  <ZitIcon className="h-3.5 w-3.5" />
+                  <span className="text-sm leading-none">{imageModelConfig.icon}</span>
                   <span className="text-zinc-300 font-medium">
                     {editSourceImage ? `Edit · ${imageModelConfig.displayName}` : imageModelConfig.displayName}
                   </span>
@@ -884,19 +922,23 @@ function PromptBar({
                   </button>
                 </div>
 
-                {/* Strength slider */}
-                <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-zinc-800/50">
-                  <span className="text-[10px] text-zinc-400 whitespace-nowrap">Strength</span>
-                  <input
-                    type="range"
-                    min={0}
-                    max={100}
-                    value={Math.round(editStrength * 100)}
-                    onChange={(e) => onEditStrengthChange(Number(e.target.value) / 100)}
-                    className="w-20 h-1 accent-blue-500"
-                  />
-                  <span className="text-[10px] text-zinc-300 w-7 text-right">{Math.round(editStrength * 100)}%</span>
-                </div>
+                {/* Strength slider — only the local img2img pipelines apply it.
+                    The hosted Palette/Replicate models ignore strength entirely,
+                    so showing the control there promises something that can't happen. */}
+                {imageModelConfig.supportsStrength && (
+                  <div className="flex items-center gap-2 px-2 py-1 rounded-md bg-zinc-800/50">
+                    <span className="text-[10px] text-zinc-400 whitespace-nowrap">Strength</span>
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={Math.round(editStrength * 100)}
+                      onChange={(e) => onEditStrengthChange(Number(e.target.value) / 100)}
+                      className="w-20 h-1 accent-blue-500"
+                    />
+                    <span className="text-[10px] text-zinc-300 w-7 text-right">{Math.round(editStrength * 100)}%</span>
+                  </div>
+                )}
               </>
             ) : (
               <>
@@ -954,34 +996,35 @@ function PromptBar({
                   />
                 )}
 
-                {/* Camera angle presets — Camera Angle model only (full 3D gizmo lands later) */}
-                {imageModelConfig.supportsCameraAngle && (
-                  <SettingsDropdown
-                    title="CAMERA ANGLE"
-                    value={String(imageModelParams.cameraPreset ?? CAMERA_PRESETS[0].name)}
-                    onChange={(v) => {
-                      const preset = CAMERA_PRESETS.find((p) => p.name === v)
-                      if (!preset) return
-                      onSettingsChange({
-                        ...settings,
-                        imageModelParams: {
-                          ...imageModelParams,
-                          cameraPreset: preset.name,
-                          azimuth: preset.angle.azimuth,
-                          elevation: preset.angle.elevation,
-                          distance: preset.angle.distance,
-                        },
-                      })
-                    }}
-                    options={CAMERA_PRESETS.map((p) => ({ value: p.name, label: p.name }))}
-                    trigger={
-                      <>
-                        <Frame className="h-3.5 w-3.5" />
-                        <span>{String(imageModelParams.cameraPreset ?? CAMERA_PRESETS[0].name)}</span>
-                      </>
-                    }
-                  />
-                )}
+                {/* Camera angle — drag the pad to orbit the camera around the subject */}
+                {imageModelConfig.supportsCameraAngle && (() => {
+                  const cameraAngle: CameraAngle = {
+                    azimuth: typeof imageModelParams.azimuth === 'number' ? imageModelParams.azimuth : DEFAULT_CAMERA_ANGLE.azimuth,
+                    elevation: typeof imageModelParams.elevation === 'number' ? imageModelParams.elevation : DEFAULT_CAMERA_ANGLE.elevation,
+                    distance: typeof imageModelParams.distance === 'number' ? imageModelParams.distance : DEFAULT_CAMERA_ANGLE.distance,
+                  }
+                  return (
+                    <SettingsPopover
+                      title="CAMERA ANGLE"
+                      trigger={
+                        <>
+                          <Frame className="h-3.5 w-3.5" />
+                          <span>{getCameraAngleDescription(cameraAngle).split(',')[0]}</span>
+                        </>
+                      }
+                    >
+                      <CameraAnglePad
+                        angle={cameraAngle}
+                        onChange={(next) =>
+                          onSettingsChange({
+                            ...settings,
+                            imageModelParams: { ...imageModelParams, ...next },
+                          })
+                        }
+                      />
+                    </SettingsPopover>
+                  )
+                })()}
 
                 {/* Variations */}
                 <SettingsDropdown
@@ -1040,19 +1083,88 @@ function PromptBar({
 
             <div className="w-px h-4 bg-zinc-700 mx-0.5" />
             
-            {/* Duration dropdown */}
-            <SettingsDropdown
-              title="DURATION"
-              value={String(settings.duration)}
-              onChange={(v) => onSettingsChange({ ...settings, duration: parseFloat(v) })}
-              options={videoDurationOptions.map((value) => ({ value: String(value), label: `${value} Sec` }))}
-              trigger={
-                <>
-                  <Clock className="h-3.5 w-3.5" />
-                  <span>{settings.duration}s</span>
-                </>
+            {/* Duration — preset chips + an exact-to-the-second stepper, right here
+                instead of only in the Playground. Seedance 2.0 caps at 15s, 1.5 Pro
+                at 12s; sub-4s requests generate at the model floor and are trimmed
+                back by the backend (audio kept). */}
+            {(() => {
+              const SEEDANCE_MAX: Record<string, number> = {
+                'seedance-2.0': 15,
+                'seedance-2.0-fast': 15,
+                'seedance-1.5-pro': 12,
               }
-            />
+              const isSeedance = settings.model.startsWith('seedance')
+              const maxExact =
+                SEEDANCE_MAX[settings.model] ??
+                (videoDurationOptions.length ? Math.max(...videoDurationOptions) : 20)
+              const setDuration = (value: number, exact: boolean) =>
+                onSettingsChange({
+                  ...settings,
+                  duration: Math.max(1, Math.min(maxExact, Math.round(value))),
+                  exactDuration: exact,
+                })
+              return (
+                <SettingsPopover
+                  title="DURATION"
+                  trigger={
+                    <>
+                      <Clock className="h-3.5 w-3.5" />
+                      <span>
+                        {settings.duration}s{settings.exactDuration ? ' exact' : ''}
+                      </span>
+                    </>
+                  }
+                >
+                  <div className="w-[196px] space-y-2.5">
+                    <div className="flex flex-wrap gap-1">
+                      {videoDurationOptions.map((value) => (
+                        <button
+                          key={value}
+                          onClick={() => setDuration(value, false)}
+                          className={`px-2 py-1 rounded text-[11px] transition-colors ${
+                            !settings.exactDuration && settings.duration === value
+                              ? 'bg-white/20 text-white'
+                              : 'bg-zinc-700/60 text-zinc-300 hover:bg-zinc-700'
+                          }`}
+                        >
+                          {value}s
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center gap-2 pt-1 border-t border-zinc-700">
+                      <span className="text-[10px] text-zinc-400">Exact</span>
+                      <button
+                        onClick={() => setDuration(Math.max(1, settings.duration - 1), true)}
+                        className="w-6 h-6 rounded bg-zinc-700 text-zinc-200 hover:bg-zinc-600 text-sm leading-none"
+                      >
+                        −
+                      </button>
+                      <input
+                        type="number"
+                        min={1}
+                        max={maxExact}
+                        value={settings.duration}
+                        onChange={(e) => setDuration(Number(e.target.value) || 1, true)}
+                        className="w-12 bg-zinc-900 border border-zinc-700 rounded px-1.5 py-1 text-center text-[12px] text-white outline-none focus:border-zinc-500"
+                      />
+                      <button
+                        onClick={() => setDuration(Math.min(maxExact, settings.duration + 1), true)}
+                        className="w-6 h-6 rounded bg-zinc-700 text-zinc-200 hover:bg-zinc-600 text-sm leading-none"
+                      >
+                        +
+                      </button>
+                      <span className="text-[10px] text-zinc-500">sec</span>
+                    </div>
+                    {settings.exactDuration && (
+                      <p className="text-[10px] text-zinc-500 leading-snug">
+                        Returns exactly {settings.duration}s
+                        {isSeedance && settings.duration < 4 ? ' (generates at the 4s floor, then trims)' : ''}.
+                      </p>
+                    )}
+                  </div>
+                </SettingsPopover>
+              )
+            })()}
             
             {/* Resolution dropdown */}
             <SettingsDropdown
@@ -1205,6 +1317,8 @@ const DEFAULT_VIDEO_SETTINGS = {
 }
 
 type GenSpaceSettings = typeof DEFAULT_VIDEO_SETTINGS & {
+  /** Exact-length promise: trim the output back to exactly `duration` seconds. */
+  exactDuration?: boolean
   referenceImagePaths?: string[]
   audioReferencePaths?: string[]
   videoReferencePaths?: string[]
@@ -1643,6 +1757,10 @@ export function GenSpace() {
           imageResolution: videoSettings.imageResolution,
           imageAspectRatio: videoSettings.aspectRatio,
           imageSteps: 4,
+          exactDuration: settings.exactDuration,
+          referenceImagePaths: settings.referenceImagePaths,
+          audioReferencePaths: settings.audioReferencePaths,
+          videoReferencePaths: settings.videoReferencePaths,
         },
         audioPath,
         lastFramePath,

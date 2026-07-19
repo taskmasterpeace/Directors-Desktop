@@ -17,6 +17,8 @@ export interface ImageModelConfig {
   /** Stored in appSettings.imageModel / sent as the job model. */
   id: string
   displayName: string
+  /** Matches Director's Palette's model glyphs so both apps read the same. */
+  icon: string
   provider: ImageModelProvider
   /** One line shown under the picker. */
   description: string
@@ -36,7 +38,14 @@ export interface ImageModelConfig {
   supportsCameraAngle?: boolean
   /** Supports LoRA (local flux pipelines). */
   supportsLora?: boolean
+  /**
+   * img2img edit strength. Only the local pipelines actually apply it — the
+   * hosted Palette models ignore it, so showing a Strength slider for them is a lie.
+   */
+  supportsStrength?: boolean
   badge?: string
+  /** Tailwind text colour for the badge/glyph, mirroring Palette's palette. */
+  badgeColor?: string
 }
 
 const NANO_ASPECTS = ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9', '3:2', '2:3']
@@ -53,6 +62,7 @@ export const PALETTE_IMAGE_MODELS: ImageModelConfig[] = [
   {
     id: 'dp-nano-banana-2',
     displayName: 'Nano Banana 2',
+    icon: '🍌',
     provider: 'palette',
     description: 'Best all-round quality and text rendering. Up to 14 reference images.',
     costPoints: 10,
@@ -60,21 +70,25 @@ export const PALETTE_IMAGE_MODELS: ImageModelConfig[] = [
     requiresInputImage: false,
     aspectRatios: NANO_ASPECTS,
     badge: 'Premium',
+    badgeColor: 'text-green-300',
   },
   {
     id: 'dp-nano-banana-2-lite',
     displayName: 'Nano Banana 2 Lite',
+    icon: '🍌',
     provider: 'palette',
     description: 'Fastest and cheapest — great for drafts and high-volume batches.',
     costPoints: 5,
     maxReferenceImages: 14,
     requiresInputImage: false,
     aspectRatios: NANO_ASPECTS,
-    badge: 'Fast',
+    badge: 'Fast & Cheap',
+    badgeColor: 'text-yellow-300',
   },
   {
     id: 'dp-gpt-image-2',
     displayName: 'GPT Image 2',
+    icon: '🎨',
     provider: 'palette',
     description: 'Best-in-class text in images and instruction following. Up to 10 references.',
     costPoints: 2,
@@ -84,11 +98,13 @@ export const PALETTE_IMAGE_MODELS: ImageModelConfig[] = [
     requiresInputImage: false,
     // gpt-image-2 only accepts these three — anything else 422s upstream.
     aspectRatios: ['1:1', '3:2', '2:3'],
-    badge: 'Text',
+    badge: 'Text Master',
+    badgeColor: 'text-emerald-300',
   },
   {
     id: 'dp-qwen-image-edit',
     displayName: 'Camera Angle',
+    icon: '🎥',
     provider: 'palette',
     description: 'Re-shoot a photo from any angle — orbit the camera around your subject.',
     costPoints: 5,
@@ -97,6 +113,7 @@ export const PALETTE_IMAGE_MODELS: ImageModelConfig[] = [
     aspectRatios: ['match_input_image', '1:1', '16:9', '9:16', '4:3', '3:4'],
     supportsCameraAngle: true,
     badge: 'Camera',
+    badgeColor: 'text-cyan-300',
   },
 ]
 
@@ -105,16 +122,20 @@ export const LOCAL_IMAGE_MODELS: ImageModelConfig[] = [
   {
     id: 'z-image-turbo',
     displayName: 'Z-Image Turbo',
+    icon: '⚡',
     provider: 'local',
     description: 'Fast single-step local generation. Stays in VRAM for quick back-to-back images.',
     costPoints: null,
     maxReferenceImages: 0,
     requiresInputImage: false,
     aspectRatios: LOCAL_ASPECTS,
+    supportsStrength: true,
+    badgeColor: 'text-zinc-400',
   },
   {
     id: 'flux-klein-9b',
     displayName: 'FLUX.2 Klein 9B',
+    icon: '🖥',
     provider: 'local',
     description: 'High quality local images with LoRA support. Reloads each run (~5s extra).',
     costPoints: null,
@@ -122,10 +143,13 @@ export const LOCAL_IMAGE_MODELS: ImageModelConfig[] = [
     requiresInputImage: false,
     aspectRatios: LOCAL_ASPECTS,
     supportsLora: true,
+    supportsStrength: true,
+    badgeColor: 'text-zinc-400',
   },
   {
     id: 'flux-dev',
     displayName: 'FLUX.1 dev',
+    icon: '🖥',
     provider: 'local',
     description: 'Best local quality and the standard LoRA target. ~34s/image.',
     costPoints: null,
@@ -133,6 +157,8 @@ export const LOCAL_IMAGE_MODELS: ImageModelConfig[] = [
     requiresInputImage: false,
     aspectRatios: LOCAL_ASPECTS,
     supportsLora: true,
+    supportsStrength: true,
+    badgeColor: 'text-zinc-400',
   },
 ]
 
@@ -141,12 +167,14 @@ export const REPLICATE_IMAGE_MODELS: ImageModelConfig[] = [
   {
     id: 'nano-banana-2',
     displayName: 'Nano Banana 2 (Replicate)',
+    icon: '🍌',
     provider: 'replicate',
     description: 'Runs in the cloud on your own Replicate key — no GPU needed.',
     costPoints: null,
     maxReferenceImages: 14,
     requiresInputImage: false,
     aspectRatios: NANO_ASPECTS,
+    badgeColor: 'text-zinc-400',
   },
 ]
 
@@ -218,6 +246,14 @@ export function coerceAspectRatio(id: string | null | undefined, aspect: string)
 /** True when the model can accept at least one reference image. */
 export function supportsReferences(id: string | null | undefined): boolean {
   return getImageModel(id).maxReferenceImages > 0
+}
+
+/**
+ * True when the model actually applies an img2img edit strength. The hosted
+ * Palette/Replicate models ignore it, so a Strength slider there is misleading.
+ */
+export function supportsEditStrength(id: string | null | undefined): boolean {
+  return getImageModel(id).supportsStrength === true
 }
 
 /** Models grouped for a picker, in display order, with retired ones excluded. */

@@ -12,7 +12,8 @@ import {
   X, RefreshCw, Loader2,
   MessageSquare, FileUp, FileDown,
   Link2, Type, // EFFECTS HIDDEN: removed Search // IC-LORA HIDDEN: removed Sparkles
-  CircleDot, Circle, RotateCcw, Save, LayoutGrid, PanelRight, Folder
+  CircleDot, Circle, RotateCcw, Save, LayoutGrid, PanelRight, Folder,
+  AlignLeft
 } from 'lucide-react'
 import { useProjects } from '../contexts/ProjectContext'
 import { useKeyboardShortcuts } from '../contexts/KeyboardShortcutsContext'
@@ -4085,10 +4086,15 @@ export function VideoEditor() {
           />
         ) : !selectedSubtitleId ? (
           <div
-            className="bg-zinc-950 border-l border-zinc-800 flex flex-col items-center justify-center text-zinc-600 text-[12px]"
+            className="bg-zinc-950 border-l border-zinc-800 flex flex-col items-center justify-center gap-2 text-zinc-600 text-[12px] px-6 text-center"
             style={{ width: layout.rightPanelWidth }}
           >
-            <span>No clip selected</span>
+            <span className="text-zinc-500">No clip selected</span>
+            <span className="text-[11px] leading-relaxed text-zinc-600">
+              Click a clip on the timeline to edit its properties.
+              Video and audio clips also open the <span className="text-zinc-400">Transcript</span> panel —
+              transcribe the audio or paste your own script, then click any word to jump the playhead.
+            </span>
           </div>
         ) : null}
         {selectedClip && (selectedClip.type === 'video' || selectedClip.type === 'audio') && selectedClip.asset?.path && (
@@ -4096,6 +4102,12 @@ export function VideoEditor() {
             className="border-l border-zinc-800 overflow-y-auto p-2 flex-shrink-0"
             style={{ width: 300, background: 'var(--dp-rail-surface)' }}
           >
+            {/* Named header so the rail is identifiable at a glance */}
+            <div className="flex items-center gap-1.5 px-1 pb-2 mb-2 border-b border-zinc-800">
+              <AlignLeft className="h-3.5 w-3.5 text-zinc-400" />
+              <span className="text-[11px] font-semibold text-zinc-200 tracking-wide">Transcript</span>
+              <span className="ml-auto text-[10px] text-zinc-500 truncate max-w-[140px]">{selectedClip.asset?.path?.split(/[\\/]/).pop() ?? ''}</span>
+            </div>
             <TranscriptPanel
               clip={selectedClip}
               audioPath={selectedClip.asset.path}

@@ -8,6 +8,8 @@ import {
   getAllowedForcedApiDurations,
   sanitizeForcedApiVideoSettings,
 } from '../lib/api-video-options'
+import { getImageModel, listImageModelGroups } from '../lib/image-models'
+import { useAppSettings } from '../contexts/AppSettingsContext'
 
 export type VideoModel = 'fast' | 'pro' | 'seedance-1.5-pro' | 'seedance-2.0' | 'seedance-2.0-fast'
 
@@ -65,6 +67,10 @@ export function SettingsPanel({
 }: SettingsPanelProps) {
   const [loraBrowserOpen, setLoraBrowserOpen] = useState(false)
   const isImageMode = mode === 'text-to-image'
+  // Image model is app-wide (same registry as Gen Space/Settings/Batch), so the
+  // Playground stays in lockstep with every other surface.
+  const { settings: appSettings, saveImageModel } = useAppSettings()
+  const imageModelConfig = getImageModel(appSettings.imageModel)
   const LOCAL_MAX_DURATION: Record<string, number> = { '540p': 60, '720p': 10, '1080p': 5 }
 
   const handleChange = (key: keyof GenerationSettings, value: string | number | boolean) => {
@@ -117,6 +123,25 @@ export function SettingsPanel({
   if (isImageMode) {
     return (
       <div className="space-y-4">
+        {/* Image model — app-wide, same registry everywhere */}
+        <Select
+          label="Model"
+          value={imageModelConfig.id}
+          onChange={(e) => { void saveImageModel(e.target.value) }}
+          disabled={disabled}
+        >
+          {listImageModelGroups().map((group) => (
+            <optgroup key={group.label} label={group.label}>
+              {group.models.map((m) => (
+                <option key={m.id} value={m.id} disabled={m.provider === 'replicate' && !hasReplicateApiKey}>
+                  {m.icon} {m.displayName}
+                  {m.costPoints !== null ? ` · ${m.costByQuality ? 'from ' : ''}${m.costPoints} pts` : ''}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </Select>
+
         {/* Aspect Ratio and Quality side by side */}
         <div className="grid grid-cols-2 gap-3">
           <Select
@@ -167,7 +192,9 @@ export function SettingsPanel({
           </div>
         </div>
 
-        {/* LoRA */}
+        {/* LoRA — only the local flux pipelines load LoRAs; hosted models ignore
+            them, so the whole section hides unless the model supports it. */}
+        {imageModelConfig.supportsLora && (
         <div className="space-y-1.5">
           <label className="text-xs font-medium text-zinc-400">LoRA</label>
           <div className="flex items-center gap-2">
@@ -336,6 +363,7 @@ export function SettingsPanel({
             </>
           )}
         </div>
+        )}
       </div>
     )
   }
