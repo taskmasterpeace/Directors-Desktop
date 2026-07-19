@@ -55,6 +55,14 @@ class PaletteSyncClient(Protocol):
         """List reference images with optional category filter."""
         ...
 
+    def list_recipes(self, *, api_key: str) -> dict[str, Any]:
+        """List the user's Palette recipes (including system ones)."""
+        ...
+
+    def get_recipe(self, *, api_key: str, recipe_id: str) -> dict[str, Any]:
+        """Fetch one recipe with its full stages."""
+        ...
+
     def list_loras(self, *, api_key: str) -> dict[str, Any]:
         """List available LoRAs from the Palette library."""
         ...

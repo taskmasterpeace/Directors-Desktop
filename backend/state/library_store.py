@@ -10,7 +10,11 @@ from pathlib import Path
 from typing import Literal, TypeVar
 
 
-ReferenceCategory = Literal["people", "places", "props", "other"]
+# Robert's taxonomy (2026-07-19): People / Places / Wardrobe / Styles are the
+# working categories (shared with Director's Palette going forward). "props" and
+# "other" remain readable so existing libraries load, but the UI no longer
+# offers them for new references.
+ReferenceCategory = Literal["people", "places", "wardrobe", "styles", "props", "other"]
 
 _T = TypeVar("_T")
 
@@ -56,7 +60,9 @@ class AudioReference:
     created_at: str = ""
 
 
-RecipeKind = Literal["location", "wardrobe", "style"]
+# character/other cover recipes imported from Director's Palette
+# (its categories: characters / scenes / styles / products).
+RecipeKind = Literal["location", "wardrobe", "style", "character", "other"]
 
 
 @dataclass

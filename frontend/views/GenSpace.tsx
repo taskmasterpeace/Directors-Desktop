@@ -30,6 +30,16 @@ import {
   type CameraAngle,
 } from '../lib/shot-creator/camera-angle'
 import { CameraAnglePad } from '../components/CameraAnglePad'
+import { QUICK_MODES, type QuickModeKind } from '../lib/shot-creator/quick-modes'
+import { Shirt, UserRound, MapPin, Palette as StylePaletteIcon } from 'lucide-react'
+
+/** Icons for the one-tap quick modes (Palette Shot Creator parity). */
+const QUICK_MODE_ICONS: Record<QuickModeKind, React.ComponentType<{ className?: string }>> = {
+  wardrobe: Shirt,
+  character: UserRound,
+  location: MapPin,
+  style: StylePaletteIcon,
+}
 
 /** Friendly labels for the aspect ratios the image models expose. */
 const IMAGE_ASPECT_LABELS: Record<string, string> = {
@@ -474,6 +484,36 @@ function PromptBar({
   const setImageModelParam = (key: string, value: unknown) =>
     onSettingsChange({ ...settings, imageModelParams: { ...imageModelParams, [key]: value } })
 
+  /**
+   * One-tap quick modes: pick photo(s) → switch to image mode on the right model
+   * with the right aspect/params/refs → drop the Palette-verbatim prompt in the
+   * box, ready to Generate. (Wardrobe prepends the system mannequin so the ref
+   * order is [mannequin, outfit], matching Palette exactly.)
+   */
+  const runQuickMode = async (kind: QuickModeKind) => {
+    const qm = QUICK_MODES[kind]
+    try {
+      const files = await window.electronAPI.showOpenFileDialog({
+        title: qm.pickerTitle,
+        filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp'] }],
+        properties: qm.maxPhotos > 1 ? ['openFile', 'multiSelections'] : ['openFile'],
+      })
+      if (!files || files.length === 0) return
+      const photos = files.slice(0, qm.maxPhotos)
+      onModeChange('image')
+      void saveImageModel(qm.modelId)
+      onSettingsChange({
+        ...settings,
+        aspectRatio: qm.aspectRatio,
+        imageModelParams: { ...(qm.modelParams ?? {}) },
+        referenceImagePaths: [...(qm.prependReferenceUrls ?? []), ...photos],
+      })
+      onPromptChange(qm.prompt)
+    } catch {
+      /* picker cancelled */
+    }
+  }
+
   const inputRef = useRef<HTMLInputElement>(null)
   const audioInputRef = useRef<HTMLInputElement>(null)
   const editImageInputRef = useRef<HTMLInputElement>(null)
@@ -820,12 +860,27 @@ function PromptBar({
 
       </div>
 
-      {/* Recipe quick-insert */}
-      <div className="px-1.5 pb-1">
+      {/* Recipe quick-insert + one-tap quick modes (Palette Shot Creator parity) */}
+      <div className="px-1.5 pb-1 flex items-center gap-1.5 flex-wrap">
         <RecipePicker
           direction="up"
           onInsert={(text) => onPromptChange(insertAtCaret(promptRef.current, prompt, text))}
         />
+        {(Object.keys(QUICK_MODES) as QuickModeKind[]).map((kind) => {
+          const qm = QUICK_MODES[kind]
+          const Icon = QUICK_MODE_ICONS[kind]
+          return (
+            <button
+              key={kind}
+              title={qm.hint}
+              onClick={() => void runQuickMode(kind)}
+              className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-zinc-300 bg-zinc-800/70 border border-zinc-700/60 hover:border-amber-500/50 hover:text-amber-300 transition-colors"
+            >
+              <Icon className="h-3 w-3" />
+              {qm.label}
+            </button>
+          )
+        })}
       </div>
 
       {mode === 'video' && (
@@ -905,6 +960,21 @@ function PromptBar({
             {imageModelConfig.requiresInputImage && !editSourceImage && !settings.referenceImagePaths?.length && (
               <div className="text-[10px] text-amber-400/90 px-2 whitespace-nowrap">
                 Add a reference image
+              </div>
+            )}
+
+            {/* Attached reference images (quick modes / Camera Angle) */}
+            {!!settings.referenceImagePaths?.length && (
+              <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-zinc-800/50 text-[10px] text-zinc-300 whitespace-nowrap">
+                <Image className="h-3 w-3" />
+                {settings.referenceImagePaths.length} ref{settings.referenceImagePaths.length === 1 ? '' : 's'}
+                <button
+                  onClick={() => onSettingsChange({ ...settings, referenceImagePaths: [] })}
+                  className="ml-0.5 text-zinc-500 hover:text-red-400 transition-colors"
+                  title="Clear reference images"
+                >
+                  <X className="h-3 w-3" />
+                </button>
               </div>
             )}
 

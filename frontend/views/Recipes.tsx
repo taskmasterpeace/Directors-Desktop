@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, Plus, Trash2, NotebookText, X } from 'lucide-react'
+import { ArrowLeft, Plus, Trash2, NotebookText, X, RefreshCw } from 'lucide-react'
 import { useProjects } from '../contexts/ProjectContext'
 import { LtxLogo } from '../components/LtxLogo'
 import { Button } from '../components/ui/button'
 import { logger } from '../lib/logger'
 
-type Kind = 'all' | 'location' | 'wardrobe' | 'style'
+type Kind = 'all' | 'location' | 'wardrobe' | 'style' | 'character' | 'other'
 
 interface Recipe {
   id: string
@@ -81,6 +81,87 @@ export function Recipes() {
     }
   }
 
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
+
+  /**
+   * Import the user's Directors Palette recipes (their own + the system catalog)
+   * into the local library, so both apps share one recipe collection. Palette
+   * categories map onto local kinds; the stage templates become the recipe text.
+   */
+  const handleSyncFromPalette = async () => {
+    setSyncing(true)
+    setSyncMsg(null)
+    try {
+      const backendUrl = await window.electronAPI.getBackendUrl()
+      const res = await fetch(`${backendUrl}/api/sync/library/recipes`)
+      if (!res.ok) throw new Error(`Palette sync failed: ${res.status}`)
+      const data = (await res.json()) as {
+        connected?: boolean
+        recipes?: { id?: string; name?: string; description?: string; category?: string }[]
+        error?: string
+      }
+      if (!data.connected) {
+        setSyncMsg('Sign in to Directors Palette first (Home → Sign In to Directors Palette).')
+        return
+      }
+      const cloud = data.recipes ?? []
+      if (cloud.length === 0) {
+        setSyncMsg('No recipes in your Palette library yet.')
+        return
+      }
+      const mapKind = (category?: string, name?: string): Exclude<Kind, 'all'> => {
+        const n = (name ?? '').toLowerCase()
+        if (n.includes('wardrobe')) return 'wardrobe'
+        if (n.includes('location')) return 'location'
+        switch (category) {
+          case 'characters': return 'character'
+          case 'scenes': return 'location'
+          case 'styles': return 'style'
+          default: return 'other'
+        }
+      }
+      const existingNames = new Set(recipes.map((r) => r.name))
+      let imported = 0
+      let skipped = 0
+      for (const r of cloud) {
+        const name = `[Palette] ${r.name || 'recipe'}`
+        if (existingNames.has(name) || !r.id) { skipped++; continue }
+        try {
+          // Fetch full stages for the template text.
+          const detailRes = await fetch(`${backendUrl}/api/sync/library/recipes/${r.id}`)
+          if (!detailRes.ok) throw new Error(`detail ${detailRes.status}`)
+          const detail = (await detailRes.json()) as {
+            stages?: { order?: number; template?: string }[]
+          }
+          const text = (detail.stages ?? [])
+            .slice()
+            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+            .map((s) => s.template ?? '')
+            .filter(Boolean)
+            .join('\n\n--- next stage ---\n\n')
+          if (!text.trim()) { skipped++; continue }
+          const createRes = await fetch(`${backendUrl}/api/library/recipes`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, kind: mapKind(r.category, r.name), text }),
+          })
+          if (!createRes.ok) throw new Error(`create ${createRes.status}`)
+          imported++
+        } catch (e) {
+          logger.error(`Import Palette recipe failed: ${e}`)
+          skipped++
+        }
+      }
+      setSyncMsg(`Imported ${imported} recipe${imported === 1 ? '' : 's'} from Palette${skipped ? `, skipped ${skipped}` : ''}.`)
+      void fetchRecipes()
+    } catch (e) {
+      setSyncMsg(e instanceof Error ? e.message : 'Sync failed')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   const handleDelete = async (recipe: Recipe) => {
     if (!confirm(`Delete recipe "${recipe.name}"?`)) return
     try {
@@ -98,12 +179,16 @@ export function Recipes() {
     { label: 'Locations', value: 'location' },
     { label: 'Wardrobe', value: 'wardrobe' },
     { label: 'Style', value: 'style' },
+    { label: 'Characters', value: 'character' },
+    { label: 'Other', value: 'other' },
   ]
 
   const kindColors: Record<string, string> = {
     location: 'bg-green-500/20 text-green-400',
     wardrobe: 'bg-amber-500/20 text-amber-400',
     style: 'bg-teal-500/20 text-teal-400',
+    character: 'bg-blue-500/20 text-blue-400',
+    other: 'bg-zinc-500/20 text-zinc-400',
   }
 
   return (
@@ -138,12 +223,28 @@ export function Recipes() {
             ))}
           </div>
 
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-zinc-700 text-zinc-300"
+            disabled={syncing}
+            onClick={() => void handleSyncFromPalette()}
+            title="Import your Directors Palette recipes (yours + the system catalog)"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing…' : 'Sync from Palette'}
+          </Button>
+
           <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-500" size="sm">
             <Plus className="h-3.5 w-3.5 mr-1.5" />
             Add Recipe
           </Button>
         </div>
       </header>
+
+      {syncMsg && (
+        <div className="px-6 py-2 text-xs text-zinc-300 bg-zinc-900 border-b border-zinc-800">{syncMsg}</div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">

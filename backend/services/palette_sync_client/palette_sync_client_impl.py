@@ -210,6 +210,37 @@ class PaletteSyncClientImpl:
             raise RuntimeError(f"Palette references failed: {resp.status_code}")
         return cast(dict[str, Any], resp.json())
 
+    def list_recipes(self, *, api_key: str) -> dict[str, Any]:
+        """List the user's Palette recipes (including system ones) via the v2 API.
+
+        Returns {"recipes": [{id, name, description, category, stages, fields,
+        suggested_model, suggested_aspect_ratio, recipe_note}], "total": N}.
+        """
+        resp = self._http.get(
+            f"{self._base_url}/api/v2/recipes?include_public=true&limit=100",
+            headers=self._headers(api_key),
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(f"Palette recipes failed: {resp.status_code}")
+        payload = cast(dict[str, Any], resp.json())
+        # v2 envelope: {"success": true, "data": {...}} — unwrap it.
+        data = payload.get("data")
+        return cast(dict[str, Any], data) if isinstance(data, dict) else payload
+
+    def get_recipe(self, *, api_key: str, recipe_id: str) -> dict[str, Any]:
+        """Fetch one recipe with its full stages (templates + baked-in refs)."""
+        resp = self._http.get(
+            f"{self._base_url}/api/v2/recipes/{recipe_id}",
+            headers=self._headers(api_key),
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            raise RuntimeError(f"Palette recipe {recipe_id} failed: {resp.status_code}")
+        payload = cast(dict[str, Any], resp.json())
+        data = payload.get("data")
+        return cast(dict[str, Any], data) if isinstance(data, dict) else payload
+
     def list_loras(self, *, api_key: str) -> dict[str, Any]:
         resp = self._http.get(
             f"{self._base_url}/api/desktop/library/loras",
