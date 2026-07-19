@@ -18,6 +18,7 @@ import { useBackend } from '../hooks/use-backend'
 import { useProjects } from '../contexts/ProjectContext'
 import { useAppSettings } from '../contexts/AppSettingsContext'
 import { ReferencePicker } from '../components/ReferencePicker'
+import { RecipePicker, insertAtCaret } from '../components/RecipePicker'
 import { AtAutocompleteDropdown } from '../components/AtAutocompleteDropdown'
 import { useAtCaretAutocomplete } from '../hooks/useAtCaretAutocomplete'
 import { useMentionOptions } from '../hooks/useMentionOptions'
@@ -389,6 +390,11 @@ export function Playground() {
                   onHover={atAutocomplete.setActiveIndex}
                 />
               )}
+            </div>
+
+            {/* Recipe quick-insert */}
+            <div className="flex">
+              <RecipePicker onInsert={(text) => setPrompt(insertAtCaret(promptRef.current, prompt, text))} />
             </div>
 
             {/* Settings */}

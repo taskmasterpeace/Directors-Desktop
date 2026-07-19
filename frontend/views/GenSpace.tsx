@@ -27,6 +27,7 @@ import { RetakePanel } from '../components/RetakePanel'
 import { FreeApiKeyBubble } from '../components/FreeApiKeyBubble'
 import { BatchBuilderModal } from '../components/BatchBuilderModal'
 import { ReferencePicker } from '../components/ReferencePicker'
+import { RecipePicker, insertAtCaret } from '../components/RecipePicker'
 import { AtAutocompleteDropdown } from '../components/AtAutocompleteDropdown'
 import { useAtCaretAutocomplete } from '../hooks/useAtCaretAutocomplete'
 import { useMentionOptions } from '../hooks/useMentionOptions'
@@ -747,6 +748,14 @@ function PromptBar({
           </button>
         </div>
 
+      </div>
+
+      {/* Recipe quick-insert */}
+      <div className="px-1.5 pb-1">
+        <RecipePicker
+          direction="up"
+          onInsert={(text) => onPromptChange(insertAtCaret(promptRef.current, prompt, text))}
+        />
       </div>
 
       {mode === 'video' && (
