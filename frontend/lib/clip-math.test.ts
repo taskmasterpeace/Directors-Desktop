@@ -5,8 +5,14 @@ import {
   buildSelection,
   maxStart,
   nudgeSelection,
+  resizeEdge,
   formatClock,
+  formatLength,
   suggestOutputName,
+  suggestReferenceName,
+  MIN_CLIP_LENGTH,
+  MAX_CLIP_LENGTH,
+  MAX_REFERENCE_LENGTH,
 } from './clip-math'
 
 describe('clamp', () => {
@@ -79,6 +85,69 @@ describe('nudgeSelection', () => {
   })
 })
 
+describe('resizeEdge', () => {
+  const sel = { start: 20, end: 35, length: 15 }
+
+  it('moves the start edge, keeping the end fixed', () => {
+    expect(resizeEdge(sel, 100, 'start', 25)).toEqual({ start: 25, end: 35, length: 10 })
+  })
+  it('moves the end edge, keeping the start fixed', () => {
+    expect(resizeEdge(sel, 100, 'end', 30)).toEqual({ start: 20, end: 30, length: 10 })
+  })
+  it('enforces the minimum length from the start edge', () => {
+    const next = resizeEdge(sel, 100, 'start', 34.9)
+    expect(next.length).toBeCloseTo(MIN_CLIP_LENGTH)
+    expect(next.end).toBe(35)
+  })
+  it('enforces the minimum length from the end edge', () => {
+    const next = resizeEdge(sel, 100, 'end', 20.1)
+    expect(next.length).toBeCloseTo(MIN_CLIP_LENGTH)
+    expect(next.start).toBe(20)
+  })
+  it('caps growth at the maximum length', () => {
+    const next = resizeEdge(sel, 100, 'end', 99)
+    expect(next.length).toBe(MAX_CLIP_LENGTH)
+    expect(next.start).toBe(20)
+    expect(next.end).toBe(50)
+  })
+  it('caps the start edge at the maximum length too', () => {
+    const next = resizeEdge({ start: 40, end: 50, length: 10 }, 100, 'start', 0)
+    expect(next.length).toBe(MAX_CLIP_LENGTH)
+    expect(next.end).toBe(50)
+    expect(next.start).toBe(20)
+  })
+  it('never runs past the end of the source', () => {
+    const next = resizeEdge({ start: 90, end: 95, length: 5 }, 100, 'end', 200)
+    expect(next.end).toBe(100)
+  })
+  it('respects a custom max length (the 15s reference cap)', () => {
+    const next = resizeEdge(sel, 100, 'end', 99, MIN_CLIP_LENGTH, MAX_REFERENCE_LENGTH)
+    expect(next.length).toBe(MAX_REFERENCE_LENGTH)
+  })
+  it('spans a source shorter than the minimum length', () => {
+    const next = resizeEdge({ start: 0, end: 0.3, length: 0.3 }, 0.3, 'end', 0.1)
+    expect(next).toEqual({ start: 0, end: 0.3, length: 0.3 })
+  })
+  it('returns an empty selection for a zero-length source', () => {
+    expect(resizeEdge(sel, 0, 'end', 10)).toEqual({ start: 0, end: 0, length: 0 })
+  })
+})
+
+describe('formatLength', () => {
+  it('shows whole seconds without decimals', () => {
+    expect(formatLength(15)).toBe('15s')
+    expect(formatLength(15.04)).toBe('15s')
+  })
+  it('shows one decimal for fractional lengths', () => {
+    expect(formatLength(12.5)).toBe('12.5s')
+    expect(formatLength(0.55)).toBe('0.6s')
+  })
+  it('handles negatives and NaN as 0', () => {
+    expect(formatLength(-3)).toBe('0s')
+    expect(formatLength(NaN)).toBe('0s')
+  })
+})
+
 describe('formatClock', () => {
   it('formats M:SS', () => {
     expect(formatClock(5)).toBe('0:05')
@@ -101,5 +170,20 @@ describe('suggestOutputName', () => {
   })
   it('handles names without an extension', () => {
     expect(suggestOutputName('clip', { start: 0, end: 30, length: 30 })).toBe('clip_clip_0s_30s.mp4')
+  })
+})
+
+describe('suggestReferenceName', () => {
+  const sel = { start: 20, end: 32, length: 12 }
+  it('builds a stamped mp4 name', () => {
+    expect(suggestReferenceName('movie.mov', sel, 123456789)).toBe('movie_ref_20s_12s_456789.mp4')
+  })
+  it('sanitizes unsafe characters from the source name', () => {
+    expect(suggestReferenceName('my clip (1080p)!.mp4', sel, 42)).toBe(
+      'my_clip_1080p_ref_20s_12s_42.mp4',
+    )
+  })
+  it('falls back when the name is all-unsafe', () => {
+    expect(suggestReferenceName('???.mp4', sel, 7)).toBe('clip_ref_20s_12s_7.mp4')
   })
 })

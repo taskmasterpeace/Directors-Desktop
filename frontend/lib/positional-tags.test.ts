@@ -11,11 +11,13 @@ import {
 } from './positional-tags'
 
 const img = (id: string): RefItem => ({ id, kind: 'image', path: `/p/${id}.png`, label: id })
+const vid = (id: string): RefItem => ({ id, kind: 'video', path: `/v/${id}.mp4`, label: id })
 
 describe('tokenFor', () => {
   it('is 1-based per kind', () => {
     expect(tokenFor('image', 0)).toBe('@Image1')
     expect(tokenFor('audio', 2)).toBe('@Audio3')
+    expect(tokenFor('video', 0)).toBe('@Video1')
   })
 })
 
@@ -60,8 +62,32 @@ describe('pathsForKind', () => {
       img('1'),
       { id: 'a', kind: 'audio', path: '/a.mp3', label: 'a' },
       img('2'),
+      vid('clip'),
     ]
     expect(pathsForKind(items, 'image')).toEqual(['/p/1.png', '/p/2.png'])
     expect(pathsForKind(items, 'audio')).toEqual(['/a.mp3'])
+    expect(pathsForKind(items, 'video')).toEqual(['/v/clip.mp4'])
+  })
+})
+
+describe('video kind', () => {
+  it('has its own cap and numbering independent of images', () => {
+    expect(CAPS.video).toBe(3)
+    const r = addRef([img('1'), img('2')], vid('c1'))
+    expect('token' in r && r.token).toBe('@Video1')
+  })
+  it('rejects a fourth video reference', () => {
+    const full = Array.from({ length: CAPS.video }, (_, i) => vid(String(i)))
+    const r = addRef(full, vid('overflow'))
+    expect('error' in r).toBe(true)
+  })
+  it('renumbers @VideoN tokens on removal', () => {
+    const before = [vid('a'), vid('b')]
+    const after = [vid('b')]
+    expect(rewritePrompt('use @Video1 then @Video2', before, after)).toBe('use then @Video1')
+  })
+  it('syncFromPrompt keeps only mentioned videos', () => {
+    const kept = syncFromPrompt([vid('a'), vid('b')], 'just @Video1 here')
+    expect(kept.map((i) => i.id)).toEqual(['a'])
   })
 })

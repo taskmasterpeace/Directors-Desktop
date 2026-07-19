@@ -433,6 +433,7 @@ export function useGeneration(): UseGenerationReturn {
             ...(lastFramePath ? { lastFramePath } : {}),
             ...(settings.referenceImagePaths?.length ? { referenceImagePaths: settings.referenceImagePaths } : {}),
             ...(isSeedance2 && settings.audioReferencePaths?.length ? { audioReferencePaths: settings.audioReferencePaths } : {}),
+            ...(isSeedance2 && settings.videoReferencePaths?.length ? { videoReferencePaths: settings.videoReferencePaths } : {}),
             ...(settings.loraPath ? { loraPath: settings.loraPath, loraWeight: settings.loraWeight ?? 1.0 } : {}),
           }
 

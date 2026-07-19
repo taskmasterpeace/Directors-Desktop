@@ -29,9 +29,10 @@ export interface GenerationSettings {
   loraWeight?: number
   loraTriggerPhrase?: string | null
   loraTriggerMode?: 'prepend' | 'append' | 'off'
-  // Omni-reference (Seedance 2.0): local reference image / audio paths.
+  // Omni-reference (Seedance 2.0): local reference image / audio / video paths.
   referenceImagePaths?: string[]
   audioReferencePaths?: string[]
+  videoReferencePaths?: string[]
 }
 
 interface SettingsPanelProps {

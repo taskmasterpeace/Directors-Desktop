@@ -6,6 +6,8 @@ fal specifics (verified against the fal model docs for ``bytedance/seedance-2.0`
 - Auth header is ``Authorization: Key <key>`` (not Bearer).
 - The image-to-video route requires ``image_url``; ``end_image_url`` is the optional last frame.
 - ``resolution`` is one of 480p/720p/1080p; ``duration`` is an int in [4, 15].
+- The reference-to-video route accepts ``image_urls`` (<=9), ``audio_urls`` (<=3, needs
+  >=1 image) and ``video_urls`` (<=3 short reference clips).
 - Submit returns ``status_url`` / ``response_url``; poll status, then GET the response for ``video.url``.
 """
 
@@ -41,6 +43,7 @@ _MIN_DURATION = 4
 _MAX_DURATION = 15
 _MAX_REF_IMAGES = 9
 _MAX_REF_AUDIO = 3
+_MAX_REF_VIDEOS = 3
 _POLL_INTERVAL_SECONDS = 2
 _POLL_TIMEOUT_SECONDS = 600
 
@@ -64,6 +67,7 @@ class FalVideoClientImpl:
         last_frame: str | None = None,
         reference_images: list[str] | None = None,
         reference_audio: list[str] | None = None,
+        reference_videos: list[str] | None = None,
         seed: int | None = None,
         camera_fixed: bool = False,  # noqa: ARG002 - not a Seedance 2.0 input
         should_cancel: Callable[[], bool] | None = None,
@@ -72,8 +76,8 @@ class FalVideoClientImpl:
         if routes is None:
             raise RuntimeError(f"Unknown video model: {model}")
 
-        # Omni-reference mode (image_urls/audio_urls) wins over single first/last frame.
-        if reference_images:
+        # Omni-reference mode (image_urls/audio_urls/video_urls) wins over single first/last frame.
+        if reference_images or reference_videos:
             route = routes["ref"]
         elif first_frame is not None:
             route = routes["i2v"]
@@ -90,6 +94,7 @@ class FalVideoClientImpl:
             last_frame=last_frame,
             reference_images=reference_images,
             reference_audio=reference_audio,
+            reference_videos=reference_videos,
             seed=seed,
         )
 
@@ -110,6 +115,7 @@ class FalVideoClientImpl:
         last_frame: str | None,
         reference_images: list[str] | None,
         reference_audio: list[str] | None,
+        reference_videos: list[str] | None,
         seed: int | None,
     ) -> dict[str, JSONValue]:
         payload: dict[str, JSONValue] = {
@@ -121,11 +127,14 @@ class FalVideoClientImpl:
         }
         if seed is not None:
             payload["seed"] = seed
-        if reference_images:
-            # Omni reference: up to 9 images, up to 3 audio (audio requires >=1 image).
-            payload["image_urls"] = cast("list[JSONValue]", list(reference_images)[:_MAX_REF_IMAGES])
+        if reference_images or reference_videos:
+            # Omni reference: up to 9 images, 3 audio (audio requires >=1 image), 3 videos.
+            if reference_images:
+                payload["image_urls"] = cast("list[JSONValue]", list(reference_images)[:_MAX_REF_IMAGES])
             if reference_audio:
                 payload["audio_urls"] = cast("list[JSONValue]", list(reference_audio)[:_MAX_REF_AUDIO])
+            if reference_videos:
+                payload["video_urls"] = cast("list[JSONValue]", list(reference_videos)[:_MAX_REF_VIDEOS])
         elif first_frame is not None:
             payload["image_url"] = first_frame
             if last_frame is not None:

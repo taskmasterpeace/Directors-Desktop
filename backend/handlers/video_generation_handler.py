@@ -9,7 +9,7 @@ import time
 import uuid
 from pathlib import Path
 from threading import RLock
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from PIL import Image
 
@@ -88,6 +88,9 @@ class VideoGenerationHandler(StateHandlerBase):
         self._default_negative_prompt = default_negative_prompt
 
     def generate(self, req: GenerateVideoRequest) -> GenerateVideoResponse:
+        if req.videoReferencePaths and req.model not in FAL_VIDEO_MODELS:
+            raise HTTPError(400, "Video references require Seedance 2.0.")
+
         if req.model in REPLICATE_VIDEO_MODELS:
             return self._generate_via_replicate(req)
 
@@ -661,11 +664,20 @@ class VideoGenerationHandler(StateHandlerBase):
         "flac": "audio/flac",
     }
 
-    def _upload_reference(self, api_key: str, path: str, *, is_audio: bool) -> str | None:
-        """Upload a local reference image/audio to fal storage and return its hosted URL.
+    _VIDEO_MIME = {
+        "mp4": "video/mp4",
+        "mov": "video/quicktime",
+        "webm": "video/webm",
+        "m4v": "video/x-m4v",
+    }
+
+    def _upload_reference(
+        self, api_key: str, path: str, *, kind: Literal["image", "audio", "video"]
+    ) -> str | None:
+        """Upload a local reference image/audio/video to fal storage and return its hosted URL.
 
         References are hosted (not inlined as base64) so the request body stays small —
-        critical for audio, which can be megabytes each.
+        critical for audio and video, which can be megabytes each.
         """
         normalized = normalize_optional_path(path)
         if normalized is None:
@@ -674,8 +686,12 @@ class VideoGenerationHandler(StateHandlerBase):
         if not file.exists():
             return None
         ext = file.suffix.lstrip(".").lower()
-        if is_audio:
+        if kind == "audio":
             content_type = self._AUDIO_MIME.get(ext, "audio/mpeg")
+        elif kind == "video":
+            content_type = self._VIDEO_MIME.get(ext)
+            if content_type is None:
+                raise HTTPError(400, f"Unsupported video reference format: .{ext}")
         else:
             validate_image_file(normalized)  # security: confirm it's a real image
             content_type = "image/png" if ext == "png" else "image/jpeg"
@@ -781,18 +797,25 @@ class VideoGenerationHandler(StateHandlerBase):
                 raise HTTPError(400, "Seedance 2.0 supports at most 9 reference images.")
             if len(req.audioReferencePaths) > 3:
                 raise HTTPError(400, "Seedance 2.0 supports at most 3 audio references.")
+            if len(req.videoReferencePaths) > 3:
+                raise HTTPError(400, "Seedance 2.0 supports at most 3 video references.")
 
             # Reference arrays are uploaded to hosted URLs (never inlined as base64).
             reference_images: list[str] = []
             for path in req.referenceImagePaths:
-                url = self._upload_reference(api_key, path, is_audio=False)
+                url = self._upload_reference(api_key, path, kind="image")
                 if url is not None:
                     reference_images.append(url)
             reference_audio: list[str] = []
             for path in req.audioReferencePaths:
-                url = self._upload_reference(api_key, path, is_audio=True)
+                url = self._upload_reference(api_key, path, kind="audio")
                 if url is not None:
                     reference_audio.append(url)
+            reference_videos: list[str] = []
+            for path in req.videoReferencePaths:
+                url = self._upload_reference(api_key, path, kind="video")
+                if url is not None:
+                    reference_videos.append(url)
 
             self._generation.update_progress("inference", 20, None, None)
             video_bytes = self._fal_video_client.generate_video(
@@ -807,6 +830,7 @@ class VideoGenerationHandler(StateHandlerBase):
                 last_frame=last_frame_uri,
                 reference_images=reference_images or None,
                 reference_audio=reference_audio or None,
+                reference_videos=reference_videos or None,
                 seed=self._resolve_seed(),
                 should_cancel=self._generation.is_generation_cancelled,
             )

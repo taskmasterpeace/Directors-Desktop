@@ -355,9 +355,11 @@ class GenerateVideoRequest(BaseModel):
     aspectRatio: Literal["16:9", "9:16"] = "16:9"
     loraPath: str | None = None
     loraWeight: float = 1.0
-    # Omni-reference (Seedance 2.0): local image/audio paths attached as references, NOT start frames.
+    # Omni-reference (Seedance 2.0): local image/audio/video paths attached as references,
+    # NOT start frames. Video references are short clips (<=15s) sent as fal `video_urls`.
     referenceImagePaths: list[str] = Field(default_factory=list)
     audioReferencePaths: list[str] = Field(default_factory=list)
+    videoReferencePaths: list[str] = Field(default_factory=list)
 
 
 class GenerateLongVideoRequest(BaseModel):

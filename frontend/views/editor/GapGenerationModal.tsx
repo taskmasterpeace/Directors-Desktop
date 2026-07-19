@@ -440,8 +440,14 @@ export function GapGenerationModal({
                       model={gapSettings.model}
                       referenceImagePaths={gapSettings.referenceImagePaths ?? []}
                       audioReferencePaths={gapSettings.audioReferencePaths ?? []}
-                      onChange={({ referenceImagePaths, audioReferencePaths }) =>
-                        setGapSettings({ ...gapSettings, referenceImagePaths, audioReferencePaths })
+                      videoReferencePaths={gapSettings.videoReferencePaths ?? []}
+                      onChange={({ referenceImagePaths, audioReferencePaths, videoReferencePaths }) =>
+                        setGapSettings({
+                          ...gapSettings,
+                          referenceImagePaths,
+                          audioReferencePaths,
+                          videoReferencePaths,
+                        })
                       }
                     />
                   </div>

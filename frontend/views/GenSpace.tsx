@@ -398,6 +398,7 @@ function PromptBar({
     audio?: boolean
     referenceImagePaths?: string[]
     audioReferencePaths?: string[]
+    videoReferencePaths?: string[]
   }
   onSettingsChange: (settings: any) => void
   shouldVideoGenerateWithLtxApi: boolean
@@ -754,8 +755,9 @@ function PromptBar({
             model={settings.model}
             referenceImagePaths={settings.referenceImagePaths ?? []}
             audioReferencePaths={settings.audioReferencePaths ?? []}
-            onChange={({ referenceImagePaths, audioReferencePaths }) =>
-              onSettingsChange({ ...settings, referenceImagePaths, audioReferencePaths })
+            videoReferencePaths={settings.videoReferencePaths ?? []}
+            onChange={({ referenceImagePaths, audioReferencePaths, videoReferencePaths }) =>
+              onSettingsChange({ ...settings, referenceImagePaths, audioReferencePaths, videoReferencePaths })
             }
           />
         </div>

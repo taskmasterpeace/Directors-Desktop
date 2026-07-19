@@ -65,6 +65,10 @@ interface ProjectContextType {
   setGenSpaceRetakeSource: (source: GenSpaceRetakeSource | null) => void
   pendingRetakeUpdate: PendingRetakeUpdate | null
   setPendingRetakeUpdate: (update: PendingRetakeUpdate | null) => void
+  // Cross-view communication (clip tool → playground): a freshly trimmed clip
+  // to attach as a Seedance 2.0 video reference.
+  pendingClipReference: PendingClipReference | null
+  setPendingClipReference: (ref: PendingClipReference | null) => void
 }
 
 export interface GenSpaceRetakeSource {
@@ -80,6 +84,13 @@ export interface PendingRetakeUpdate {
   assetId: string
   clipIds: string[]
   newTakeIndex: number
+}
+
+export interface PendingClipReference {
+  /** Absolute path of the trimmed clip on disk. */
+  path: string
+  /** Display label (usually the output filename). */
+  label: string
 }
 
 const ProjectContext = createContext<ProjectContextType | null>(null)
@@ -170,6 +181,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const [genSpaceAudioUrl, setGenSpaceAudioUrl] = useState<string | null>(null)
   const [genSpaceRetakeSource, setGenSpaceRetakeSource] = useState<GenSpaceRetakeSource | null>(null)
   const [pendingRetakeUpdate, setPendingRetakeUpdate] = useState<PendingRetakeUpdate | null>(null)
+  const [pendingClipReference, setPendingClipReference] = useState<PendingClipReference | null>(null)
   // Initialize with data from localStorage
   const [projects, setProjects] = useState<Project[]>(() => loadProjectsFromStorage())
   const isInitializedRef = useRef(false)
@@ -616,6 +628,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     setGenSpaceRetakeSource,
     pendingRetakeUpdate,
     setPendingRetakeUpdate,
+    pendingClipReference,
+    setPendingClipReference,
   }), [
     currentView, currentProjectId, currentTab, projects, currentProject,
     createProject, deleteProject, renameProject, updateProject,
@@ -626,7 +640,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     openGallery, openCharacters, openStyles, openReferences, openWildcards,
     openPromptLibrary, openClipTool,
     genSpaceEditImageUrl, genSpaceEditMode, genSpaceAudioUrl,
-    genSpaceRetakeSource, pendingRetakeUpdate,
+    genSpaceRetakeSource, pendingRetakeUpdate, pendingClipReference,
   ])
 
   return (

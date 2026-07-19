@@ -49,6 +49,7 @@ class ReplicateVideoClientImpl:
         last_frame: str | None = None,
         reference_images: list[str] | None = None,  # noqa: ARG002 - Seedance 1.5 has no refs
         reference_audio: list[str] | None = None,  # noqa: ARG002 - Seedance 1.5 has no refs
+        reference_videos: list[str] | None = None,  # noqa: ARG002 - Seedance 1.5 has no refs
         seed: int | None = None,
         camera_fixed: bool = False,
         should_cancel: Callable[[], bool] | None = None,

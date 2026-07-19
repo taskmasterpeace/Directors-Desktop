@@ -1,13 +1,15 @@
 /**
- * Positional reference tags (@Image1..9 / @Audio1..3).
+ * Positional reference tags (@Image1..9 / @Audio1..3 / @Video1..3).
  *
  * Pure, DOM-free helpers for the reference system. The reference rail (an ordered
- * list per kind) is the single source of truth; the `@ImageN`/`@AudioN` tokens in the
- * prompt are a projection of it. Keeping these functions pure makes the prompt↔rail↔array
- * sync deterministic and testable.
+ * list per kind) is the single source of truth; the `@ImageN`/`@AudioN`/`@VideoN` tokens
+ * in the prompt are a projection of it. Keeping these functions pure makes the
+ * prompt↔rail↔array sync deterministic and testable.
  */
 
-export type RefKind = 'image' | 'audio'
+export type RefKind = 'image' | 'audio' | 'video'
+
+const KINDS: RefKind[] = ['image', 'audio', 'video']
 
 export interface RefItem {
   /** Stable id across renumbering (so removing @Image2 shifts @Image3→@Image2 correctly). */
@@ -19,9 +21,9 @@ export interface RefItem {
   label: string
 }
 
-export const CAPS: Record<RefKind, number> = { image: 9, audio: 3 }
-const PREFIX: Record<RefKind, string> = { image: 'Image', audio: 'Audio' }
-const TOKEN_RE = /@(Image|Audio)(\d+)\b/g
+export const CAPS: Record<RefKind, number> = { image: 9, audio: 3, video: 3 }
+const PREFIX: Record<RefKind, string> = { image: 'Image', audio: 'Audio', video: 'Video' }
+const TOKEN_RE = /@(Image|Audio|Video)(\d+)\b/g
 
 /** The positional token for the item at 0-based index `i` in its kind's ordered list. */
 export function tokenFor(kind: RefKind, i: number): string {
@@ -32,6 +34,7 @@ function splitByKind(items: RefItem[]): Record<RefKind, RefItem[]> {
   return {
     image: items.filter((it) => it.kind === 'image'),
     audio: items.filter((it) => it.kind === 'audio'),
+    video: items.filter((it) => it.kind === 'video'),
   }
 }
 
@@ -43,13 +46,13 @@ function splitByKind(items: RefItem[]): Record<RefKind, RefItem[]> {
 export function rewritePrompt(prompt: string, before: RefItem[], after: RefItem[]): string {
   const idByOldToken = new Map<string, string>()
   const b = splitByKind(before)
-  ;(['image', 'audio'] as RefKind[]).forEach((kind) =>
+  KINDS.forEach((kind) =>
     b[kind].forEach((it, i) => idByOldToken.set(tokenFor(kind, i), it.id)),
   )
 
   const newTokenById = new Map<string, string>()
   const a = splitByKind(after)
-  ;(['image', 'audio'] as RefKind[]).forEach((kind) =>
+  KINDS.forEach((kind) =>
     a[kind].forEach((it, i) => newTokenById.set(it.id, tokenFor(kind, i))),
   )
 
@@ -88,7 +91,7 @@ export function syncFromPrompt(items: RefItem[], prompt: string): RefItem[] {
   for (const m of prompt.matchAll(TOKEN_RE)) present.add(m[0])
   const byKind = splitByKind(items)
   const keep = new Set<string>()
-  ;(['image', 'audio'] as RefKind[]).forEach((kind) =>
+  KINDS.forEach((kind) =>
     byKind[kind].forEach((it, i) => {
       if (present.has(tokenFor(kind, i))) keep.add(it.id)
     }),
@@ -96,7 +99,7 @@ export function syncFromPrompt(items: RefItem[], prompt: string): RefItem[] {
   return items.filter((it) => keep.has(it.id))
 }
 
-/** Ordered paths for a kind — fed into GenerationSettings.referenceImagePaths/audioReferencePaths. */
+/** Ordered paths for a kind — fed into GenerationSettings.reference{Image,Audio,Video}Paths. */
 export function pathsForKind(items: RefItem[], kind: RefKind): string[] {
   return items.filter((it) => it.kind === kind).map((it) => it.path)
 }

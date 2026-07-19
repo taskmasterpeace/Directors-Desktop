@@ -145,3 +145,114 @@ class TestSeedance20Fal:
         )
         assert r.status_code == 400
         assert "9" in r.text or "reference image" in r.text.lower()
+
+
+class TestSeedance20VideoReferences:
+    """Video references (clip → reference pipeline): fal `video_urls` support."""
+
+    def _write_clip(self, tmp_path: Path, name: str = "ref.mp4") -> str:
+        p = tmp_path / name
+        p.write_bytes(b"fake-mp4-bytes")
+        return str(p)
+
+    def test_video_reference_is_uploaded_and_sent(
+        self, client, test_state, fake_services, tmp_path
+    ):
+        test_state.state.app_settings.fal_api_key = "fal-key"
+        clip = self._write_clip(tmp_path)
+
+        r = client.post(
+            "/api/generate",
+            json={
+                "prompt": "@Video1 but set at night in the rain",
+                "model": "seedance-2.0",
+                "duration": "6",
+                "videoReferencePaths": [clip],
+            },
+        )
+
+        assert r.status_code == 200, r.text
+        assert r.json()["status"] == "complete"
+        calls = fake_services.fal_video_client.video_calls
+        assert len(calls) == 1
+        # No images attached: video refs alone must still route to reference mode.
+        assert calls[0]["reference_images"] is None
+        assert calls[0]["reference_videos"] == ["https://fake.fal/uploads/ref.mp4"]
+        # The clip was uploaded to fal storage with a video content type, never inlined.
+        uploads = fake_services.fal_upload_client.calls
+        assert len(uploads) == 1
+        assert uploads[0]["content_type"] == "video/mp4"
+        assert uploads[0]["file_name"] == "ref.mp4"
+
+    def test_video_reference_alongside_images(
+        self, client, test_state, fake_services, make_test_image, tmp_path
+    ):
+        test_state.state.app_settings.fal_api_key = "fal-key"
+        img = _write_image(make_test_image, tmp_path, "face.png", "red")
+        clip = self._write_clip(tmp_path)
+
+        r = client.post(
+            "/api/generate",
+            json={
+                "prompt": "@Image1 acting out @Video1",
+                "model": "seedance-2.0",
+                "duration": "6",
+                "referenceImagePaths": [img],
+                "videoReferencePaths": [clip],
+            },
+        )
+
+        assert r.status_code == 200, r.text
+        call = fake_services.fal_video_client.video_calls[0]
+        assert call["reference_images"] == ["https://fake.fal/uploads/face.png"]
+        assert call["reference_videos"] == ["https://fake.fal/uploads/ref.mp4"]
+
+    def test_too_many_video_references_returns_400(self, client, test_state, tmp_path):
+        test_state.state.app_settings.fal_api_key = "fal-key"
+        clips = [self._write_clip(tmp_path, f"c{i}.mp4") for i in range(4)]
+        r = client.post(
+            "/api/generate",
+            json={"prompt": "x", "model": "seedance-2.0", "duration": "6", "videoReferencePaths": clips},
+        )
+        assert r.status_code == 400
+        assert "3" in r.text and "video" in r.text.lower()
+
+    def test_unsupported_video_format_returns_400(self, client, test_state, tmp_path):
+        test_state.state.app_settings.fal_api_key = "fal-key"
+        p = tmp_path / "ref.avi"
+        p.write_bytes(b"fake-avi-bytes")
+        r = client.post(
+            "/api/generate",
+            json={"prompt": "x", "model": "seedance-2.0", "duration": "6", "videoReferencePaths": [str(p)]},
+        )
+        assert r.status_code == 400
+        assert "avi" in r.text.lower()
+
+    def test_video_reference_on_seedance_15_returns_400(self, client, test_state, tmp_path):
+        test_state.state.app_settings.replicate_api_key = "rep-key"
+        clip = self._write_clip(tmp_path)
+        r = client.post(
+            "/api/generate",
+            json={
+                "prompt": "x",
+                "model": "seedance-1.5-pro",
+                "duration": "5",
+                "videoReferencePaths": [clip],
+            },
+        )
+        assert r.status_code == 400
+        assert "seedance 2.0" in r.text.lower()
+
+    def test_video_reference_on_local_model_returns_400(self, client, test_state, tmp_path):
+        clip = self._write_clip(tmp_path)
+        r = client.post(
+            "/api/generate",
+            json={
+                "prompt": "x",
+                "model": "fast",
+                "duration": "2",
+                "videoReferencePaths": [clip],
+            },
+        )
+        assert r.status_code == 400
+        assert "seedance 2.0" in r.text.lower()
