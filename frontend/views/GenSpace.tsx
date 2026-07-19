@@ -16,6 +16,7 @@ import { GenerationErrorDialog } from '../components/GenerationErrorDialog'
 import { useConfirm } from '../components/ConfirmDialog'
 import { copyToAssetFolder } from '../lib/asset-copy'
 import { fileUrlToPath } from '../lib/url-to-path'
+import { extractVideoFrame } from '../lib/video-frames'
 import {
   FORCED_API_VIDEO_FPS,
   FORCED_API_VIDEO_RESOLUTIONS,
@@ -27,6 +28,7 @@ import { RetakePanel } from '../components/RetakePanel'
 import { FreeApiKeyBubble } from '../components/FreeApiKeyBubble'
 import { BatchBuilderModal } from '../components/BatchBuilderModal'
 import { ReferencePicker } from '../components/ReferencePicker'
+import { RecipePicker, insertAtCaret } from '../components/RecipePicker'
 import { AtAutocompleteDropdown } from '../components/AtAutocompleteDropdown'
 import { useAtCaretAutocomplete } from '../hooks/useAtCaretAutocomplete'
 import { useMentionOptions } from '../hooks/useMentionOptions'
@@ -749,6 +751,14 @@ function PromptBar({
 
       </div>
 
+      {/* Recipe quick-insert */}
+      <div className="px-1.5 pb-1">
+        <RecipePicker
+          direction="up"
+          onInsert={(text) => onPromptChange(insertAtCaret(promptRef.current, prompt, text))}
+        />
+      </div>
+
       {mode === 'video' && (
         <div className="px-1.5 pb-1">
           <ReferencePicker
@@ -1416,7 +1426,7 @@ export function GenSpace() {
     // Extract last frame from the video and set it as the first frame for next generation
     ;(async () => {
       try {
-        const result = await window.electronAPI.extractVideoFrame(asset.url, 9999)
+        const result = await extractVideoFrame(asset.url, 9999)
         if (result?.url) {
           setInputImage(result.url)
           setLastFrameUrl(null)

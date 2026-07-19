@@ -2,6 +2,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { Play, Pause, Download, RefreshCw, RotateCcw, Volume2, VolumeX, Maximize2, FastForward } from 'lucide-react'
 import { Button } from './ui/button'
 import { logger } from '../lib/logger'
+import { extractVideoFrame } from '../lib/video-frames'
 
 interface VideoPlayerProps {
   videoUrl: string | null
@@ -279,7 +280,7 @@ export function VideoPlayer({ videoUrl, videoPath, videoResolution, isGenerating
       // Extract the last frame of the video
       const video = videoRef.current
       const seekTime = video && video.duration ? video.duration - 0.05 : 0
-      const result = await window.electronAPI.extractVideoFrame(videoUrl, seekTime)
+      const result = await extractVideoFrame(videoUrl, seekTime)
       onExtendVideo(result.url, result.path)
     } catch (err) {
       logger.error(`Failed to extract frame for extend: ${err}`)

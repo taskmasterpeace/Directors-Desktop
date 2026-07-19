@@ -4,6 +4,7 @@ import { DEFAULT_COLOR_CORRECTION } from '../../types/project'
 import type { GenerationSettings } from '../../components/SettingsPanel'
 import { copyToAssetFolder } from '../../lib/asset-copy'
 import { fileUrlToPath } from '../../lib/url-to-path'
+import { extractVideoFrame } from '../../lib/video-frames'
 
 export interface UseGapGenerationParams {
   clips: TimelineClip[]
@@ -475,7 +476,7 @@ export function useGapGeneration({
           if (clipBefore.asset?.type === 'video') {
             const seekTime = clipBefore.trimStart + clipBefore.duration * clipBefore.speed - 0.1
             framePromises.push(
-              window.electronAPI.extractVideoFrame(clipSrc, Math.max(0, seekTime), 512, 3)
+              extractVideoFrame(clipSrc, Math.max(0, seekTime), 512, 3)
                 .then(result => { beforeFrame = result.path; beforeFrameUrl = result.url })
                 .catch(() => {})
             )
@@ -492,7 +493,7 @@ export function useGapGeneration({
         if (clipSrc) {
           if (clipAfter.asset?.type === 'video') {
             framePromises.push(
-              window.electronAPI.extractVideoFrame(clipSrc, clipAfter.trimStart + 0.1, 512, 3)
+              extractVideoFrame(clipSrc, clipAfter.trimStart + 0.1, 512, 3)
                 .then(result => { afterFrame = result.path; afterFrameUrl = result.url })
                 .catch(() => {})
             )

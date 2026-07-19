@@ -50,7 +50,9 @@ export default defineConfig({
   ],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './frontend')
+      '@': path.resolve(__dirname, './frontend'),
+      // Vendored OpenReel editor core (source-shipped; see vendor/openreel-core/PROVENANCE.md)
+      '@openreel/core': path.resolve(__dirname, './vendor/openreel-core/src')
     }
   },
   base: './',  // Use relative paths for Electron file:// protocol

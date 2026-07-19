@@ -1,0 +1,9 @@
+{
+  "name": "@openreel/core",
+  "version": "0.1.0-vendored",
+  "private": true,
+  "type": "module",
+  "description": "Vendored OpenReel editor core (see PROVENANCE.md). Resolved via Vite alias, not installed. Runtime dependencies live in the repo-root package.json.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts"
+}
