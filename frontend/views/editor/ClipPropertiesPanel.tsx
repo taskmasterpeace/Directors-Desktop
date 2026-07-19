@@ -3,9 +3,10 @@ import {
   Trash2, FileVideo, FileImage, FileAudio, Layers, Type,
   FlipHorizontal2, FlipVertical2, ChevronDown, ChevronRight,
   Palette, Eye, Sun, Contrast, Droplets, Thermometer,
-  SunDim, Moon, RotateCcw, Film, // EFFECTS HIDDEN: removed EyeOff, Sparkles, Plus, X
+  SunDim, Moon, RotateCcw, Film, Sparkles, // EFFECTS HIDDEN: removed EyeOff, Plus, X
   AlignLeft, AlignCenter, AlignRight,
 } from 'lucide-react'
+import { useProjects } from '../../contexts/ProjectContext'
 import type { Asset, TimelineClip, Track, ClipEffect, LetterboxSettings, TextOverlayStyle, TransitionType } from '../../types/project' // EFFECTS HIDDEN: removed EffectMask
 import { DEFAULT_COLOR_CORRECTION, DEFAULT_LETTERBOX, TEXT_PRESETS } from '../../types/project' // EFFECTS HIDDEN: removed EFFECT_DEFINITIONS, DEFAULT_EFFECT_MASK
 import { formatTime } from './video-editor-utils'
@@ -50,6 +51,7 @@ interface ClipPropertiesPanelProps {
 }
 
 export function ClipPropertiesPanel(props: ClipPropertiesPanelProps) {
+  const { setPendingAnimateImage, openPlayground } = useProjects()
   const {
     selectedClip,
     tracks,
@@ -617,6 +619,24 @@ export function ClipPropertiesPanel(props: ClipPropertiesPanelProps) {
           >
             <Film className="h-3.5 w-3.5" />
             {isRegenerating && i2vClipId === selectedClip.id ? 'Generating Video...' : 'Generate Video (I2V)'}
+          </button>
+        )}
+        {/* Full Shot Animator-style flow: open the still in the Playground with
+            model choice, references, recipes, and directed-motion prompting. */}
+        {selectedClip.type === 'image' && selectedClip.asset?.url && (
+          <button
+            onClick={() => {
+              setPendingAnimateImage({
+                url: selectedClip.asset!.url,
+                prompt: selectedClip.asset?.prompt || undefined,
+              })
+              openPlayground()
+            }}
+            className="w-full px-3 py-2 rounded-lg bg-amber-600/15 border border-amber-500/30 text-amber-400 text-xs hover:bg-amber-600/25 hover:border-amber-500/50 transition-colors font-medium flex items-center justify-center gap-2"
+            title="Open this still in the Playground as an image-to-video start frame (Seedance)"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            Animate in Playground
           </button>
         )}
         <div>

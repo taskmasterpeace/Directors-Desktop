@@ -41,7 +41,7 @@ const DEFAULT_SETTINGS: GenerationSettings = {
 }
 
 export function Playground() {
-  const { goHome, pendingClipReference, setPendingClipReference } = useProjects()
+  const { goHome, pendingClipReference, setPendingClipReference, pendingAnimateImage, setPendingAnimateImage } = useProjects()
   const { settings: appSettings, forceApiGenerations, shouldVideoGenerateWithLtxApi, credits } = useAppSettings()
   const [mode, setMode] = useState<GenerationMode>('text-to-video')
   const [prompt, setPrompt] = useState('')
@@ -67,6 +67,20 @@ export function Playground() {
     if (!shouldVideoGenerateWithLtxApi || mode === 'text-to-image') return
     setSettings((prev) => sanitizeForcedApiVideoSettings({ ...prev, model: 'fast' }))
   }, [mode, shouldVideoGenerateWithLtxApi])
+
+  // Animate-still handoff (Shot Animator flow): a still image arrives from the
+  // editor/gallery preloaded as the image-to-video start frame on Seedance 2.0;
+  // the user writes the motion direction.
+  useEffect(() => {
+    if (!pendingAnimateImage) return
+    const { url, prompt: seedPrompt } = pendingAnimateImage
+    setPendingAnimateImage(null)
+    setMode('image-to-video')
+    setSelectedImage(url)
+    setSettings((prev) => ({ ...prev, model: 'seedance-2.0' }))
+    if (seedPrompt) setPrompt(seedPrompt)
+    requestAnimationFrame(() => promptRef.current?.focus())
+  }, [pendingAnimateImage, setPendingAnimateImage])
 
   // Clip Tool handoff: attach a freshly trimmed clip as a Seedance 2.0 video
   // reference and seed the prompt so the user describes the changes they want.

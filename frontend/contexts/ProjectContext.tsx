@@ -70,6 +70,10 @@ interface ProjectContextType {
   // to attach as a Seedance 2.0 video reference.
   pendingClipReference: PendingClipReference | null
   setPendingClipReference: (ref: PendingClipReference | null) => void
+  // Cross-view communication (editor/gallery → playground): a still image to
+  // animate via image-to-video, Shot Animator-style.
+  pendingAnimateImage: PendingAnimateImage | null
+  setPendingAnimateImage: (img: PendingAnimateImage | null) => void
 }
 
 export interface GenSpaceRetakeSource {
@@ -92,6 +96,13 @@ export interface PendingClipReference {
   path: string
   /** Display label (usually the output filename). */
   label: string
+}
+
+export interface PendingAnimateImage {
+  /** file:// URL of the still image (what the Playground uploader displays/uses). */
+  url: string
+  /** Optional prompt seed (e.g. the shot's original generation prompt). */
+  prompt?: string
 }
 
 const ProjectContext = createContext<ProjectContextType | null>(null)
@@ -183,6 +194,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const [genSpaceRetakeSource, setGenSpaceRetakeSource] = useState<GenSpaceRetakeSource | null>(null)
   const [pendingRetakeUpdate, setPendingRetakeUpdate] = useState<PendingRetakeUpdate | null>(null)
   const [pendingClipReference, setPendingClipReference] = useState<PendingClipReference | null>(null)
+  const [pendingAnimateImage, setPendingAnimateImage] = useState<PendingAnimateImage | null>(null)
   // Initialize with data from localStorage
   const [projects, setProjects] = useState<Project[]>(() => loadProjectsFromStorage())
   const isInitializedRef = useRef(false)
@@ -636,6 +648,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     setPendingRetakeUpdate,
     pendingClipReference,
     setPendingClipReference,
+    pendingAnimateImage,
+    setPendingAnimateImage,
   }), [
     currentView, currentProjectId, currentTab, projects, currentProject,
     createProject, deleteProject, renameProject, updateProject,
@@ -646,7 +660,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     openGallery, openCharacters, openStyles, openReferences, openRecipes,
     openWildcards, openPromptLibrary, openClipTool,
     genSpaceEditImageUrl, genSpaceEditMode, genSpaceAudioUrl,
-    genSpaceRetakeSource, pendingRetakeUpdate, pendingClipReference,
+    genSpaceRetakeSource, pendingRetakeUpdate, pendingClipReference, pendingAnimateImage,
   ])
 
   return (
