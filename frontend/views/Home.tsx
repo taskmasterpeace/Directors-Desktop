@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Folder, FolderOpen, MoreVertical, Trash2, Pencil, Sparkles, Image, UserCircle, Palette, ImageIcon, NotebookText, Braces, BookOpen, LogOut, LogIn, Key, Scissors } from 'lucide-react'
+import { Plus, Folder, FolderOpen, MoreVertical, Trash2, Pencil, Sparkles, Image, UserCircle, ImageIcon, NotebookText, Braces, BookOpen, LogOut, LogIn, Key, Scissors } from 'lucide-react'
 import { useProjects } from '../contexts/ProjectContext'
 import { useAppSettings } from '../contexts/AppSettingsContext'
 import { LtxLogo } from '../components/LtxLogo'
@@ -114,7 +114,7 @@ function ProjectCard({ project, onOpen, onDelete, onRename, onSetAssetFolder }: 
 }
 
 export function Home() {
-  const { projects, createProject, deleteProject, renameProject, updateProject, openProject, importPaletteMv, openPlayground, openGallery, openCharacters, openStyles, openReferences, openRecipes, openWildcards, openPromptLibrary, openClipTool } = useProjects()
+  const { projects, createProject, deleteProject, renameProject, updateProject, openProject, importPaletteMv, openPlayground, openGallery, openCharacters, openReferences, openRecipes, openWildcards, openPromptLibrary, openClipTool } = useProjects()
 
   const [importingMv, setImportingMv] = useState(false)
   const [importMvError, setImportMvError] = useState<string | null>(null)
@@ -374,13 +374,7 @@ export function Home() {
               <UserCircle className="h-4 w-4" />
               Characters
             </button>
-            <button
-              onClick={openStyles}
-              className="w-full px-3 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white text-left text-sm flex items-center gap-2 transition-colors"
-            >
-              <Palette className="h-4 w-4" />
-              Styles
-            </button>
+            {/* Styles lives inside References now (People/Places/Wardrobe/Styles) */}
             <button
               onClick={openReferences}
               className="w-full px-3 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white text-left text-sm flex items-center gap-2 transition-colors"
@@ -597,11 +591,24 @@ export function Home() {
             playsInline
             className="absolute inset-0 w-full h-full object-cover"
           />
-          {/* Dark overlay for text readability */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10" />
-          <div className="absolute bottom-6 left-8 z-10">
-            <h1 className="text-3xl font-bold text-white mb-2 drop-shadow-lg">Director's Desktop</h1>
-            <p className="text-zinc-200 drop-shadow-md">Create and manage your video projects</p>
+          {/* Readability overlays: a strong left-side wash anchors the title block,
+              plus a soft bottom fade so the banner settles into the page. */}
+          <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/45 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+          <div className="absolute inset-y-0 left-8 z-10 flex flex-col justify-center max-w-xl">
+            <div className="flex items-center gap-3 mb-3">
+              <img src="./logo.svg" alt="" className="h-12 w-12 drop-shadow-lg" />
+              <div className="h-8 w-px bg-white/20" />
+              <span className="text-[11px] font-semibold tracking-[0.18em] uppercase text-amber-300/90 drop-shadow">
+                Machine King Labs
+              </span>
+            </div>
+            <h1 className="text-4xl font-bold text-white tracking-tight drop-shadow-lg" style={{ letterSpacing: '-0.025em' }}>
+              Director&apos;s Desktop
+            </h1>
+            <p className="mt-2 text-sm text-zinc-200/90 drop-shadow-md">
+              Direct, generate, and cut your films — all on your desk.
+            </p>
           </div>
         </div>
         

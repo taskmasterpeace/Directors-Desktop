@@ -250,6 +250,10 @@ class ImageGenerationHandler(StateHandlerBase):
 
         uris: list[str] = []
         for path in paths:
+            # Public URLs pass through untouched (Replicate accepts them directly).
+            if path.startswith(("http://", "https://")):
+                uris.append(path)
+                continue
             try:
                 validated = validate_image_file(path)
             except Exception:
@@ -268,6 +272,11 @@ class ImageGenerationHandler(StateHandlerBase):
         """
         urls: list[str] = []
         for path in paths:
+            # Already-public URLs (e.g. system templates like the wardrobe mannequin)
+            # pass straight through — v2 wants public http URLs and this is one.
+            if path.startswith(("http://", "https://")):
+                urls.append(path)
+                continue
             try:
                 validated = validate_image_file(path)
                 raw = validated.read_bytes()

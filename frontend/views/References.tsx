@@ -5,7 +5,9 @@ import { LtxLogo } from '../components/LtxLogo'
 import { Button } from '../components/ui/button'
 import { logger } from '../lib/logger'
 
-type Category = 'all' | 'people' | 'places' | 'props' | 'other'
+// Working taxonomy: People / Places / Wardrobe / Styles (shared with Palette going
+// forward). props/other are legacy — old items still show under Other.
+type Category = 'all' | 'people' | 'places' | 'wardrobe' | 'styles' | 'props' | 'other'
 
 interface Reference {
   id: string
@@ -99,8 +101,13 @@ export function References() {
   // Palette (cloud) references are URLs; the local model needs local files, so we
   // download each and register it locally (reusing the existing create route),
   // after which they behave exactly like native references everywhere in DD.
-  const mapPaletteCategory = (c: string): Exclude<Category, 'all'> =>
-    (['people', 'places', 'props'].includes(c) ? c : 'other') as Exclude<Category, 'all'>
+  const mapPaletteCategory = (c: string): Exclude<Category, 'all'> => {
+    if (['people', 'places', 'wardrobe', 'styles', 'props'].includes(c)) {
+      return c as Exclude<Category, 'all'>
+    }
+    // Palette's "layouts" and anything unknown land in Other.
+    return 'other'
+  }
 
   const handleSyncFromPalette = async () => {
     setSyncing(true)
@@ -180,18 +187,24 @@ export function References() {
     }
   }
 
+  // Legacy tabs only appear if the library still holds old items in them.
+  const hasLegacy = (cat: 'props' | 'other') => references.some((r) => r.category === cat)
   const categories: { label: string; value: Category }[] = [
     { label: 'All', value: 'all' },
     { label: 'People', value: 'people' },
     { label: 'Places', value: 'places' },
-    { label: 'Props', value: 'props' },
-    { label: 'Other', value: 'other' },
+    { label: 'Wardrobe', value: 'wardrobe' },
+    { label: 'Styles', value: 'styles' },
+    ...(hasLegacy('props') ? [{ label: 'Props', value: 'props' as Category }] : []),
+    ...(hasLegacy('other') ? [{ label: 'Other', value: 'other' as Category }] : []),
   ]
 
   const categoryColors: Record<string, string> = {
     people: 'bg-blue-500/20 text-blue-400',
     places: 'bg-green-500/20 text-green-400',
-    props: 'bg-amber-500/20 text-amber-400',
+    wardrobe: 'bg-amber-500/20 text-amber-400',
+    styles: 'bg-rose-500/20 text-rose-400',
+    props: 'bg-orange-500/20 text-orange-400',
     other: 'bg-zinc-500/20 text-zinc-400',
   }
 
@@ -337,7 +350,7 @@ export function References() {
               <div>
                 <label className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1.5 block">Category</label>
                 <div className="flex gap-2">
-                  {(['people', 'places', 'props', 'other'] as const).map(cat => (
+                  {(['people', 'places', 'wardrobe', 'styles'] as const).map(cat => (
                     <button
                       key={cat}
                       onClick={() => setFormCategory(cat)}

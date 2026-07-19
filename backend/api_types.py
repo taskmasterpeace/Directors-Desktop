@@ -616,7 +616,8 @@ class GenerateStyleGuideResponse(BaseModel):
 # Library Models (Characters, Styles, References)
 # ============================================================
 
-LibraryReferenceCategory = Literal["people", "places", "props", "other"]
+# People/Places/Wardrobe/Styles is the working set; props/other are legacy-readable.
+LibraryReferenceCategory = Literal["people", "places", "wardrobe", "styles", "props", "other"]
 
 
 class CharacterCreate(BaseModel):
@@ -705,7 +706,8 @@ class AudioReferenceListResponse(BaseModel):
     audio: list[AudioReferenceResponse]
 
 
-LibraryRecipeKind = Literal["location", "wardrobe", "style"]
+# character/other cover recipes imported from Director's Palette.
+LibraryRecipeKind = Literal["location", "wardrobe", "style", "character", "other"]
 
 
 class RecipeCreate(BaseModel):

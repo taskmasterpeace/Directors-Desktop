@@ -73,12 +73,23 @@ export function Gallery() {
     return `${backendUrl}${url}`
   }, [backendUrl])
 
+  // Media src for an item. Local files render via the streaming file:// protocol
+  // (MIME + Range) instead of backend HTTP: <img>/<video> resource loads bypass
+  // the fetch auth interceptor, so backend URLs 401 and the grid looks empty
+  // even though the files are right there on disk.
+  const mediaSrc = useCallback((item: GalleryItem) => {
+    if (item.path) return pathToFileUrl(item.path)
+    return resolveUrl(item.thumbnail || item.url)
+  }, [resolveUrl])
+
   const fetchGallery = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       const url = backendUrl || await window.electronAPI.getBackendUrl()
-      const res = await fetch(`${url}/api/gallery/local?page=${page}&per_page=${perPage}&type=${filter}`)
+      // Backend filters on singular "image"/"video" — the tab values are plural.
+      const typeParam = filter === 'images' ? 'image' : filter === 'videos' ? 'video' : 'all'
+      const res = await fetch(`${url}/api/gallery/local?page=${page}&per_page=${perPage}&type=${typeParam}`)
       if (!res.ok) throw new Error(`Failed to fetch gallery: ${res.status}`)
       const data = (await res.json()) as GalleryResponse
       setItems(data.items)
@@ -197,14 +208,22 @@ export function Gallery() {
                 >
                   {/* Thumbnail */}
                   <div className="aspect-video bg-zinc-800 flex items-center justify-center overflow-hidden">
-                    {item.thumbnail || item.type === 'image' ? (
+                    {item.type === 'image' ? (
                       <img
-                        src={resolveUrl(item.thumbnail || item.url)}
+                        src={mediaSrc(item)}
                         alt={item.filename}
                         className="w-full h-full object-cover"
                       />
                     ) : (
-                      <Film className="h-8 w-8 text-zinc-600" />
+                      // Videos: file:// streams with Range support, so a muted
+                      // preview element doubles as the thumbnail.
+                      <video
+                        src={mediaSrc(item)}
+                        muted
+                        playsInline
+                        preload="metadata"
+                        className="w-full h-full object-cover"
+                      />
                     )}
                     {item.type === 'video' && (
                       <div className="absolute top-2 left-2 bg-black/60 rounded px-1.5 py-0.5 text-[10px] font-medium text-white flex items-center gap-1">
@@ -303,14 +322,14 @@ export function Gallery() {
             </button>
             {previewItem.type === 'video' ? (
               <video
-                src={resolveUrl(previewItem.url)}
+                src={mediaSrc(previewItem)}
                 controls
                 autoPlay
                 className="w-full max-h-[80vh] rounded-lg"
               />
             ) : (
               <img
-                src={resolveUrl(previewItem.url)}
+                src={mediaSrc(previewItem)}
                 alt={previewItem.filename}
                 className="w-full max-h-[80vh] object-contain rounded-lg"
               />

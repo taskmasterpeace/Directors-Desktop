@@ -26,9 +26,11 @@ const PROMPT_LIBRARY_CATEGORIES = new Set([
 ])
 
 // Reference-library categories — resolve to a random image from that category.
-const REFERENCE_LIBRARY_CATEGORIES = new Set(['@people', '@places', '@props', '@layouts'])
+// Desktop taxonomy adds @wardrobe (People/Places/Wardrobe/Styles is the working
+// set); @props/@layouts stay recognized for Palette compatibility.
+const REFERENCE_LIBRARY_CATEGORIES = new Set(['@people', '@places', '@wardrobe', '@props', '@layouts'])
 
-export type ReferenceCategory = 'people' | 'places' | 'props' | 'layouts' | 'styles'
+export type ReferenceCategory = 'people' | 'places' | 'wardrobe' | 'props' | 'layouts' | 'styles'
 
 export interface ParsedReferenceTag {
   /** e.g. "@twork:v2" */
@@ -114,7 +116,7 @@ export function isCategoryReference(tag: string): boolean {
 /** Category name from a tag (strips @), or null if not a known category. */
 export function getCategoryFromTag(tag: string): ReferenceCategory | null {
   const normalized = tag.toLowerCase().replace('@', '')
-  if (['people', 'places', 'props', 'layouts', 'styles'].includes(normalized)) {
+  if (['people', 'places', 'wardrobe', 'props', 'layouts', 'styles'].includes(normalized)) {
     return normalized as ReferenceCategory
   }
   return null

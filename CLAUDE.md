@@ -50,15 +50,17 @@ PRs must pass: `pnpm typecheck` + `pnpm test:frontend` (vitest pure-function sui
 
 - **Path alias**: `@/*` maps to `frontend/*` (configured in `tsconfig.json` and `vite.config.ts`)
 - **State management**: React contexts only (`ProjectContext`, `AppSettingsContext`, `KeyboardShortcutsContext`) — no Redux/Zustand
-- **Routing**: View-based via `ProjectContext` with views: `home`, `project`, `playground`, plus library views (`Gallery`, `PromptLibrary`, `Characters`, `Styles`, `References`, `Wildcards`)
-- **IPC bridge**: All Electron communication through `window.electronAPI` (defined in `electron/preload.ts`). Key methods: `getBackendUrl`, `readLocalFile`, `checkGpu`, `getAppInfo`, `exportVideo`, `showSaveDialog`, `showItemInFolder`
-- **Backend calls**: Frontend calls `http://localhost:8000` directly
-- **Styling**: Tailwind with custom semantic color tokens via CSS variables; utilities from `class-variance-authority` + `clsx` + `tailwind-merge`
-- **Views**: `Home.tsx`, `GenSpace.tsx`, `Project.tsx`, `Playground.tsx`, `VideoEditor.tsx` (largest frontend file), `editor/` subdirectory, plus library views (`Gallery.tsx`, `PromptLibrary.tsx`, `Characters.tsx`, `Styles.tsx`, `References.tsx`, `Wildcards.tsx`)
-- **Generation hook**: `useGeneration()` manages the full generate → poll → complete lifecycle. Submits jobs to `/api/queue/submit`, polls `/api/queue/status` every 500ms, maps backend phases to user-facing status messages.
+- **Routing**: View-based via `ProjectContext` with views: `home`, `project`, `playground`, plus library views (`Gallery`, `PromptLibrary`, `Characters`, `References`, `Recipes`, `Wildcards`, `ClipTool`). The standalone `Styles` view still exists in code but is no longer in the nav — styles live inside References.
+- **IPC bridge**: All Electron communication through `window.electronAPI` (defined in `electron/preload.ts`). Key methods: `getBackendUrl`, `getBackendToken`, `readLocalFile`, `checkGpu`, `getAppInfo`, `exportVideo`, `showSaveDialog`, `showItemInFolder`
+- **Backend calls**: The backend runs on a FREE PORT with a per-session auth token. `frontend/lib/backend-auth.ts` installs a global `fetch` interceptor that attaches `Authorization: Bearer <token>` to backend-origin requests — plain `fetch(backendUrl + ...)` just works.
+- **MEDIA LOADING RULE**: NEVER point `<img>`/`<video> src` at backend HTTP URLs. Resource loads bypass the fetch interceptor, so they 401 against the auth middleware and render blank (this is exactly how the Gallery broke). Render local media via the streaming `file://` protocol (`electron/file-protocol.ts` — MIME + Range support): convert the absolute path with a `pathToFileUrl`-style helper.
+- **Image models — single source of truth**: `frontend/lib/image-models.ts`. Every surface (Gen Space, Playground, Settings, Batch, Video Editor) reads this registry — NEVER hardcode image model ids in a view. Palette-hosted models carry a `dp-` prefix; `migrateImageModelId` redirects retired ids (e.g. `dp-flux-2-klein-9b`). Capability flags (`supportsLora`, `supportsStrength`, `supportsCameraAngle`, `qualityOptions`, `aspectRatios`, `maxReferenceImages`, `requiresInputImage`) gate which controls render — don't show knobs a model ignores.
+- **Quick modes**: `frontend/lib/shot-creator/quick-modes.ts` — Wardrobe / Character / Location / Style one-tap buttons on the Gen Space bar, with VERBATIM Palette prompts (wardrobe mannequin, character sheet, master location sheet, 3x3 style guide). Wardrobe's reference order is `[mannequin URL, outfit photo]` — order matters.
+- **References taxonomy**: People / Places / Wardrobe / Styles (shared with Palette going forward). Legacy `props`/`other` load but aren't offered for new refs. `@wardrobe` parses as a category tag in `lib/shot-creator/reference-tags.ts`.
+- **Generation hook**: `useGeneration()` manages the full generate → poll → complete lifecycle. Submits jobs to `/api/queue/submit`, polls `/api/queue/status` every 500ms, maps backend phases to user-facing status messages. Image jobs carry their own `model` (+ `modelParams`, `referenceImagePaths`) — the job's model wins over the saved default.
 - **Frame extraction**: use `extractVideoFrame` from `frontend/lib/video-frames.ts` (hardware decode via offscreen `<video>` + canvas, ffmpeg IPC fallback, same `{path, url}` contract) — NOT `window.electronAPI.extractVideoFrame` directly.
-- **LoRA support**: `GenerationSettings` includes `loraPath`, `loraWeight`, `loraTriggerPhrase`, and `loraTriggerMode` (`'prepend' | 'append' | 'off'`). Trigger phrase is applied client-side before submission.
-- **No frontend tests** currently exist
+- **LoRA support**: `GenerationSettings` includes `loraPath`, `loraWeight`, `loraTriggerPhrase`, and `loraTriggerMode` (`'prepend' | 'append' | 'off'`). Trigger phrase is applied client-side before submission. LoRA UI only renders for models with `supportsLora` (local flux pipelines).
+- **Frontend tests**: vitest pure-function suites (`npx vitest run`) — lib-level tests for image-models, camera-angle, reference-tags, clip-math, transcript engines, video-frames, plus the vendored-core smoke suite.
 
 ## Backend Architecture
 
@@ -113,7 +115,18 @@ GPU is shared between video and image models. Only one model type loaded at a ti
 Core: `health`, `settings`, `models`, `generation`, `image_gen`, `queue`
 Video modes: `retake`, `ic_lora`
 Library/content: `gallery`, `library`, `prompts`, `style_guide`, `contact_sheet`, `enhance_prompt`
-Integration: `sync` (Palette cloud sync), `receive_job` (incoming cloud jobs)
+Integration: `sync` (Palette cloud sync — status/connect/login, credits, characters/styles/references/**recipes** import, prompt enhance, LoRA sync), `receive_job` (incoming cloud jobs)
+
+### Director's Palette image routing (v2 API — the credits path)
+
+Image models selected as `dp-<model>` run on the user's Palette credits via the **live v2 API** at `https://directorspal.com` (Bearer `dp_` key). No Palette deploy is needed — v2 already supports all four current models (`nano-banana-2`, `nano-banana-2-lite`, `gpt-image-2`, `qwen-image-edit`).
+
+`services/palette_image_client/` implements three operations:
+- `upload_reference(bytes) -> public URL` — `POST /api/v2/images/upload` (multipart). v2's SSRF guard rejects base64 data URIs, so local reference images are uploaded first; paths that are already `http(s)` URLs pass through untouched.
+- `generate_image(...) -> bytes` — `POST /api/v2/images/generate` (async) then poll `GET /api/v2/jobs/{job_id}` until `completed` → download `data.result.url`. Palette's own server receives the Replicate webhook; the desktop only polls.
+- `generate_camera_angle(...) -> bytes` — `POST /api/v2/images/camera-angle` (synchronous). Send raw azimuth/elevation/distance; the route builds the `<sks>` prompt + injects the multi-angle LoRA server-side.
+
+`image_generation_handler._generate_via_api` routes `dp-qwen-image-edit` to the camera-angle op (requires ≥1 reference) and everything else to generate+poll. `GenerateImageRequest.model` (from the queue job) wins over `settings.image_model`; `modelParams` carries per-model settings (gpt quality, camera azimuth/elevation/distance, loraScale…). v2 responses use the `{success, data}` envelope. Known limit: v2 generate does not thread nano's 2K/4K resolution or search params (nano runs at 1K).
 
 ### Adding a Backend Feature
 
@@ -152,4 +165,12 @@ Integration: `sync` (Palette cloud sync), `receive_job` (incoming cloud jobs)
 - Job executors: `backend/handlers/job_executors.py`
 - Queue routes: `backend/_routes/queue.py`
 - Generation hook: `frontend/hooks/use-generation.ts`
-- Hero banner video: `public/hero-video.mp4` (2092x480, ~4.36:1, 30fps, 11s, H.264; CSS gradient overlay in `Home.tsx`)
+- Image model registry (single source of truth): `frontend/lib/image-models.ts`
+- Quick-mode prompts (verbatim Palette): `frontend/lib/shot-creator/quick-modes.ts`
+- Camera-angle helper + pad: `frontend/lib/shot-creator/camera-angle.ts`, `frontend/components/CameraAnglePad.tsx`
+- Backend auth fetch interceptor: `frontend/lib/backend-auth.ts`
+- Streaming file:// protocol (media loading): `electron/file-protocol.ts`
+- Palette v2 image client: `backend/services/palette_image_client/`
+- Palette sync client (credits/library/recipes): `backend/services/palette_sync_client/`
+- Local library store (characters/styles/references/recipes JSON): `backend/state/library_store.py`
+- Hero banner video: `public/hero-video.mp4` (2092x480, ~4.36:1, 30fps, 30s loop, H.264, no audio; left-gradient + `public/logo.svg` overlay in `Home.tsx`)

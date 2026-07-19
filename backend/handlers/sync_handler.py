@@ -250,6 +250,32 @@ class SyncHandler:
             logger.warning("Palette references list failed: %s", exc)
             return {"connected": False, "references": [], "error": str(exc)}
 
+    def list_recipes(self) -> dict[str, Any]:
+        api_key = self._state.app_settings.palette_api_key
+        if not api_key:
+            return {"connected": False, "recipes": []}
+        try:
+            return {
+                "connected": True,
+                **self._client.list_recipes(api_key=api_key),
+            }
+        except Exception as exc:
+            logger.warning("Palette recipes list failed: %s", exc)
+            return {"connected": False, "recipes": [], "error": str(exc)}
+
+    def get_recipe(self, recipe_id: str) -> dict[str, Any]:
+        api_key = self._state.app_settings.palette_api_key
+        if not api_key:
+            return {"connected": False}
+        try:
+            return {
+                "connected": True,
+                **self._client.get_recipe(api_key=api_key, recipe_id=recipe_id),
+            }
+        except Exception as exc:
+            logger.warning("Palette recipe fetch failed: %s", exc)
+            return {"connected": False, "error": str(exc)}
+
     def enhance_prompt(self, prompt: str, level: str = "2x") -> dict[str, Any]:
         api_key = self._state.app_settings.palette_api_key
         if not api_key:

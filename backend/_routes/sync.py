@@ -117,6 +117,19 @@ def sync_references(
     return handler.sync.list_references(category=category)
 
 
+@router.get("/library/recipes")
+def sync_recipes(handler: AppHandler = Depends(get_state_service)) -> dict[str, Any]:
+    return handler.sync.list_recipes()
+
+
+@router.get("/library/recipes/{recipe_id}")
+def sync_recipe_detail(
+    recipe_id: str,
+    handler: AppHandler = Depends(get_state_service),
+) -> dict[str, Any]:
+    return handler.sync.get_recipe(recipe_id)
+
+
 @router.post("/prompt/enhance")
 def sync_enhance_prompt(
     body: EnhancePromptRequest,

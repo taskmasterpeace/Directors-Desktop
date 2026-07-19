@@ -536,6 +536,35 @@ class FakePaletteSyncClient:
     def list_references(self, *, api_key: str, category: str | None) -> dict[str, Any]:
         return {"references": []}
 
+    def list_recipes(self, *, api_key: str) -> dict[str, Any]:
+        return {
+            "recipes": [
+                {
+                    "id": "r1",
+                    "name": "Character Sheet",
+                    "description": "Turnaround sheet",
+                    "category": "characters",
+                    "stages": 1,
+                    "fields": [],
+                    "suggested_model": "gpt-image-2",
+                    "suggested_aspect_ratio": "3:2",
+                    "recipe_note": None,
+                }
+            ],
+            "total": 1,
+        }
+
+    def get_recipe(self, *, api_key: str, recipe_id: str) -> dict[str, Any]:
+        return {
+            "id": recipe_id,
+            "name": "Character Sheet",
+            "description": "Turnaround sheet",
+            "category": "characters",
+            "stages": [{"id": "s1", "order": 0, "template": "CHARACTER @<<NAME:name!>>", "reference_images": []}],
+            "suggested_model": "gpt-image-2",
+            "suggested_aspect_ratio": "3:2",
+        }
+
     def list_loras(self, *, api_key: str) -> dict[str, Any]:
         return {"loras": []}
 
