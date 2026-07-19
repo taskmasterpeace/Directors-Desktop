@@ -82,11 +82,8 @@ function searchDirectoryForFiles(dir: string, filenames: string[]): Record<strin
 
 
 export function registerFileHandlers(): void {
-  ipcMain.handle('open-ltx-api-key-page', async () => {
-    const { shell } = await import('electron')
-    await shell.openExternal('https://console.ltx.video/api-keys/')
-    return true
-  })
+  // 'open-ltx-api-key-page' removed: this fork never uses the LTX cloud API,
+  // so there is no reason to send users to console.ltx.video.
 
   ipcMain.handle('open-replicate-api-key-page', async () => {
     const { shell } = await import('electron')

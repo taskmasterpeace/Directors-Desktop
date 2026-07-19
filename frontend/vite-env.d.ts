@@ -24,7 +24,6 @@ interface Window {
     completeSetup: () => Promise<boolean>
     fetchLicenseText: () => Promise<string>
     getNoticesText: () => Promise<string>
-    openLtxApiKeyPage: () => Promise<boolean>
     openReplicateApiKeyPage: () => Promise<boolean>
     openPaletteLoginPage: () => Promise<boolean>
     openPaletteAuth: () => Promise<boolean>

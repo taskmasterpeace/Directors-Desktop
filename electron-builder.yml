@@ -92,7 +92,10 @@ dmg:
       type: link
       path: /Applications
 
+# Publish target repointed from Lightricks/ltx-desktop to this fork — the
+# in-app updater is disabled (electron/updater.ts), but nothing in the build
+# config should reference Lightricks' feed either.
 publish:
   provider: github
-  owner: Lightricks
-  repo: ltx-desktop
+  owner: taskmasterpeace
+  repo: Directors-Desktop

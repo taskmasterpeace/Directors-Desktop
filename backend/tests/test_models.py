@@ -35,13 +35,15 @@ class TestModelsStatus:
         r = client.get("/api/models/status")
         assert r.json()["all_downloaded"] is True
 
-    def test_with_api_key(self, client, create_fake_model_files, test_state):
+    def test_ltx_key_no_longer_waives_local_text_encoder(self, client, create_fake_model_files, test_state):
+        # Fork policy: cloud text encoding is disabled, so an LTX key must not
+        # make the local text encoder optional.
         create_fake_model_files(include_zit=True)
         test_state.state.app_settings.ltx_api_key = "test-key"
 
         r = client.get("/api/models/status")
         te_model = next(m for m in r.json()["models"] if m["name"] == "gemma-3-12b-it-qat-q4_0-unquantized")
-        assert te_model["required"] is False
+        assert te_model["required"] is True
 
     def test_forced_mode_requires_no_local_models(self, client, test_state):
         test_state.config.force_api_generations = True
@@ -101,12 +103,14 @@ class TestModelDownload:
         te_calls = [c for c in test_state.model_downloader.calls if c.get("repo_id") == te_spec.repo_id]
         assert not te_calls, "text encoder download should have been skipped"
 
-    def test_api_key_auto_skip(self, client, test_state):
+    def test_ltx_key_does_not_skip_text_encoder_download(self, client, test_state):
+        # Fork policy: cloud text encoding is disabled, so the local text
+        # encoder downloads even when an LTX key is configured.
         test_state.state.app_settings.ltx_api_key = "test-key"
 
         r = client.post("/api/models/download", json={})
         assert r.status_code == 200
-        assert r.json()["skippingTextEncoder"] is True
+        assert r.json()["skippingTextEncoder"] is False
 
     def test_forced_mode_downloads_no_local_models(self, client, test_state):
         test_state.config.force_api_generations = True

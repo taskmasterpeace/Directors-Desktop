@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-LTX Desktop is an open-source Electron app for AI video generation using LTX models. It supports local generation on Windows NVIDIA GPUs (32GB+ VRAM) and API-only mode for unsupported hardware and macOS.
+Directors Desktop (fork of LTX Desktop) is an Electron app for AI video generation. Generation runs locally (open LTX weights on the user's NVIDIA GPU) or via cloud providers.
+
+**HARD POLICY — no LTX/Lightricks cloud, ever.** Nothing is sent to LTX the company: the LTX cloud API (`api.ltx.video`), Lightricks telemetry, the Lightricks update feed, and cloud text encoding are all permanently disabled/removed. The ONLY external services are **Replicate, fal, and Directors Palette** (plus HuggingFace for open-weight model downloads). `should_video_generate_with_ltx_api()` is hard-`False`; `sendAnalyticsEvent` is a no-op; the updater is disabled. Never re-enable any of these.
 
 Three-layer architecture:
 

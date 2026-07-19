@@ -37,26 +37,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-FORCED_API_MODEL_MAP: dict[str, str] = {
-    "fast": "ltx-2-3-fast",
-    "pro": "ltx-2-3-pro",
-}
-FORCED_API_RESOLUTION_MAP: dict[str, dict[str, str]] = {
-    "1080p": {"16:9": "1920x1080", "9:16": "1080x1920"},
-    "1440p": {"16:9": "2560x1440", "9:16": "1440x2560"},
-    "2160p": {"16:9": "3840x2160", "9:16": "2160x3840"},
-}
-A2V_FORCED_API_RESOLUTION = "1920x1080"
-FORCED_API_ALLOWED_ASPECT_RATIOS = {"16:9", "9:16"}
-FORCED_API_ALLOWED_FPS = {24, 25, 48, 50}
-
-
-def _get_allowed_durations(model_id: str, resolution_label: str, fps: int) -> set[int]:
-    if model_id == "ltx-2-3-fast" and resolution_label == "1080p" and fps in {24, 25}:
-        return {6, 8, 10, 12, 14, 16, 18, 20}
-    return {6, 8, 10}
-
-
 class VideoGenerationHandler(StateHandlerBase):
     def __init__(
         self,
@@ -877,178 +857,14 @@ class VideoGenerationHandler(StateHandlerBase):
             raise HTTPError(500, str(e)) from e
 
     def _generate_forced_api(self, req: GenerateVideoRequest) -> GenerateVideoResponse:
-        if self._generation.is_generation_running():
-            raise HTTPError(409, "Generation already in progress")
-
-        generation_id = self._make_generation_id()
-        self._generation.start_api_generation(generation_id)
-
-        audio_path = normalize_optional_path(req.audioPath)
-        image_path = normalize_optional_path(req.imagePath)
-        last_frame_path = normalize_optional_path(req.lastFramePath)
-        has_input_audio = bool(audio_path)
-        has_input_image = bool(image_path)
-
-        try:
-            self._generation.update_progress("validating_request", 5, None, None)
-
-            api_key = self.state.app_settings.ltx_api_key.strip()
-            logger.info("Forced API generation route selected (key_present=%s)", bool(api_key))
-            if not api_key:
-                raise HTTPError(400, "PRO_API_KEY_REQUIRED")
-
-            requested_model = req.model.strip().lower()
-            api_model_id = FORCED_API_MODEL_MAP.get(requested_model)
-            if api_model_id is None:
-                raise HTTPError(400, "INVALID_FORCED_API_MODEL")
-
-            resolution_label = req.resolution
-            resolution_by_aspect = FORCED_API_RESOLUTION_MAP.get(resolution_label)
-            if resolution_by_aspect is None:
-                raise HTTPError(400, "INVALID_FORCED_API_RESOLUTION")
-
-            aspect_ratio = req.aspectRatio.strip()
-            if aspect_ratio not in FORCED_API_ALLOWED_ASPECT_RATIOS:
-                raise HTTPError(400, "INVALID_FORCED_API_ASPECT_RATIO")
-
-            api_resolution = resolution_by_aspect[aspect_ratio]
-
-            prompt = req.prompt
-
-            if self._generation.is_generation_cancelled():
-                raise RuntimeError("Generation was cancelled")
-
-            if has_input_audio:
-                if requested_model != "pro":
-                    logger.warning("A2V requested with model=%s; overriding to 'pro'", requested_model)
-                api_model_id = FORCED_API_MODEL_MAP["pro"]
-                if api_resolution != A2V_FORCED_API_RESOLUTION:
-                    logger.warning("A2V requested with resolution=%s; overriding to '%s'", api_resolution, A2V_FORCED_API_RESOLUTION)
-                api_resolution = A2V_FORCED_API_RESOLUTION
-                validated_audio_path = validate_audio_file(audio_path)
-                validated_image_path: Path | None = None
-                if image_path is not None:
-                    validated_image_path = validate_image_file(image_path)
-
-                self._generation.update_progress("uploading_audio", 20, None, None)
-                audio_uri = self._ltx_api_client.upload_file(
-                    api_key=api_key,
-                    file_path=str(validated_audio_path),
-                )
-                image_uri: str | None = None
-                if validated_image_path is not None:
-                    self._generation.update_progress("uploading_image", 35, None, None)
-                    image_uri = self._ltx_api_client.upload_file(
-                        api_key=api_key,
-                        file_path=str(validated_image_path),
-                    )
-                self._generation.update_progress("inference", 55, None, None)
-                video_bytes = self._ltx_api_client.generate_audio_to_video(
-                    api_key=api_key,
-                    prompt=prompt,
-                    audio_uri=audio_uri,
-                    image_uri=image_uri,
-                    model=api_model_id,
-                    resolution=api_resolution,
-                )
-                self._generation.update_progress("downloading_output", 85, None, None)
-            elif has_input_image:
-                validated_image_path = validate_image_file(image_path)
-
-                duration = self._parse_forced_numeric_field(req.duration, "INVALID_FORCED_API_DURATION")
-                fps = self._parse_forced_numeric_field(req.fps, "INVALID_FORCED_API_FPS")
-                if fps not in FORCED_API_ALLOWED_FPS:
-                    raise HTTPError(400, "INVALID_FORCED_API_FPS")
-                duration = self._resolve_forced_api_duration(
-                    duration,
-                    _get_allowed_durations(api_model_id, resolution_label, fps),
-                    req.exactDuration,
-                )
-
-                generate_audio = self._parse_audio_flag(req.audio)
-                self._generation.update_progress("uploading_image", 20, None, None)
-                image_uri = self._ltx_api_client.upload_file(
-                    api_key=api_key,
-                    file_path=str(validated_image_path),
-                )
-                last_frame_uri: str | None = None
-                if last_frame_path is not None:
-                    validated_last_frame_path = validate_image_file(last_frame_path)
-                    self._generation.update_progress("uploading_last_frame", 35, None, None)
-                    last_frame_uri = self._ltx_api_client.upload_file(
-                        api_key=api_key,
-                        file_path=str(validated_last_frame_path),
-                    )
-                self._generation.update_progress("inference", 55, None, None)
-                video_bytes = self._ltx_api_client.generate_image_to_video(
-                    api_key=api_key,
-                    prompt=prompt,
-                    image_uri=image_uri,
-                    last_frame_uri=last_frame_uri,
-                    model=api_model_id,
-                    resolution=api_resolution,
-                    duration=float(duration),
-                    fps=float(fps),
-                    generate_audio=generate_audio,
-                    camera_motion=req.cameraMotion,
-                )
-                self._generation.update_progress("downloading_output", 85, None, None)
-            else:
-                duration = self._parse_forced_numeric_field(req.duration, "INVALID_FORCED_API_DURATION")
-                fps = self._parse_forced_numeric_field(req.fps, "INVALID_FORCED_API_FPS")
-                if fps not in FORCED_API_ALLOWED_FPS:
-                    raise HTTPError(400, "INVALID_FORCED_API_FPS")
-                duration = self._resolve_forced_api_duration(
-                    duration,
-                    _get_allowed_durations(api_model_id, resolution_label, fps),
-                    req.exactDuration,
-                )
-
-                generate_audio = self._parse_audio_flag(req.audio)
-                t2v_last_frame_uri: str | None = None
-                if last_frame_path is not None:
-                    validated_last_frame_path = validate_image_file(last_frame_path)
-                    self._generation.update_progress("uploading_last_frame", 20, None, None)
-                    t2v_last_frame_uri = self._ltx_api_client.upload_file(
-                        api_key=api_key,
-                        file_path=str(validated_last_frame_path),
-                    )
-                self._generation.update_progress("inference", 55, None, None)
-                video_bytes = self._ltx_api_client.generate_text_to_video(
-                    api_key=api_key,
-                    prompt=prompt,
-                    last_frame_uri=t2v_last_frame_uri,
-                    model=api_model_id,
-                    resolution=api_resolution,
-                    duration=float(duration),
-                    fps=float(fps),
-                    generate_audio=generate_audio,
-                    camera_motion=req.cameraMotion,
-                )
-                self._generation.update_progress("downloading_output", 85, None, None)
-
-            if self._generation.is_generation_cancelled():
-                raise RuntimeError("Generation was cancelled")
-
-            api_model_label = f"ltx-{requested_model}"
-            output_path = self._write_forced_api_video(video_bytes, model=api_model_label, prompt=prompt)
-            if self._generation.is_generation_cancelled():
-                output_path.unlink(missing_ok=True)
-                raise RuntimeError("Generation was cancelled")
-
-            self._maybe_conform_exact(str(output_path), req)
-            self._generation.update_progress("complete", 100, None, None)
-            self._generation.complete_generation(str(output_path))
-            return GenerateVideoResponse(status="complete", video_path=str(output_path))
-        except HTTPError as e:
-            self._generation.fail_generation(e.detail)
-            raise
-        except Exception as e:
-            self._generation.fail_generation(str(e))
-            if "cancelled" in str(e).lower():
-                logger.info("Generation cancelled by user")
-                return GenerateVideoResponse(status="cancelled")
-            raise HTTPError(500, str(e)) from e
+        # Defense in depth: routing can no longer reach this path
+        # (should_video_generate_with_ltx_api is hard False), but if anything
+        # ever re-enables it, refuse rather than send data to LTX/Lightricks.
+        raise HTTPError(
+            400,
+            "LTX_API_DISABLED: this build never sends data to the LTX cloud API. "
+            "Use local generation, Seedance (Replicate/fal), or Directors Palette.",
+        )
 
     def _write_forced_api_video(self, video_bytes: bytes, *, model: str, prompt: str) -> Path:
         output_path = self._make_output_path(model=model, prompt=prompt)
@@ -1085,19 +901,6 @@ class VideoGenerationHandler(StateHandlerBase):
         except (TypeError, ValueError):
             return
         self._conform_exact_output(output_path, seconds)
-
-    @staticmethod
-    def _resolve_forced_api_duration(requested: int, allowed: set[int], exact: bool) -> int:
-        """The LTX API only accepts discrete durations. Normally an off-list
-        request is a 400; in exact-length mode we generate at the smallest
-        allowed duration that covers the request (the conform step trims the
-        output back to the requested seconds)."""
-        if requested in allowed:
-            return requested
-        if not exact:
-            raise HTTPError(400, "INVALID_FORCED_API_DURATION")
-        larger = [d for d in allowed if d >= requested]
-        return min(larger) if larger else max(allowed)
 
     @staticmethod
     def _parse_forced_numeric_field(raw_value: str, error_detail: str) -> int:

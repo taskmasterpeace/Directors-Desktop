@@ -1,13 +1,10 @@
+// Directors Desktop: Lightricks telemetry has been removed entirely. The
+// analytics state file and IPC surface remain (the Settings toggle still
+// reads/writes them) but no network request is ever made.
 import { randomUUID } from 'crypto';
 import { app } from 'electron';
 import fs from 'fs';
 import path from 'path';
-import { isDev } from './config';
-
-const ANALYTICS_ENDPOINT = 'https://ltx-desktop.lightricks.com/v2/ingest';
-const REQUEST_TIMEOUT_MS = 5000;
-const MAX_RETRIES = 3;
-const RETRY_DELAYS_MS = [1000, 3000, 10000]
 
 interface AppState {
   analyticsEnabled?: boolean
@@ -53,82 +50,12 @@ export function setAnalyticsEnabled(enabled: boolean): void {
   writeAppState(state)
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms))
-}
-
-function isRetryable(status: number): boolean {
-  return status === 429 || status >= 500
-}
-
-async function sendWithRetry(
-  url: string,
-  options: RequestInit,
-): Promise<void> {
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
-      const response = await fetch(url, { ...options, signal: controller.signal })
-      clearTimeout(timeout)
-
-      if (response.ok || !isRetryable(response.status)) return
-    } catch (err) {
-      console.warn('[analytics] request attempt failed:', err)
-    }
-
-    if (attempt < MAX_RETRIES) {
-      await delay(RETRY_DELAYS_MS[attempt])
-    }
-  }
-}
-
 export async function sendAnalyticsEvent(
   eventName: string,
   extraDetails?: Record<string, unknown> | null,
 ): Promise<void> {
-  try {
-    // Skip analytics in dev builds
-    if (isDev) return;
-
-    const state = readAppState()
-    if (state.analyticsEnabled === false) return
-
-    // Generate installationId on first send
-    if (!state.installationId) {
-      state.installationId = randomUUID()
-      writeAppState(state)
-    }
-
-    const platform = process.platform === 'darwin' ? 'mac' : process.platform === 'win32' ? 'windows' : 'linux'
-    const now = Date.now()
-
-    const payload = {
-      events: [
-        {
-          subject: eventName,
-          eventId: randomUUID(),
-          eventTimestamp: now,
-          event: {
-            app_version: app.getVersion(),
-            device_timestamp: now,
-            installation_id: state.installationId,
-            platform,
-            extra_details: extraDetails ? JSON.stringify(extraDetails) : null,
-          },
-        },
-      ],
-    }
-
-    // Fire-and-forget with retries — never throws
-    void sendWithRetry(ANALYTICS_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    })
-  } catch (err) {
-    console.error('[analytics] failed to send event:', err)
-  }
+  // Directors Desktop policy: telemetry to Lightricks is permanently disabled.
+  // Nothing leaves this machine. The IPC surface stays so callers don't break.
+  void eventName
+  void extraDetails
 }
