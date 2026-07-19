@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { migrateImageModelId } from '@/lib/image-models'
 
 export interface CreditPricing {
   video_t2v: number
@@ -89,6 +90,8 @@ interface AppSettingsContextValue {
   saveOpenrouterApiKey: (value: string) => Promise<void>
   savePaletteApiKey: (value: string) => Promise<void>
   saveCivitaiApiKey: (value: string) => Promise<void>
+  /** Set the app-wide image model AND persist it, so it survives a restart. */
+  saveImageModel: (value: string) => Promise<void>
   forceApiGenerations: boolean
   shouldVideoGenerateWithLtxApi: boolean
   credits: CreditInfo
@@ -118,7 +121,9 @@ function normalizeAppSettings(data: Partial<AppSettings>): AppSettings {
     hasReplicateApiKey: data.hasReplicateApiKey ?? DEFAULT_APP_SETTINGS.hasReplicateApiKey,
     hasFalApiKey: data.hasFalApiKey ?? DEFAULT_APP_SETTINGS.hasFalApiKey,
     hasPaletteApiKey: data.hasPaletteApiKey ?? DEFAULT_APP_SETTINGS.hasPaletteApiKey,
-    imageModel: data.imageModel ?? DEFAULT_APP_SETTINGS.imageModel,
+    // Migrate retired ids (e.g. the withdrawn dp-flux-2-klein-9b) so a stored
+    // model that no longer exists can't strand generation on a dead option.
+    imageModel: migrateImageModelId(data.imageModel ?? DEFAULT_APP_SETTINGS.imageModel),
     videoModel: data.videoModel ?? DEFAULT_APP_SETTINGS.videoModel,
     hasGeminiApiKey: data.hasGeminiApiKey ?? DEFAULT_APP_SETTINGS.hasGeminiApiKey,
     hasOpenrouterApiKey: data.hasOpenrouterApiKey ?? DEFAULT_APP_SETTINGS.hasOpenrouterApiKey,
@@ -330,6 +335,27 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
     await refreshSettings()
   }, [backendUrl, refreshSettings])
 
+  /**
+   * The image model is app-wide, so every surface (Gen Space, Playground, Video
+   * Editor, Batch) agrees on it. `updateSettings` alone is memory-only, so the
+   * choice used to vanish on restart — persist it here.
+   */
+  const saveImageModel = useCallback(async (value: string) => {
+    const migrated = migrateImageModelId(value)
+    setSettings((prev) => ({ ...prev, imageModel: migrated }))
+    if (!backendUrl) return
+    try {
+      await fetch(`${backendUrl}/api/settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageModel: migrated }),
+      })
+    } catch {
+      // Non-fatal: each queued job carries its own model, so generation still
+      // runs on the picked model even if saving the default fails.
+    }
+  }, [backendUrl])
+
   const saveCivitaiApiKey = useCallback(async (value: string) => {
     if (!backendUrl) return
     const response = await fetch(`${backendUrl}/api/settings`, {
@@ -442,12 +468,13 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
       saveOpenrouterApiKey,
       savePaletteApiKey,
       saveCivitaiApiKey,
+      saveImageModel,
       forceApiGenerations,
       shouldVideoGenerateWithLtxApi,
       credits,
       refreshCredits,
     }),
-    [credits, forceApiGenerations, isLoaded, refreshCredits, refreshSettings, runtimePolicyLoaded, saveCivitaiApiKey, savePaletteApiKey, saveReplicateApiKey, saveFalApiKey, saveGeminiApiKey, saveOpenrouterApiKey, saveLtxApiKey, settings, shouldVideoGenerateWithLtxApi, updateSettings],
+    [credits, forceApiGenerations, isLoaded, refreshCredits, refreshSettings, runtimePolicyLoaded, saveCivitaiApiKey, saveImageModel, savePaletteApiKey, saveReplicateApiKey, saveFalApiKey, saveGeminiApiKey, saveOpenrouterApiKey, saveLtxApiKey, settings, shouldVideoGenerateWithLtxApi, updateSettings],
   )
 
   return <AppSettingsContext.Provider value={contextValue}>{children}</AppSettingsContext.Provider>

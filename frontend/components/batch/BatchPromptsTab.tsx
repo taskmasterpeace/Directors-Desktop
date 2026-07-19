@@ -1,6 +1,7 @@
 import { useRef, useState, useMemo, useEffect } from 'react'
 import { Upload } from 'lucide-react'
 import { parseBlankLineSeparated } from '@/lib/batch-import'
+import { listImageModelGroups } from '@/lib/image-models'
 import type { BatchSubmitRequest, BatchJobItem } from '@/types/batch'
 
 type SeedMode = 'locked' | 'random' | 'sequential'
@@ -11,14 +12,6 @@ export interface BatchPromptsTabProps {
   onSubmit: (request: BatchSubmitRequest) => void
   isRunning: boolean
 }
-
-// Image models supported in batch mode
-const IMAGE_MODELS = [
-  { value: 'flux-klein-9b', label: 'FLUX.2 Klein 9B' },
-  { value: 'flux-dev', label: 'FLUX.1 Dev' },
-  { value: 'z-image-turbo', label: 'Z-Image Turbo' },
-  { value: 'nano-banana-2', label: 'Nano Banana 2' },
-] as const
 
 // All aspect ratios for image gen
 const ALL_ASPECT_RATIOS = ['1:1', '16:9', '9:16', '4:3', '3:4', '4:5', '21:9'] as const
@@ -166,7 +159,11 @@ export function BatchPromptsTab({ target, onSubmit, isRunning }: BatchPromptsTab
             className="w-full rounded-lg px-2 py-1.5 text-sm border"
             style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}
           >
-            {IMAGE_MODELS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+            {listImageModelGroups().map(group => (
+              <optgroup key={group.label} label={group.label}>
+                {group.models.map(m => <option key={m.id} value={m.id}>{m.displayName}</option>)}
+              </optgroup>
+            ))}
           </select>
         </div>
         <div>

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { X, Plus, Trash2, Copy, Upload, Grid3X3, List, FileText, Play, AlertCircle, Layers, Film } from 'lucide-react'
 import type { BatchSubmitRequest, BatchJobItem, SweepAxis } from '@/types/batch'
 import { parseCSV, parseJSON, parseRange } from '@/lib/batch-import'
+import { listImageModelGroups, migrateImageModelId } from '@/lib/image-models'
 import { useBatch } from '@/hooks/use-batch'
 import { BatchPromptsTab } from './batch/BatchPromptsTab'
 import { BatchAnimateTab } from './batch/BatchAnimateTab'
@@ -311,12 +312,29 @@ export function BatchBuilderModal({ isOpen, onClose }: BatchBuilderModalProps) {
                     <option value="image">Image</option>
                     <option value="video">Video</option>
                   </select>
-                  <input
-                    value={row.model}
-                    onChange={e => updateRow(row.id, 'model', e.target.value)}
-                    className="text-sm rounded-lg px-2 py-1.5 border"
-                    style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}
-                  />
+                  {row.type === 'image' ? (
+                    <select
+                      value={migrateImageModelId(row.model)}
+                      onChange={e => updateRow(row.id, 'model', e.target.value)}
+                      className="text-sm rounded-lg px-2 py-1.5 border"
+                      style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}
+                    >
+                      {listImageModelGroups().map(group => (
+                        <optgroup key={group.label} label={group.label}>
+                          {group.models.map(m => (
+                            <option key={m.id} value={m.id}>{m.displayName}</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      value={row.model}
+                      onChange={e => updateRow(row.id, 'model', e.target.value)}
+                      className="text-sm rounded-lg px-2 py-1.5 border"
+                      style={{ background: 'oklch(0.22 0.025 250)', borderColor: 'oklch(0.32 0.03 250)', color: 'oklch(0.92 0.02 250)' }}
+                    />
+                  )}
                   <input
                     value={row.prompt}
                     onChange={e => updateRow(row.id, 'prompt', e.target.value)}

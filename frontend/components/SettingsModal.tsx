@@ -4,6 +4,7 @@ import { Button } from './ui/button'
 import { ModelGuideDialog } from './ModelGuideDialog'
 import { useAppSettings, type AppSettings } from '../contexts/AppSettingsContext'
 import { logger } from '../lib/logger'
+import { getImageModel, isPaletteImageModel, listImageModelGroups } from '../lib/image-models'
 import { ApiKeyHelperRow, LtxApiKeyInput } from './LtxApiKeyInput'
 
 interface TextEncoderStatus {
@@ -21,7 +22,7 @@ interface SettingsModalProps {
 type TabId = 'general' | 'apiKeys' | 'inference' | 'promptEnhancer' | 'models' | 'about'
 
 export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProps) {
-  const { settings, updateSettings, saveReplicateApiKey, saveFalApiKey, saveGeminiApiKey, saveOpenrouterApiKey, saveCivitaiApiKey, refreshSettings } = useAppSettings()
+  const { settings, updateSettings, saveReplicateApiKey, saveFalApiKey, saveGeminiApiKey, saveOpenrouterApiKey, saveCivitaiApiKey, saveImageModel, refreshSettings } = useAppSettings()
   const onSettingsChange = (next: AppSettings) => updateSettings(next)
   const [activeTab, setActiveTab] = useState<TabId>('general')
   const [replicateApiKeyInput, setReplicateApiKeyInput] = useState('')
@@ -759,30 +760,28 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                   <div className="pt-2 border-t border-zinc-700">
                     <label className="text-xs text-zinc-400 block mb-1.5">Image Model</label>
                     <select
-                      value={settings.imageModel}
-                      onChange={(e) => updateSettings({ imageModel: e.target.value })}
+                      value={getImageModel(settings.imageModel).id}
+                      onChange={(e) => { void saveImageModel(e.target.value) }}
                       className="w-full bg-zinc-900 text-white text-sm rounded-lg px-3 py-2 border border-zinc-700 focus:border-blue-500 focus:outline-none"
                     >
-                      <optgroup label="Director's Palette (your DP account)">
-                        <option value="dp-nano-banana-2">Director&apos;s Palette · Nano Banana 2</option>
-                        <option value="dp-flux-2-klein-9b">Director&apos;s Palette · Flux Klein</option>
-                      </optgroup>
-                      <optgroup label="Local (your GPU)">
-                        <option value="flux-dev">FLUX.1 Dev 12B</option>
-                        <option value="flux-klein-9b">FLUX.2 Klein 9B</option>
-                        <option value="z-image-turbo">Z-Image Turbo</option>
-                      </optgroup>
-                      <optgroup label="Other cloud (Replicate key)">
-                        <option value="nano-banana-2">Nano Banana 2 (Replicate)</option>
-                      </optgroup>
+                      {listImageModelGroups().map((group) => (
+                        <optgroup key={group.label} label={group.label}>
+                          {group.models.map((model) => (
+                            <option key={model.id} value={model.id}>
+                              {model.displayName}
+                              {model.costPoints !== null
+                                ? ` · ${model.costByQuality ? 'from ' : ''}${model.costPoints} pts`
+                                : ''}
+                            </option>
+                          ))}
+                        </optgroup>
+                      ))}
                     </select>
                     <p className="text-[11px] text-zinc-500 mt-1.5 leading-relaxed">
-                      {settings.imageModel?.startsWith('dp-') && 'Generates on your Director’s Palette account and credits — no GPU, no Replicate/fal keys. Just connect Director’s Palette below.'}
-                      {settings.imageModel === 'flux-dev' && 'Best quality. Standard LoRA target — most community LoRAs are trained on this. ~34s/image.'}
-                      {settings.imageModel === 'flux-klein-9b' && 'High quality images with LoRA support. Reloads each generation (~5s extra).'}
-                      {settings.imageModel === 'z-image-turbo' && 'Fast single-step generation. Stays in memory between runs for quick back-to-back images.'}
-                      {settings.imageModel === 'nano-banana-2' && 'Runs in the cloud — no GPU needed. Requires a Replicate API key.'}
-                      {' '}Switching models takes a few seconds on your first image — you\'ll see a progress message.
+                      {getImageModel(settings.imageModel).description}
+                      {isPaletteImageModel(settings.imageModel)
+                        ? ' Runs on your Director’s Palette credits — no GPU, no Replicate/fal key needed.'
+                        : ' Switching models takes a few seconds on your first image — you’ll see a progress message.'}
                     </p>
                   </div>
 

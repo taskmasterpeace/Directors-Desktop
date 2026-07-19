@@ -8,7 +8,7 @@ from collections.abc import Mapping
 import requests
 
 from services.http_client.http_client import HttpTimeoutError
-from services.services_utils import JSONValue, RequestData
+from services.services_utils import JSONValue, MultipartFiles, RequestData
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +23,12 @@ class HTTPClientImpl:
         json_payload: Mapping[str, JSONValue] | None = None,
         data: RequestData = None,
         timeout: int = 30,
+        files: MultipartFiles | None = None,
     ) -> requests.Response:
         try:
-            return requests.post(url, headers=headers, json=json_payload, data=data, timeout=timeout)
+            return requests.post(
+                url, headers=headers, json=json_payload, data=data, files=files, timeout=timeout
+            )
         except requests.exceptions.Timeout as exc:
             logger.error("HTTP POST timed out: %s", url, exc_info=True)
             raise HttpTimeoutError(str(exc)) from exc

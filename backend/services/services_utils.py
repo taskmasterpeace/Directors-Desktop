@@ -20,6 +20,9 @@ JSONScalar: TypeAlias = str | int | float | bool | None
 JSONValue: TypeAlias = JSONScalar | list["JSONValue"] | dict[str, "JSONValue"]
 RequestFieldValue: TypeAlias = str | bytes | int | float | bool | None
 RequestData: TypeAlias = bytes | str | Mapping[str, RequestFieldValue] | BinaryIO | None
+# One multipart file part: (filename, content, content_type) — matches requests' file spec.
+MultipartFileValue: TypeAlias = tuple[str, bytes, str]
+MultipartFiles: TypeAlias = Mapping[str, MultipartFileValue]
 PromptInput: TypeAlias = str | Sequence[str]
 
 TensorType: TypeAlias = torch.Tensor

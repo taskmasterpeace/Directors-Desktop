@@ -18,6 +18,28 @@ import { copyToAssetFolder } from '../lib/asset-copy'
 import { fileUrlToPath } from '../lib/url-to-path'
 import { extractVideoFrame } from '../lib/video-frames'
 import {
+  getImageModel,
+  getImageModelCost,
+  listImageModelGroups,
+  migrateImageModelId,
+  coerceAspectRatio,
+} from '../lib/image-models'
+import { CAMERA_PRESETS } from '../lib/shot-creator/camera-angle'
+
+/** Friendly labels for the aspect ratios the image models expose. */
+const IMAGE_ASPECT_LABELS: Record<string, string> = {
+  '16:9': '16:9 — YouTube / TV',
+  '9:16': '9:16 — TikTok / Reels',
+  '1:1': '1:1 — Square',
+  '4:5': '4:5 — Instagram Portrait',
+  '4:3': '4:3 — Classic Photo',
+  '3:4': '3:4 — Pinterest',
+  '21:9': '21:9 — Ultrawide',
+  '3:2': '3:2 — Classic Print',
+  '2:3': '2:3 — Portrait Print',
+  match_input_image: 'Match input image',
+}
+import {
   FORCED_API_VIDEO_FPS,
   FORCED_API_VIDEO_RESOLUTIONS,
   getAllowedForcedApiDurations,
@@ -401,10 +423,20 @@ function PromptBar({
     referenceImagePaths?: string[]
     audioReferencePaths?: string[]
     videoReferencePaths?: string[]
+    imageModelParams?: Record<string, unknown>
   }
   onSettingsChange: (settings: any) => void
   shouldVideoGenerateWithLtxApi: boolean
 }) {
+  // The image model is a global setting, so picking it here applies everywhere
+  // images are generated (Playground, Video Editor, Batch, …).
+  const { settings: globalSettings, saveImageModel } = useAppSettings()
+  const imageModelId = migrateImageModelId(globalSettings.imageModel)
+  const imageModelConfig = getImageModel(imageModelId)
+  const imageModelParams = settings.imageModelParams ?? {}
+  const setImageModelParam = (key: string, value: unknown) =>
+    onSettingsChange({ ...settings, imageModelParams: { ...imageModelParams, [key]: value } })
+
   const inputRef = useRef<HTMLInputElement>(null)
   const audioInputRef = useRef<HTMLInputElement>(null)
   const editImageInputRef = useRef<HTMLInputElement>(null)
@@ -800,11 +832,43 @@ function PromptBar({
           <div className="text-[10px] text-zinc-500 pr-2">Trim in the panel above, then retake</div>
         ) : mode === 'image' ? (
           <>
-            {/* Model indicator */}
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-zinc-800/50">
-              <ZitIcon className="h-3.5 w-3.5" />
-              <span className="text-zinc-300 font-medium">{editSourceImage ? 'Edit' : 'Z-Image Turbo'}</span>
-            </div>
+            {/* Model picker — global, so the choice applies app-wide */}
+            <SettingsDropdown
+              title="IMAGE MODEL"
+              value={imageModelId}
+              onChange={(v) => { void saveImageModel(v) }}
+              options={listImageModelGroups().flatMap((group) =>
+                group.models.map((m) => ({
+                  value: m.id,
+                  label:
+                    m.provider === 'palette'
+                      ? `${m.displayName} · ${m.costByQuality ? 'from ' : ''}${m.costPoints} pts`
+                      : m.provider === 'local'
+                        ? `${m.displayName} · local GPU`
+                        : `${m.displayName} · Replicate key`,
+                  disabled: m.provider === 'replicate' && !hasReplicateApiKey,
+                  tooltip:
+                    m.provider === 'replicate' && !hasReplicateApiKey
+                      ? 'Needs a Replicate API key in Settings'
+                      : m.description,
+                })),
+              )}
+              trigger={
+                <>
+                  <ZitIcon className="h-3.5 w-3.5" />
+                  <span className="text-zinc-300 font-medium">
+                    {editSourceImage ? `Edit · ${imageModelConfig.displayName}` : imageModelConfig.displayName}
+                  </span>
+                </>
+              }
+            />
+
+            {/* Camera Angle needs exactly one source image to orbit around */}
+            {imageModelConfig.requiresInputImage && !editSourceImage && !settings.referenceImagePaths?.length && (
+              <div className="text-[10px] text-amber-400/90 px-2 whitespace-nowrap">
+                Add a reference image
+              </div>
+            )}
 
             {editSourceImage ? (
               <>
@@ -854,27 +918,70 @@ function PromptBar({
                   }
                 />
 
-                {/* Aspect ratio dropdown */}
+                {/* Aspect ratio — only what the selected model actually accepts */}
                 <SettingsDropdown
                   title="RATIO"
-                  value={settings.aspectRatio}
+                  value={coerceAspectRatio(imageModelId, settings.aspectRatio)}
                   onChange={(v) => onSettingsChange({ ...settings, aspectRatio: v })}
-                  options={[
-                    { value: '16:9', label: '16:9 — YouTube / TV' },
-                    { value: '9:16', label: '9:16 — TikTok / Reels' },
-                    { value: '1:1', label: '1:1 — Instagram Post' },
-                    { value: '4:5', label: '4:5 — Instagram Portrait' },
-                    { value: '4:3', label: '4:3 — Classic Photo' },
-                    { value: '3:4', label: '3:4 — Pinterest' },
-                    { value: '21:9', label: '21:9 — Ultrawide' },
-                  ]}
+                  options={imageModelConfig.aspectRatios.map((ratio) => ({
+                    value: ratio,
+                    label: IMAGE_ASPECT_LABELS[ratio] ?? ratio,
+                  }))}
                   trigger={
                     <>
                       <AspectIcon className="h-3.5 w-3.5" />
-                      <span>{settings.aspectRatio}</span>
+                      <span>{coerceAspectRatio(imageModelId, settings.aspectRatio)}</span>
                     </>
                   }
                 />
+
+                {/* Quality — gpt-image-2 only, and it changes the price */}
+                {imageModelConfig.qualityOptions && (
+                  <SettingsDropdown
+                    title="QUALITY"
+                    value={String(imageModelParams.quality ?? imageModelConfig.qualityOptions[0])}
+                    onChange={(v) => setImageModelParam('quality', v)}
+                    options={imageModelConfig.qualityOptions.map((q) => ({
+                      value: q,
+                      label: `${q[0].toUpperCase()}${q.slice(1)} · ${getImageModelCost(imageModelId, q)} pts`,
+                    }))}
+                    trigger={
+                      <>
+                        <Sparkles className="h-3.5 w-3.5" />
+                        <span>{String(imageModelParams.quality ?? imageModelConfig.qualityOptions[0])}</span>
+                      </>
+                    }
+                  />
+                )}
+
+                {/* Camera angle presets — Camera Angle model only (full 3D gizmo lands later) */}
+                {imageModelConfig.supportsCameraAngle && (
+                  <SettingsDropdown
+                    title="CAMERA ANGLE"
+                    value={String(imageModelParams.cameraPreset ?? CAMERA_PRESETS[0].name)}
+                    onChange={(v) => {
+                      const preset = CAMERA_PRESETS.find((p) => p.name === v)
+                      if (!preset) return
+                      onSettingsChange({
+                        ...settings,
+                        imageModelParams: {
+                          ...imageModelParams,
+                          cameraPreset: preset.name,
+                          azimuth: preset.angle.azimuth,
+                          elevation: preset.angle.elevation,
+                          distance: preset.angle.distance,
+                        },
+                      })
+                    }}
+                    options={CAMERA_PRESETS.map((p) => ({ value: p.name, label: p.name }))}
+                    trigger={
+                      <>
+                        <Frame className="h-3.5 w-3.5" />
+                        <span>{String(imageModelParams.cameraPreset ?? CAMERA_PRESETS[0].name)}</span>
+                      </>
+                    }
+                  />
+                )}
 
                 {/* Variations */}
                 <SettingsDropdown
@@ -1101,6 +1208,8 @@ type GenSpaceSettings = typeof DEFAULT_VIDEO_SETTINGS & {
   referenceImagePaths?: string[]
   audioReferencePaths?: string[]
   videoReferencePaths?: string[]
+  /** Per-image-model settings (gpt quality, camera angle …) — see lib/image-models.ts */
+  imageModelParams?: Record<string, unknown>
 }
 
 export function GenSpace() {
@@ -1495,10 +1604,14 @@ export function GenSpace() {
         audio: false,
         cameraMotion: 'none',
         imageResolution: settings.imageResolution,
-        imageAspectRatio: settings.aspectRatio,
+        imageAspectRatio: coerceAspectRatio(appSettings.imageModel, settings.aspectRatio),
         imageSteps: 4,
         variations: settings.variations,
         strength: editStrength,
+        // Reference images (hosted Palette models) + per-model settings
+        // (gpt quality, Camera Angle azimuth/elevation/distance).
+        referenceImagePaths: settings.referenceImagePaths,
+        imageModelParams: settings.imageModelParams,
       }
 
       if (editSourceImage) {

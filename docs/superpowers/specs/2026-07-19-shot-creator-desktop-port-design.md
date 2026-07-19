@@ -117,3 +117,75 @@ prompt-building utility, not a standalone asset → Tools.
 7. **Nav reorg** (after approval).
 
 Each phase keeps the suite green (typecheck, vitest, backend pytest, build).
+
+---
+
+## ⚠️ ARCHITECTURE CORRECTION (2026-07-19, after mapping the live Palette source)
+
+The plan above assumed the target was `POST /api/v1/images/generate` and that it must
+be extended + deployed. **That is wrong.** Mapping `directors-palette-v2` revealed:
+
+- **`/api/v1/images/generate` is legacy** — hard-codes `VALID_MODEL_IDS =
+  {nano-banana-2, flux-2-klein-9b}`, flat pricing, no version-hash routing (so
+  `qwen-image-edit` would silently run without its pinned version + multi-angle
+  LoRA). Do **not** target it.
+- **`/api/v2/images/generate` already accepts all 4 current models**, with
+  tier-aware pricing, version-hash routing, gpt/qwen params, and credit
+  refund-on-failure. **It is already live** — so **NO Palette deploy is needed.**
+  Task "extend the endpoint" (#13) is **eliminated.**
+
+### The desktop integration (route through Palette v2, Bearer `dp_` key)
+
+Response envelope everywhere: `{ success: true, data: … }` (errors:
+`{ success: false, error: { code, message } }`).
+
+1. **References must be public http URLs.** v2 has an SSRF guard
+   (`isPublicHttpUrl`) that **rejects base64 data URIs** — the desktop's current
+   `_encode_reference_images` approach fails on v2. So any local reference image
+   must first be **uploaded**:
+   - `POST /api/v2/images/upload` — **multipart/form-data**, field `file`
+     (jpeg/png/webp, ≤50 MB, **≥256×256**). Returns `data.url` (public). Optional
+     `name`, `reference_tag`, `reference_category`, `workspace_id`.
+
+2. **Standard models** (`nano-banana-2`, `nano-banana-2-lite`, `gpt-image-2`) —
+   **async, poll**:
+   - `POST /api/v2/images/generate` → body `{ model, prompt, aspect_ratio,
+     reference_images: [url…], num_images: 1, seed?, quality?/background?/moderation? (gpt only) }`
+     → `data = { job_id, status: 'pending', … }`.
+   - Poll `GET /api/v2/jobs/{job_id}` every ~2 s → `data = { status, result, error_message }`.
+     On `status === 'completed'` → **`data.result.url`** (the public image URL, written by
+     Palette's own Replicate webhook → `result: { url, metadata }`). On `'failed'` →
+     `data.error_message` (pts auto-refunded server-side). Add a hard timeout (~5 min).
+   - Palette's server receives the Replicate webhook; the **desktop never needs a
+     webhook receiver** — it only polls.
+
+3. **Camera Angle** (`qwen-image-edit`) — **synchronous, one call**:
+   - `POST /api/v2/images/camera-angle` → body `{ image_url (required, public),
+     azimuth, elevation, distance, prompt?, lora_scale? (def 0.5), aspect_ratio?
+     (def match_input_image), output_format? }`. The route builds the `<sks>` prompt +
+     injects the multi-angle LoRA + polls Replicate itself, returning `data = { url,
+     prediction_id, camera, … }` directly. So the **gizmo's raw azimuth/elevation/
+     distance go straight to the API** — no client-side `<sks>` needed for this path.
+
+### Revised desktop plumbing (replaces Phase 2 + Phase 3)
+
+- Rework `PaletteImageClientImpl` (base `https://directorspal.com`) into three ops:
+  `upload_reference(bytes) -> url`, `generate_and_wait(model, prompt, aspect,
+  ref_urls, params) -> bytes` (submit + poll jobs + download), and
+  `camera_angle(image_url, azimuth, elevation, distance, params) -> bytes`
+  (sync + download). Keep defensive URL extraction (`data.result.url` / `data.url`).
+- `image_generation_handler._generate_via_api`: upload local refs → URLs (instead of
+  base64), then branch `qwen-image-edit → camera_angle`, else `generate_and_wait`.
+- `modelParams` passthrough (already shipped) carries per-model settings
+  (resolution/quality/background/moderation/loraScale/camera*).
+
+### Model IDs (desktop `dp-<id>`), from Palette `MODEL_CONFIGS` (exclude hidden flux)
+
+| dp id | display | endpoint | maxRefs | requiresInput | cost pts (tier) |
+|---|---|---|---|---|---|
+| `dp-nano-banana-2` | Nano Banana 2 | v2/images/generate | 14 | no | 10/15/20 (1K/2K/4K) |
+| `dp-nano-banana-2-lite` | Nano Banana 2 Lite | v2/images/generate | 14 | no | 5 |
+| `dp-gpt-image-2` | GPT Image 2 | v2/images/generate | 10 | no | 2/8 (low/med quality) |
+| `dp-qwen-image-edit` | Camera Angle | v2/images/**camera-angle** | 1 | **yes** | 5 |
+
+Excluded: `flux-2-klein-9b` (hidden/retired; `DEPRECATED_MODEL_MAP` → nano-banana-2).

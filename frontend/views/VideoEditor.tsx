@@ -47,6 +47,7 @@ import { ClipPropertiesPanel } from './editor/ClipPropertiesPanel'
 import { TranscriptPanel } from '../components/TranscriptPanel'
 import { rippleDeleteSpan } from '../lib/transcript-ripple'
 import { generateFromPrompt } from '../lib/transcript-generate'
+import { migrateImageModelId } from '../lib/image-models'
 import type { TranscriptWord } from '../lib/transcript-api'
 import { SubtitlePropertiesPanel } from './editor/SubtitlePropertiesPanel'
 import { SourceMonitor } from './editor/SourceMonitor'
@@ -669,7 +670,7 @@ export function VideoEditor() {
         const result = await generateFromPrompt({
           prompt,
           mediaType,
-          imageModel: appSettings.imageModel || 'nano-banana-2',
+          imageModel: migrateImageModelId(appSettings.imageModel),
           videoModel: 'seedance-2.0',
           onPhase: setTranscriptGenPhase,
         })

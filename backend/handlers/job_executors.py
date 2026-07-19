@@ -23,6 +23,13 @@ def _str_list(value: object) -> list[str]:
     return []
 
 
+def _param_dict(value: object) -> dict[str, object]:
+    """Coerce an opaque queue-param value into a string-keyed dict."""
+    if isinstance(value, dict):
+        return {str(key): item for key, item in cast("dict[Any, Any]", value).items()}
+    return {}
+
+
 def _prepare_video_params(handler: AppHandler, params: dict[str, Any]) -> dict[str, Any]:
     """Apply the Director's Palette prompt language and resolve reference images.
 
@@ -154,6 +161,9 @@ class GpuJobExecutor:
         params = job.params
         req = GenerateImageRequest(
             prompt=str(params.get("prompt", "")),
+            # The job's own model decides what runs (mirrors video jobs) so the
+            # model picked in the UI is honored instead of the saved default.
+            model=job.model or None,
             width=int(params.get("width", 1024)),
             height=int(params.get("height", 1024)),
             numSteps=int(params.get("numSteps", 4)),
@@ -163,6 +173,7 @@ class GpuJobExecutor:
             sourceImagePath=str(params.get("sourceImagePath")) if params.get("sourceImagePath") else None,
             strength=float(params.get("strength", 0.65)),
             referenceImagePaths=_str_list(params.get("referenceImagePaths")),
+            modelParams=_param_dict(params.get("modelParams")),
         )
         result = self._handler.image_generation.generate(req)
         if result.status == "cancelled":
@@ -238,6 +249,9 @@ class ApiJobExecutor:
         params = job.params
         req = GenerateImageRequest(
             prompt=str(params.get("prompt", "")),
+            # The job's own model decides what runs (mirrors video jobs) so the
+            # model picked in the UI is honored instead of the saved default.
+            model=job.model or None,
             width=int(params.get("width", 1024)),
             height=int(params.get("height", 1024)),
             numSteps=int(params.get("numSteps", 4)),
@@ -247,6 +261,7 @@ class ApiJobExecutor:
             sourceImagePath=str(params.get("sourceImagePath")) if params.get("sourceImagePath") else None,
             strength=float(params.get("strength", 0.65)),
             referenceImagePaths=_str_list(params.get("referenceImagePaths")),
+            modelParams=_param_dict(params.get("modelParams")),
         )
         result = self._handler.image_generation.generate(req)
         if result.status == "cancelled":

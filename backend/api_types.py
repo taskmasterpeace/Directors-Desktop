@@ -388,6 +388,10 @@ class GenerateLongVideoResponse(BaseModel):
 
 class GenerateImageRequest(BaseModel):
     prompt: NonEmptyPrompt
+    # Which image model this job runs on. When omitted we fall back to the saved
+    # app setting — but a queued job carries its own model (matching video jobs),
+    # so the picker the user chose from actually decides what runs.
+    model: str | None = None
     width: int = 1024
     height: int = 1024
     numSteps: int = 4
@@ -398,6 +402,10 @@ class GenerateImageRequest(BaseModel):
     strength: float = 0.65
     # Reference images for character/likeness (nano-banana image_input / flux-2 input_images).
     referenceImagePaths: list[str] = Field(default_factory=list)
+    # Extra per-model params (resolution / quality / cameraAngle / loraScale / safetyFilterLevel /
+    # personGeneration / …) forwarded verbatim to Director's Palette /api/v1/images/generate for
+    # dp- models. Ignored by the local GPU pipelines.
+    modelParams: dict[str, object] = Field(default_factory=dict)
 
 
 class QueueSubmitRequest(BaseModel):
