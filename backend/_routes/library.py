@@ -12,7 +12,11 @@ from api_types import (
     CharacterListResponse,
     CharacterResponse,
     CharacterUpdate,
+    LibraryRecipeKind,
     LibraryReferenceCategory,
+    RecipeCreate,
+    RecipeListResponse,
+    RecipeResponse,
     ReferenceCreate,
     ReferenceListResponse,
     ReferenceResponse,
@@ -23,7 +27,7 @@ from api_types import (
 )
 from app_handler import AppHandler
 from state import get_state_service
-from state.library_store import AudioReference, Character, Reference, Style
+from state.library_store import AudioReference, Character, Recipe, Reference, Style
 
 router = APIRouter(prefix="/api/library", tags=["library"])
 
@@ -67,6 +71,16 @@ def _audio_response(a: AudioReference) -> AudioReferenceResponse:
         source=a.source,
         duration_seconds=a.duration_seconds,
         created_at=a.created_at,
+    )
+
+
+def _recipe_response(r: Recipe) -> RecipeResponse:
+    return RecipeResponse(
+        id=r.id,
+        name=r.name,
+        kind=r.kind,
+        text=r.text,
+        created_at=r.created_at,
     )
 
 
@@ -190,6 +204,42 @@ def route_delete_reference(
     handler: AppHandler = Depends(get_state_service),
 ) -> StatusResponse:
     handler.library.delete_reference(reference_id)
+    return StatusResponse(status="ok")
+
+
+# ------------------------------------------------------------------
+# Recipes (named prompt snippets: locations / wardrobe / style)
+# ------------------------------------------------------------------
+
+
+@router.get("/recipes", response_model=RecipeListResponse)
+def route_list_recipes(
+    kind: LibraryRecipeKind | None = Query(default=None),
+    handler: AppHandler = Depends(get_state_service),
+) -> RecipeListResponse:
+    items = handler.library.list_recipes(kind)
+    return RecipeListResponse(recipes=[_recipe_response(r) for r in items])
+
+
+@router.post("/recipes", response_model=RecipeResponse)
+def route_create_recipe(
+    req: RecipeCreate,
+    handler: AppHandler = Depends(get_state_service),
+) -> RecipeResponse:
+    result = handler.library.create_recipe(
+        name=req.name,
+        kind=req.kind,
+        text=req.text,
+    )
+    return _recipe_response(result)
+
+
+@router.delete("/recipes/{recipe_id}", response_model=StatusResponse)
+def route_delete_recipe(
+    recipe_id: str,
+    handler: AppHandler = Depends(get_state_service),
+) -> StatusResponse:
+    handler.library.delete_recipe(recipe_id)
     return StatusResponse(status="ok")
 
 

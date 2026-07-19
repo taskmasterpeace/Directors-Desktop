@@ -50,6 +50,7 @@ interface ProjectContextType {
   openCharacters: () => void
   openStyles: () => void
   openReferences: () => void
+  openRecipes: () => void
   openWildcards: () => void
   openPromptLibrary: () => void
   openClipTool: () => void
@@ -565,6 +566,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     setCurrentView('references')
   }, [])
 
+  const openRecipes = useCallback(() => {
+    setCurrentView('recipes')
+  }, [])
+
   const openWildcards = useCallback(() => {
     setCurrentView('wildcards')
   }, [])
@@ -615,6 +620,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     openCharacters,
     openStyles,
     openReferences,
+    openRecipes,
     openWildcards,
     openPromptLibrary,
     openClipTool,
@@ -637,8 +643,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     setAssetActiveTake, toggleFavorite, addTimeline, deleteTimeline,
     renameTimeline, duplicateTimeline, setActiveTimeline, updateTimeline,
     getActiveTimeline, openProject, importPaletteMv, goHome, openPlayground,
-    openGallery, openCharacters, openStyles, openReferences, openWildcards,
-    openPromptLibrary, openClipTool,
+    openGallery, openCharacters, openStyles, openReferences, openRecipes,
+    openWildcards, openPromptLibrary, openClipTool,
     genSpaceEditImageUrl, genSpaceEditMode, genSpaceAudioUrl,
     genSpaceRetakeSource, pendingRetakeUpdate, pendingClipReference,
   ])

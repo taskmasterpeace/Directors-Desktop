@@ -693,6 +693,27 @@ class AudioReferenceListResponse(BaseModel):
     audio: list[AudioReferenceResponse]
 
 
+LibraryRecipeKind = Literal["location", "wardrobe", "style"]
+
+
+class RecipeCreate(BaseModel):
+    name: str
+    kind: LibraryRecipeKind
+    text: str
+
+
+class RecipeResponse(BaseModel):
+    id: str
+    name: str
+    kind: LibraryRecipeKind
+    text: str
+    created_at: str
+
+
+class RecipeListResponse(BaseModel):
+    recipes: list[RecipeResponse]
+
+
 # ============================================================
 # Prompt Library Models
 # ============================================================

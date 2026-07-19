@@ -11,6 +11,8 @@ from state.library_store import (
     AudioSource,
     Character,
     LibraryStore,
+    Recipe,
+    RecipeKind,
     Reference,
     ReferenceCategory,
     Style,
@@ -155,6 +157,35 @@ class LibraryHandler:
         deleted = self._store.delete_reference(reference_id)
         if not deleted:
             raise HTTPError(404, f"Reference {reference_id} not found")
+
+    # ------------------------------------------------------------------
+    # Recipes
+    # ------------------------------------------------------------------
+
+    def list_recipes(self, kind: RecipeKind | None = None) -> list[Recipe]:
+        return self._store.list_recipes(kind)
+
+    def create_recipe(
+        self,
+        *,
+        name: str,
+        kind: RecipeKind,
+        text: str,
+    ) -> Recipe:
+        if not name.strip():
+            raise HTTPError(400, "Recipe name must not be empty")
+        if not text.strip():
+            raise HTTPError(400, "Recipe text must not be empty")
+        return self._store.create_recipe(
+            name=name,
+            kind=kind,
+            text=text,
+        )
+
+    def delete_recipe(self, recipe_id: str) -> None:
+        deleted = self._store.delete_recipe(recipe_id)
+        if not deleted:
+            raise HTTPError(404, f"Recipe {recipe_id} not found")
 
     # ------------------------------------------------------------------
     # Audio references
