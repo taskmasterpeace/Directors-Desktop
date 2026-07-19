@@ -210,6 +210,7 @@ class GpuJobExecutor:
             camera_motion=str(params.get("cameraMotion", "none")),  # type: ignore[arg-type]
             lora_path=str(params.get("loraPath")) if params.get("loraPath") else None,
             lora_weight=float(params.get("loraWeight", 1.0)),
+            exact_duration=bool(params.get("exactDuration", False)),
         )
         return [video_path]
 

@@ -89,6 +89,22 @@ export function TranscriptPanel({
   } | null>(null)
   const wordsContainerRef = useRef<HTMLParagraphElement>(null)
 
+  // The panel instance survives clip switches — reset every per-clip piece of
+  // state when the selected clip changes (the new clip's cached words, if any,
+  // arrive via providedWords).
+  useEffect(() => {
+    setLocalWords(providedWords ?? [])
+    setSttWords(null)
+    setAlignmentInfo(null)
+    setSelStart(null)
+    setSelEnd(null)
+    setEditingIndex(null)
+    setScriptOpen(false)
+    setGeneratedPrompt(null)
+    setError(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clip.id])
+
   // Sync from the asset's cached words when the parent provides/updates them.
   useEffect(() => {
     if (providedWords && providedWords.length) setLocalWords(providedWords)

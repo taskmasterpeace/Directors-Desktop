@@ -46,19 +46,26 @@ export function RecipePicker({ onInsert, direction = 'down' }: RecipePickerProps
   const [open, setOpen] = useState(false)
   const [recipes, setRecipes] = useState<Recipe[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState(false)
 
   useEffect(() => {
     if (!open) return
     let cancelled = false
     const load = async () => {
       setLoading(true)
+      setLoadError(false)
       try {
         const base = await window.electronAPI.getBackendUrl()
         const res = await fetch(`${base}/api/library/recipes`)
-        const data = res.ok ? ((await res.json()) as { recipes: Recipe[] }) : { recipes: [] }
+        if (!res.ok) throw new Error(`status ${res.status}`)
+        const data = (await res.json()) as { recipes: Recipe[] }
         if (!cancelled) setRecipes(data.recipes ?? [])
       } catch {
-        if (!cancelled) setRecipes([])
+        // A failed fetch is not an empty library — show a distinct error state.
+        if (!cancelled) {
+          setRecipes([])
+          setLoadError(true)
+        }
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -90,6 +97,10 @@ export function RecipePicker({ onInsert, direction = 'down' }: RecipePickerProps
         >
           {loading ? (
             <div className="text-[11px] py-3 text-center" style={{ color: '#a1a1aa' }}>Loading recipes…</div>
+          ) : loadError ? (
+            <div className="text-[11px] py-3 text-center text-red-400">
+              Couldn’t load recipes — is the backend running?
+            </div>
           ) : recipes.length === 0 ? (
             <div className="text-[11px] py-3 text-center" style={{ color: '#a1a1aa' }}>
               No recipes yet — add some in the Recipes library.

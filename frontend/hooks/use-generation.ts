@@ -421,6 +421,7 @@ export function useGeneration(): UseGenerationReturn {
             fps: settings.fps,
             cameraMotion: settings.cameraMotion,
             ...(settings.loraPath ? { loraPath: settings.loraPath, loraWeight: settings.loraWeight ?? 1.0 } : {}),
+            ...(settings.exactDuration ? { exactDuration: true } : {}),
           }
         : {
             prompt,

@@ -16,6 +16,7 @@
  * The pure helpers are exported for unit tests.
  */
 import { logger } from './logger'
+import { fileUrlToPath } from './url-to-path'
 
 /** Clamp a requested seek to a decodable time inside the media. Callers use
  * huge values (e.g. 9999) to mean "the last frame"; ffmpeg errors past EOF,
@@ -99,6 +100,56 @@ function once<K extends keyof HTMLVideoElementEventMap>(
   })
 }
 
+function isCanvasSecurityError(err: unknown): boolean {
+  return err instanceof DOMException && err.name === 'SecurityError'
+}
+
+/** Load the file's bytes over IPC and mint a same-origin blob: URL. In packaged
+ * builds `webSecurity` is on and `file://` media taints the canvas — blob URLs
+ * don't, and the decode stays on the hardware path. */
+async function fileUrlToObjectUrl(videoUrl: string): Promise<string> {
+  const path = fileUrlToPath(videoUrl)
+  if (!path) throw new Error('not a file:// URL — cannot load bytes for same-origin capture')
+  const { data, mimeType } = await window.electronAPI.readLocalFile(path)
+  const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0))
+  return URL.createObjectURL(new Blob([bytes], { type: mimeType || 'video/mp4' }))
+}
+
+async function seekAndCapture(
+  video: HTMLVideoElement,
+  src: string,
+  seekTime: number,
+  width?: number,
+  quality?: number,
+): Promise<Blob> {
+  const loaded = once(video, 'loadedmetadata', LOAD_TIMEOUT_MS, 'metadata load')
+  video.src = src
+  await loaded
+
+  const target = clampSeekTime(seekTime, video.duration)
+  const seeked = once(video, 'seeked', SEEK_TIMEOUT_MS, 'seek')
+  video.currentTime = target
+  await seeked
+
+  const { width: w, height: h } = scaledDimensions(video.videoWidth, video.videoHeight, width)
+  if (w <= 0 || h <= 0) throw new Error('video has no dimensions')
+
+  const canvas = document.createElement('canvas')
+  canvas.width = w
+  canvas.height = h
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('no 2d context')
+  ctx.drawImage(video, 0, 0, w, h)
+
+  return await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error('canvas.toBlob produced no data'))),
+      'image/jpeg',
+      jpegQualityFromFfmpegQ(quality),
+    )
+  })
+}
+
 async function extractFrameHardware(
   videoUrl: string,
   seekTime: number,
@@ -108,38 +159,25 @@ async function extractFrameHardware(
   const video = document.createElement('video')
   video.muted = true
   video.preload = 'auto'
-  video.crossOrigin = 'anonymous'
+  let objectUrl: string | null = null
   try {
-    const loaded = once(video, 'loadedmetadata', LOAD_TIMEOUT_MS, 'metadata load')
-    video.src = videoUrl
-    await loaded
-
-    const target = clampSeekTime(seekTime, video.duration)
-    const seeked = once(video, 'seeked', SEEK_TIMEOUT_MS, 'seek')
-    video.currentTime = target
-    await seeked
-
-    const { width: w, height: h } = scaledDimensions(video.videoWidth, video.videoHeight, width)
-    if (w <= 0 || h <= 0) throw new Error('video has no dimensions')
-
-    const canvas = document.createElement('canvas')
-    canvas.width = w
-    canvas.height = h
-    const ctx = canvas.getContext('2d')
-    if (!ctx) throw new Error('no 2d context')
-    ctx.drawImage(video, 0, 0, w, h)
-
-    const blob = await new Promise<Blob>((resolve, reject) => {
-      canvas.toBlob(
-        (b) => (b ? resolve(b) : reject(new Error('canvas.toBlob produced no data'))),
-        'image/jpeg',
-        jpegQualityFromFfmpegQ(quality),
-      )
-    })
+    let blob: Blob
+    try {
+      blob = await seekAndCapture(video, videoUrl, seekTime, width, quality)
+    } catch (err) {
+      // Tainted canvas (webSecurity on + file:// media): reload the same bytes
+      // through a same-origin blob URL and capture again — still hardware decode.
+      if (!isCanvasSecurityError(err)) throw err
+      const sameOriginUrl = await fileUrlToObjectUrl(videoUrl)
+      objectUrl = sameOriginUrl
+      blob = await seekAndCapture(video, sameOriginUrl, seekTime, width, quality)
+    }
 
     const tempDir = await window.electronAPI.getTempPath()
     const name = tempFrameName(Date.now(), Math.random().toString(36).slice(2))
-    const filePath = `${tempDir}\\${name}`
+    // Forward slash works on Windows too; a literal backslash breaks the
+    // allowed-roots prefix check on macOS/Linux.
+    const filePath = `${tempDir}/${name}`
     const saved = await window.electronAPI.saveBinaryFile(filePath, await blob.arrayBuffer())
     if (!saved.success || !saved.path) throw new Error(saved.error || 'failed to save frame')
 
@@ -150,6 +188,7 @@ async function extractFrameHardware(
     // Release the decoder immediately rather than waiting for GC.
     video.removeAttribute('src')
     video.load()
+    if (objectUrl) URL.revokeObjectURL(objectUrl)
   }
 }
 

@@ -19,6 +19,9 @@ type ForcedVideoSettingsShape = {
   videoResolution: string
   fps: number
   aspectRatio?: string
+  /** Exact-length mode: keep the requested whole seconds — the backend
+   * generates at the nearest supported duration and trims back down. */
+  exactDuration?: boolean
 }
 
 function nearestNumber(value: number, candidates: readonly number[]): number {
@@ -92,7 +95,11 @@ export function sanitizeForcedApiVideoSettings<T extends ForcedVideoSettingsShap
 
   const nextFps = normalizeForcedFps(settings.fps)
   const allowedDurations = getAllowedForcedApiDurations(nextModel, nextResolution, nextFps)
-  const nextDuration = clampDuration(settings.duration, allowedDurations)
+  // In exact-length mode the requested seconds survive as-is: the backend
+  // ceils to a supported provider duration and trims the output back.
+  const nextDuration = settings.exactDuration
+    ? Math.max(1, Math.round(settings.duration))
+    : clampDuration(settings.duration, allowedDurations)
 
   if (
     nextResolution === settings.videoResolution &&

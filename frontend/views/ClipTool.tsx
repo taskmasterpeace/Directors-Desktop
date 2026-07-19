@@ -19,7 +19,6 @@ import {
   clamp,
   formatClock,
   formatLength,
-  maxStart,
   resizeEdge,
   suggestOutputName,
   suggestReferenceName,
@@ -417,7 +416,7 @@ export default function ClipTool() {
                 tabIndex={0}
                 aria-label="Segment position"
                 aria-valuemin={0}
-                aria-valuemax={Math.round(maxStart(duration, desiredLength))}
+                aria-valuemax={Math.round(Math.max(0, duration - selection.length))}
                 aria-valuenow={Math.round(selection.start)}
                 aria-valuetext={`Starts at ${formatClock(selection.start)}, ${formatLength(selection.length)} long`}
                 onPointerDown={onTrackPointerDown}
