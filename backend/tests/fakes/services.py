@@ -317,6 +317,7 @@ class FakeVideoAPIClient:
         last_frame: str | None = None,
         reference_images: list[str] | None = None,
         reference_audio: list[str] | None = None,
+        reference_videos: list[str] | None = None,
         seed: int | None = None,
         camera_fixed: bool = False,
         should_cancel: Callable[[], bool] | None = None,  # noqa: ARG002 - accepted, unused in fake
@@ -333,6 +334,7 @@ class FakeVideoAPIClient:
             "last_frame": last_frame,
             "reference_images": reference_images,
             "reference_audio": reference_audio,
+            "reference_videos": reference_videos,
             "seed": seed,
             "camera_fixed": camera_fixed,
         })

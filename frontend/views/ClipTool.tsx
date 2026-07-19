@@ -10,6 +10,7 @@ import {
   Check,
   AlertCircle,
   FileVideo,
+  Sparkles,
 } from 'lucide-react'
 import { useProjects } from '@/contexts/ProjectContext'
 import { Button } from '@/components/ui/button'
@@ -17,13 +18,22 @@ import {
   buildSelection,
   clamp,
   formatClock,
+  formatLength,
   maxStart,
+  resizeEdge,
   suggestOutputName,
+  suggestReferenceName,
+  MAX_REFERENCE_LENGTH,
   type ClipSelection,
   type SegmentLength,
 } from '@/lib/clip-math'
 
 const SEGMENT_LENGTHS: SegmentLength[] = [15, 30]
+
+// Selections within a frame of the cap still count as ≤15s (drag rounding).
+const REFERENCE_EPSILON = 0.05
+
+type DragMode = 'move' | 'start' | 'end'
 
 function pathToFileUrl(filePath: string): string {
   const normalized = filePath.replace(/\\/g, '/')
@@ -41,8 +51,13 @@ type ExportState =
   | { status: 'done'; outputPath: string }
   | { status: 'error'; message: string }
 
+type ReferenceState =
+  | { status: 'idle' }
+  | { status: 'exporting' }
+  | { status: 'error'; message: string }
+
 export default function ClipTool() {
-  const { goHome } = useProjects()
+  const { goHome, openPlayground, setPendingClipReference } = useProjects()
 
   const [sourcePath, setSourcePath] = useState<string | null>(null)
   const [sourceUrl, setSourceUrl] = useState<string | null>(null)
@@ -53,10 +68,11 @@ export default function ClipTool() {
   const [isPlaying, setIsPlaying] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [exportState, setExportState] = useState<ExportState>({ status: 'idle' })
+  const [referenceState, setReferenceState] = useState<ReferenceState>({ status: 'idle' })
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
-  const draggingRef = useRef(false)
+  const draggingRef = useRef<DragMode | null>(null)
 
   // Recompute the selection window whenever the source or the desired length changes.
   useEffect(() => {
@@ -66,6 +82,7 @@ export default function ClipTool() {
   const pickVideo = useCallback(async () => {
     setLoadError(null)
     setExportState({ status: 'idle' })
+    setReferenceState({ status: 'idle' })
     const paths = await window.electronAPI.showOpenFileDialog({
       title: 'Choose a video',
       filters: [{ name: 'Video', extensions: ['mp4', 'mov', 'mkv', 'webm', 'avi', 'm4v'] }],
@@ -125,64 +142,96 @@ export default function ClipTool() {
     if (v) v.currentTime = start
   }, [])
 
+  const timeFromClientX = useCallback(
+    (clientX: number): number | null => {
+      const track = trackRef.current
+      if (!track || duration <= 0) return null
+      const rect = track.getBoundingClientRect()
+      return clamp((clientX - rect.left) / rect.width, 0, 1) * duration
+    },
+    [duration],
+  )
+
   const updateStartFromClientX = useCallback(
     (clientX: number) => {
-      const track = trackRef.current
-      if (!track || duration <= 0) return
-      const rect = track.getBoundingClientRect()
-      const ratio = clamp((clientX - rect.left) / rect.width, 0, 1)
-      // Center the window on the cursor, then clamp to valid bounds.
-      const centeredStart = ratio * duration - selection.length / 2
-      const next = buildSelection(duration, desiredLength, centeredStart)
-      setSelection(next)
-      seekPreviewTo(next.start)
+      const t = timeFromClientX(clientX)
+      if (t === null) return
+      // Center the window on the cursor, keep the current length, clamp to bounds.
+      setSelection((prev) => {
+        const len = prev.length || desiredLength
+        const next = buildSelection(duration, len, t - len / 2)
+        seekPreviewTo(next.start)
+        return next
+      })
     },
-    [duration, desiredLength, selection.length, seekPreviewTo],
+    [duration, desiredLength, timeFromClientX, seekPreviewTo],
+  )
+
+  const resizeEdgeFromClientX = useCallback(
+    (edge: 'start' | 'end', clientX: number) => {
+      const t = timeFromClientX(clientX)
+      if (t === null) return
+      setSelection((prev) => {
+        const next = resizeEdge(prev, duration, edge, t)
+        // Preview the edge being adjusted so the cut point is visible.
+        seekPreviewTo(edge === 'start' ? next.start : Math.max(next.start, next.end - 0.05))
+        return next
+      })
+    },
+    [duration, timeFromClientX, seekPreviewTo],
   )
 
   const onTrackPointerDown = useCallback(
     (e: React.PointerEvent) => {
       if (duration <= 0) return
-      draggingRef.current = true
+      draggingRef.current = 'move'
       ;(e.target as Element).setPointerCapture?.(e.pointerId)
       updateStartFromClientX(e.clientX)
     },
     [duration, updateStartFromClientX],
   )
 
+  // Edge handles set their own drag mode and stop the track's move-drag.
+  const onHandlePointerDown = useCallback(
+    (edge: 'start' | 'end') => (e: React.PointerEvent) => {
+      if (duration <= 0) return
+      e.stopPropagation()
+      draggingRef.current = edge
+      ;(e.target as Element).setPointerCapture?.(e.pointerId)
+    },
+    [duration],
+  )
+
   const onTrackPointerMove = useCallback(
     (e: React.PointerEvent) => {
-      if (!draggingRef.current) return
-      updateStartFromClientX(e.clientX)
+      const mode = draggingRef.current
+      if (!mode) return
+      if (mode === 'move') updateStartFromClientX(e.clientX)
+      else resizeEdgeFromClientX(mode, e.clientX)
     },
-    [updateStartFromClientX],
+    [updateStartFromClientX, resizeEdgeFromClientX],
   )
 
   const onTrackPointerUp = useCallback((e: React.PointerEvent) => {
-    draggingRef.current = false
+    draggingRef.current = null
     ;(e.target as Element).releasePointerCapture?.(e.pointerId)
   }, [])
 
-  // Nudge the window with arrow keys for precision.
+  // Arrow keys nudge the window; Alt+arrows resize the end edge.
   const onTrackKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (duration <= 0) return
       const step = e.shiftKey ? 1 : 0.1
-      if (e.key === 'ArrowLeft') {
-        e.preventDefault()
-        setSelection((prev) => {
-          const next = buildSelection(duration, desiredLength, prev.start - step)
-          seekPreviewTo(next.start)
-          return next
-        })
-      } else if (e.key === 'ArrowRight') {
-        e.preventDefault()
-        setSelection((prev) => {
-          const next = buildSelection(duration, desiredLength, prev.start + step)
-          seekPreviewTo(next.start)
-          return next
-        })
-      }
+      const dir = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0
+      if (dir === 0) return
+      e.preventDefault()
+      setSelection((prev) => {
+        const next = e.altKey
+          ? resizeEdge(prev, duration, 'end', prev.end + dir * step)
+          : buildSelection(duration, prev.length || desiredLength, prev.start + dir * step)
+        seekPreviewTo(e.altKey ? Math.max(next.start, next.end - 0.05) : next.start)
+        return next
+      })
     },
     [duration, desiredLength, seekPreviewTo],
   )
@@ -217,6 +266,35 @@ export default function ClipTool() {
     }
   }, [sourcePath, sourceUrl, selection])
 
+  // Auto-splice the selection (no save dialog) and hand it to the Playground as
+  // a Seedance 2.0 video reference, ready for a "changes I want" prompt.
+  const handleUseAsReference = useCallback(async () => {
+    if (!sourcePath || !sourceUrl || selection.length <= 0) return
+    setReferenceState({ status: 'exporting' })
+    try {
+      const downloads = await window.electronAPI.getDownloadsPath()
+      const dir = `${downloads}/DirectorsDesktop/clips`
+      const ensured = await window.electronAPI.ensureDirectory(dir)
+      if (!ensured.success) throw new Error(ensured.error || 'Could not create the clips folder')
+      const name = suggestReferenceName(basename(sourcePath), selection, Date.now())
+      const result = await window.electronAPI.clipTrim({
+        inputUrl: sourceUrl,
+        startSeconds: selection.start,
+        lengthSeconds: selection.length,
+        outputPath: `${dir}/${name}`,
+      })
+      if (!result.success || !result.outputPath) throw new Error(result.error || 'Trim failed')
+      setPendingClipReference({ path: result.outputPath, label: name })
+      setReferenceState({ status: 'idle' })
+      openPlayground()
+    } catch (err) {
+      setReferenceState({
+        status: 'error',
+        message: err instanceof Error ? err.message : String(err),
+      })
+    }
+  }, [sourcePath, sourceUrl, selection, setPendingClipReference, openPlayground])
+
   const revealOutput = useCallback((outputPath: string) => {
     void window.electronAPI.showItemInFolder(outputPath)
   }, [])
@@ -231,6 +309,8 @@ export default function ClipTool() {
 
   const playheadPct = duration > 0 ? (currentTime / duration) * 100 : 0
   const shortSource = duration > 0 && duration < desiredLength
+  const withinReferenceCap = selection.length > 0 && selection.length <= MAX_REFERENCE_LENGTH + REFERENCE_EPSILON
+  const busy = exportState.status === 'exporting' || referenceState.status === 'exporting'
 
   return (
     <div className="h-screen bg-background text-white flex flex-col">
@@ -247,7 +327,9 @@ export default function ClipTool() {
           <Scissors className="h-4 w-4 text-blue-400" />
           <h1 className="text-sm font-semibold tracking-tight">Clip Tool</h1>
         </div>
-        <span className="text-xs text-zinc-500">Pull a fixed 15s or 30s segment out of any video</span>
+        <span className="text-xs text-zinc-500">
+          Pull a segment out of any video — export it, or send it into generation as a reference
+        </span>
       </header>
 
       {!sourcePath ? (
@@ -259,8 +341,8 @@ export default function ClipTool() {
           <div className="text-center">
             <h2 className="text-lg font-semibold tracking-tight">Load a video to get started</h2>
             <p className="text-sm text-zinc-400 mt-1 max-w-md">
-              Choose any video file, scrub to the moment you want, and export a precise 15 or 30
-              second clip.
+              Choose any video file (YouTube downloads work great), pick up to 15 seconds, and
+              send it straight into generation as a reference — or export it as a clip.
             </p>
           </div>
           <Button onClick={pickVideo} size="lg" className="gap-2">
@@ -337,18 +419,33 @@ export default function ClipTool() {
                 aria-valuemin={0}
                 aria-valuemax={Math.round(maxStart(duration, desiredLength))}
                 aria-valuenow={Math.round(selection.start)}
-                aria-valuetext={`Starts at ${formatClock(selection.start)}`}
+                aria-valuetext={`Starts at ${formatClock(selection.start)}, ${formatLength(selection.length)} long`}
                 onPointerDown={onTrackPointerDown}
                 onPointerMove={onTrackPointerMove}
                 onPointerUp={onTrackPointerUp}
                 onKeyDown={onTrackKeyDown}
                 className="relative h-12 rounded-lg bg-zinc-800/70 cursor-pointer select-none outline-none focus-visible:ring-1 focus-visible:ring-blue-500 touch-none"
               >
-                {/* Selected window */}
+                {/* Selected window with resizable edges */}
                 <div
                   className="absolute top-0 bottom-0 rounded-lg bg-blue-500/25 border border-blue-500"
                   style={{ left: `${selectionPct.left}%`, width: `${selectionPct.width}%` }}
-                />
+                >
+                  <div
+                    onPointerDown={onHandlePointerDown('start')}
+                    className="absolute -left-1.5 top-0 bottom-0 w-3 cursor-ew-resize"
+                    title="Drag to move the start of the clip"
+                  >
+                    <div className="absolute inset-y-2 left-1 w-1 rounded-full bg-blue-400" />
+                  </div>
+                  <div
+                    onPointerDown={onHandlePointerDown('end')}
+                    className="absolute -right-1.5 top-0 bottom-0 w-3 cursor-ew-resize"
+                    title="Drag to move the end of the clip"
+                  >
+                    <div className="absolute inset-y-2 right-1 w-1 rounded-full bg-blue-400" />
+                  </div>
+                </div>
                 {/* Playhead */}
                 <div
                   className="absolute top-0 bottom-0 w-0.5 bg-white/90 pointer-events-none"
@@ -357,32 +454,41 @@ export default function ClipTool() {
               </div>
               <div className="flex justify-between text-[11px] text-zinc-500">
                 <span>Starts {formatClock(selection.start)}</span>
+                <span className={withinReferenceCap ? 'text-blue-400' : 'text-amber-400'}>
+                  Length {formatLength(selection.length)}
+                </span>
                 <span>Ends {formatClock(selection.end)}</span>
               </div>
               <p className="text-[11px] text-zinc-600">
-                Drag the bar to position the segment. Use arrow keys for fine control (hold Shift for
-                1s steps).
+                Drag the bar to position the segment, or drag its edges to resize. Arrow keys nudge
+                (Shift = 1s steps, Alt = adjust the end).
               </p>
             </div>
 
-            {/* Length selector */}
+            {/* Length presets — snap the selection; edges allow any length in between */}
             <div className="flex flex-col gap-2">
               <span className="text-xs font-medium text-zinc-400">Clip length</span>
               <div className="flex gap-2">
-                {SEGMENT_LENGTHS.map((len) => (
-                  <button
-                    key={len}
-                    onClick={() => setDesiredLength(len)}
-                    aria-pressed={desiredLength === len}
-                    className={`px-4 h-9 rounded-lg text-sm font-medium transition-colors border ${
-                      desiredLength === len
-                        ? 'bg-blue-500 border-blue-500 text-white'
-                        : 'bg-zinc-800/70 border-zinc-700 text-zinc-300 hover:bg-zinc-800'
-                    }`}
-                  >
-                    {len}s
-                  </button>
-                ))}
+                {SEGMENT_LENGTHS.map((len) => {
+                  const active = Math.abs(selection.length - len) < 0.05
+                  return (
+                    <button
+                      key={len}
+                      onClick={() => {
+                        setDesiredLength(len)
+                        setSelection((prev) => buildSelection(duration, len, prev.start))
+                      }}
+                      aria-pressed={active}
+                      className={`px-4 h-9 rounded-lg text-sm font-medium transition-colors border ${
+                        active
+                          ? 'bg-blue-500 border-blue-500 text-white'
+                          : 'bg-zinc-800/70 border-zinc-700 text-zinc-300 hover:bg-zinc-800'
+                      }`}
+                    >
+                      {len}s
+                    </button>
+                  )
+                })}
               </div>
               {shortSource && (
                 <p className="text-[11px] text-amber-400 flex items-center gap-1.5">
@@ -392,12 +498,31 @@ export default function ClipTool() {
               )}
             </div>
 
-            {/* Export */}
+            {/* Actions */}
             <div className="border-t border-zinc-800 pt-5 flex flex-col gap-3">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
+                <Button
+                  onClick={() => void handleUseAsReference()}
+                  disabled={selection.length <= 0 || !withinReferenceCap || busy}
+                  className="gap-2"
+                  title="Splice this selection and attach it to a new generation as a video reference"
+                >
+                  {referenceState.status === 'exporting' ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Splicing clip…
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      Use as reference
+                    </>
+                  )}
+                </Button>
                 <Button
                   onClick={handleExport}
-                  disabled={selection.length <= 0 || exportState.status === 'exporting'}
+                  variant="outline"
+                  disabled={selection.length <= 0 || busy}
                   className="gap-2"
                 >
                   {exportState.status === 'exporting' ? (
@@ -408,7 +533,7 @@ export default function ClipTool() {
                   ) : (
                     <>
                       <Scissors className="h-4 w-4" />
-                      Export {formatClock(selection.length)} clip
+                      Export {formatLength(selection.length)} clip
                     </>
                   )}
                 </Button>
@@ -422,6 +547,23 @@ export default function ClipTool() {
                   </button>
                 )}
               </div>
+              {!withinReferenceCap && selection.length > 0 && (
+                <p className="text-[11px] text-amber-400 flex items-center gap-1.5">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  References are capped at 15s — drag an edge to tighten the selection, or export
+                  instead.
+                </p>
+              )}
+              <p className="text-[11px] text-zinc-600">
+                “Use as reference” splices the selection automatically and opens it in the
+                Playground as @Video1, ready for the changes you want to make.
+              </p>
+              {referenceState.status === 'error' && (
+                <p className="text-sm text-red-400 flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  {referenceState.message}
+                </p>
+              )}
               {exportState.status === 'error' && (
                 <p className="text-sm text-red-400 flex items-center gap-2">
                   <AlertCircle className="h-4 w-4 flex-shrink-0" />

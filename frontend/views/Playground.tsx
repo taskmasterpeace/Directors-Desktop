@@ -40,7 +40,7 @@ const DEFAULT_SETTINGS: GenerationSettings = {
 }
 
 export function Playground() {
-  const { goHome } = useProjects()
+  const { goHome, pendingClipReference, setPendingClipReference } = useProjects()
   const { settings: appSettings, forceApiGenerations, shouldVideoGenerateWithLtxApi, credits } = useAppSettings()
   const [mode, setMode] = useState<GenerationMode>('text-to-video')
   const [prompt, setPrompt] = useState('')
@@ -66,6 +66,22 @@ export function Playground() {
     if (!shouldVideoGenerateWithLtxApi || mode === 'text-to-image') return
     setSettings((prev) => sanitizeForcedApiVideoSettings({ ...prev, model: 'fast' }))
   }, [mode, shouldVideoGenerateWithLtxApi])
+
+  // Clip Tool handoff: attach a freshly trimmed clip as a Seedance 2.0 video
+  // reference and seed the prompt so the user describes the changes they want.
+  useEffect(() => {
+    if (!pendingClipReference) return
+    const clipPath = pendingClipReference.path
+    setPendingClipReference(null)
+    setMode('text-to-video')
+    setSettings((prev) => ({
+      ...prev,
+      model: 'seedance-2.0',
+      videoReferencePaths: [clipPath],
+    }))
+    setPrompt((prev) => (prev.includes('@Video1') ? prev : `@Video1 ${prev}`.trimEnd() + ' '))
+    requestAnimationFrame(() => promptRef.current?.focus())
+  }, [pendingClipReference, setPendingClipReference])
 
   // Force pro model + resolution when audio is attached (A2V only supports pro @ 1080p 16:9)
   useEffect(() => {
@@ -394,8 +410,14 @@ export function Playground() {
                 model={settings.model}
                 referenceImagePaths={settings.referenceImagePaths ?? []}
                 audioReferencePaths={settings.audioReferencePaths ?? []}
-                onChange={({ referenceImagePaths, audioReferencePaths }) =>
-                  setSettings((prev) => ({ ...prev, referenceImagePaths, audioReferencePaths }))
+                videoReferencePaths={settings.videoReferencePaths ?? []}
+                onChange={({ referenceImagePaths, audioReferencePaths, videoReferencePaths }) =>
+                  setSettings((prev) => ({
+                    ...prev,
+                    referenceImagePaths,
+                    audioReferencePaths,
+                    videoReferencePaths,
+                  }))
                 }
               />
             )}

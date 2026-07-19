@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { X, Image as ImageIcon, Music, AlertTriangle } from 'lucide-react'
+import { X, Image as ImageIcon, Music, Film, AlertTriangle } from 'lucide-react'
 import { toImgSrc } from '../lib/path-to-img-src'
 import { CAPS } from '../lib/positional-tags'
 
@@ -18,12 +18,17 @@ export interface ReferencePickerProps {
   model: string
   referenceImagePaths: string[]
   audioReferencePaths: string[]
-  onChange: (next: { referenceImagePaths: string[]; audioReferencePaths: string[] }) => void
+  videoReferencePaths: string[]
+  onChange: (next: {
+    referenceImagePaths: string[]
+    audioReferencePaths: string[]
+    videoReferencePaths: string[]
+  }) => void
 }
 
 const isSeedance2 = (m: string) => m === 'seedance-2.0' || m === 'seedance-2.0-fast'
 
-export function ReferencePicker({ model, referenceImagePaths, audioReferencePaths, onChange }: ReferencePickerProps) {
+export function ReferencePicker({ model, referenceImagePaths, audioReferencePaths, videoReferencePaths, onChange }: ReferencePickerProps) {
   const [open, setOpen] = useState(false)
   const [library, setLibrary] = useState<LibraryImage[]>([])
   const [loading, setLoading] = useState(false)
@@ -64,25 +69,47 @@ export function ReferencePicker({ model, referenceImagePaths, audioReferencePath
 
   if (!isSeedance2(model)) return null
 
+  const emit = (next: Partial<{
+    referenceImagePaths: string[]
+    audioReferencePaths: string[]
+    videoReferencePaths: string[]
+  }>) =>
+    onChange({ referenceImagePaths, audioReferencePaths, videoReferencePaths, ...next })
+
   const addImage = (path: string) => {
     if (referenceImagePaths.includes(path)) return
     if (referenceImagePaths.length >= CAPS.image) return
-    onChange({ referenceImagePaths: [...referenceImagePaths, path], audioReferencePaths })
+    emit({ referenceImagePaths: [...referenceImagePaths, path] })
     setOpen(false)
   }
   const removeImage = (path: string) =>
-    onChange({ referenceImagePaths: referenceImagePaths.filter((p) => p !== path), audioReferencePaths })
+    emit({ referenceImagePaths: referenceImagePaths.filter((p) => p !== path) })
   const addAudio = (path: string) => {
     if (audioReferencePaths.includes(path) || audioReferencePaths.length >= CAPS.audio) return
-    onChange({ referenceImagePaths, audioReferencePaths: [...audioReferencePaths, path] })
+    emit({ audioReferencePaths: [...audioReferencePaths, path] })
   }
   const removeAudio = (path: string) =>
-    onChange({ referenceImagePaths, audioReferencePaths: audioReferencePaths.filter((p) => p !== path) })
+    emit({ audioReferencePaths: audioReferencePaths.filter((p) => p !== path) })
+  const addVideo = (path: string) => {
+    if (videoReferencePaths.includes(path) || videoReferencePaths.length >= CAPS.video) return
+    emit({ videoReferencePaths: [...videoReferencePaths, path] })
+  }
+  const removeVideo = (path: string) =>
+    emit({ videoReferencePaths: videoReferencePaths.filter((p) => p !== path) })
 
   const onAudioFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] as (File & { path?: string }) | undefined
     if (file?.path) addAudio(file.path)
     if (audioInputRef.current) audioInputRef.current.value = ''
+  }
+
+  const pickVideoFile = async () => {
+    const paths = await window.electronAPI.showOpenFileDialog({
+      title: 'Choose a reference clip',
+      filters: [{ name: 'Video', extensions: ['mp4', 'mov', 'webm', 'm4v'] }],
+      properties: ['openFile'],
+    })
+    if (paths && paths.length > 0) addVideo(paths[0])
   }
 
   const audioNeedsImage = audioReferencePaths.length > 0 && referenceImagePaths.length === 0
@@ -91,7 +118,7 @@ export function ReferencePicker({ model, referenceImagePaths, audioReferencePath
     <div className="rounded-[0.625rem] p-2.5 mt-2" style={{ background: RAIL, border: `1px solid ${DP_BORDER}` }}>
       <div className="flex items-center justify-between mb-2">
         <span className="text-[11px] font-medium" style={{ color: '#d4d4d8' }}>
-          Omni references <span style={{ color: '#71717a' }}>— up to 9 images · 3 audio</span>
+          Omni references <span style={{ color: '#71717a' }}>— up to 9 images · 3 audio · 3 clips</span>
         </span>
         <div className="flex gap-1.5">
           <button
@@ -110,17 +137,29 @@ export function ReferencePicker({ model, referenceImagePaths, audioReferencePath
           >
             <Music className="h-3 w-3" /> Audio
           </button>
+          <button
+            onClick={() => void pickVideoFile()}
+            disabled={videoReferencePaths.length >= CAPS.video}
+            className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] disabled:opacity-40"
+            style={{ border: `1px solid ${DP_BORDER}`, color: AMBER }}
+            title="Attach a short clip (≤15s) as a video reference"
+          >
+            <Film className="h-3 w-3" /> Clip
+          </button>
           <input ref={audioInputRef} type="file" accept="audio/*" className="hidden" onChange={onAudioFile} />
         </div>
       </div>
 
-      {(referenceImagePaths.length > 0 || audioReferencePaths.length > 0) && (
+      {(referenceImagePaths.length > 0 || audioReferencePaths.length > 0 || videoReferencePaths.length > 0) && (
         <div className="flex flex-wrap gap-2">
           {referenceImagePaths.map((p, i) => (
             <ChipImage key={p} src={toImgSrc(p)} tag={`@Image${i + 1}`} onRemove={() => removeImage(p)} />
           ))}
           {audioReferencePaths.map((p, i) => (
             <ChipAudio key={p} tag={`@Audio${i + 1}`} onRemove={() => removeAudio(p)} />
+          ))}
+          {videoReferencePaths.map((p, i) => (
+            <ChipVideo key={p} path={p} tag={`@Video${i + 1}`} onRemove={() => removeVideo(p)} />
           ))}
         </div>
       )}
@@ -176,6 +215,23 @@ function ChipAudio({ tag, onRemove }: { tag: string; onRemove: () => void }) {
   return (
     <div className="relative rounded-md flex flex-col items-center justify-center" style={{ width: 64, height: 64, background: '#1f2937', border: `1px solid ${DP_BORDER}` }}>
       <Music className="h-5 w-5" style={{ color: '#94a3b8' }} />
+      <span className="absolute bottom-1 left-1 text-[9px] font-medium px-1 rounded" style={{ color: TEAL, background: '#0c0c10cc' }}>{tag}</span>
+      <button onClick={onRemove} className="absolute top-0.5 right-0.5 rounded-full p-0.5" style={{ background: '#0c0c10cc', color: '#e4e4e7' }}>
+        <X className="h-2.5 w-2.5" />
+      </button>
+    </div>
+  )
+}
+
+function ChipVideo({ path, tag, onRemove }: { path: string; tag: string; onRemove: () => void }) {
+  const name = path.replace(/\\/g, '/').split('/').pop() || path
+  return (
+    <div
+      className="relative rounded-md flex flex-col items-center justify-center"
+      style={{ width: 64, height: 64, background: '#1f2937', border: `1px solid ${DP_BORDER}` }}
+      title={name}
+    >
+      <Film className="h-5 w-5" style={{ color: '#94a3b8' }} />
       <span className="absolute bottom-1 left-1 text-[9px] font-medium px-1 rounded" style={{ color: TEAL, background: '#0c0c10cc' }}>{tag}</span>
       <button onClick={onRemove} className="absolute top-0.5 right-0.5 rounded-full p-0.5" style={{ background: '#0c0c10cc', color: '#e4e4e7' }}>
         <X className="h-2.5 w-2.5" />

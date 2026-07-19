@@ -24,6 +24,7 @@ class VideoAPIClient(Protocol):
         last_frame: str | None = None,
         reference_images: list[str] | None = None,
         reference_audio: list[str] | None = None,
+        reference_videos: list[str] | None = None,
         seed: int | None = None,
         camera_fixed: bool = False,
         should_cancel: Callable[[], bool] | None = None,
