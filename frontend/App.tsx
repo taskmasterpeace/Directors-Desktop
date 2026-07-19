@@ -14,6 +14,7 @@ import { Gallery } from './views/Gallery'
 import { Characters } from './views/Characters'
 import { Styles } from './views/Styles'
 import { References } from './views/References'
+import { Recipes } from './views/Recipes'
 import { Wildcards } from './views/Wildcards'
 import { PromptLibrary } from './views/PromptLibrary'
 import ClipTool from './views/ClipTool'
@@ -476,6 +477,8 @@ function AppContent() {
         return <Styles />
       case 'references':
         return <References />
+      case 'recipes':
+        return <Recipes />
       case 'wildcards':
         return <Wildcards />
       case 'prompt-library':
