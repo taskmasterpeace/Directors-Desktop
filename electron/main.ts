@@ -1,6 +1,7 @@
 import './app-paths'
-import { app, protocol, net } from 'electron'
+import { app } from 'electron'
 import { setupCSP } from './csp'
+import { registerFileProtocol } from './file-protocol'
 import { registerExportHandlers } from './export/export-handler'
 import { stopExportProcess } from './export/ffmpeg-utils'
 import { registerAppHandlers } from './ipc/app-handlers'
@@ -115,13 +116,12 @@ if (!gotLock) {
   app.whenReady().then(async () => {
     setupCSP()
 
-    // Allow file:// URLs to load when the page is served from http://localhost (dev mode).
-    // Without this, Chromium blocks file:// resources on http:// origins.
-    // CRITICAL: bypassCustomProtocolHandlers MUST be set — without it net.fetch re-invokes this
-    // very handler for the file:// request, recursing infinitely until the stack overflows and
-    // Electron dies with an access violation (0xC0000005). That was the intermittent startup
-    // crash (it fired whenever a file:// resource — e.g. a gallery thumbnail — loaded).
-    protocol.handle('file', (request) => net.fetch(request, { bypassCustomProtocolHandlers: true }))
+    // Allow file:// URLs to load when the page is served from http://localhost (dev mode)
+    // and, for media, serve them with the correct Content-Type + Range/206 support so
+    // <video>/<audio> can load, seek, and report duration. Non-media requests fall back to
+    // the net.fetch passthrough (with bypassCustomProtocolHandlers, so it can't recurse into
+    // this handler and overflow the stack — the old 0xC0000005 startup crash).
+    registerFileProtocol()
 
     createWindow()
     initAutoUpdater()

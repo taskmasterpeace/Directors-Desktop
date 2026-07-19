@@ -209,9 +209,22 @@ export function useClipOperations(params: UseClipOperationsParams) {
   const getMediaDuration = (url: string, isAudio = false): Promise<number> => {
     return new Promise((resolve) => {
       const media = document.createElement(isAudio ? 'audio' : 'video')
+      let settled = false
+      const finish = (value: number) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        media.removeAttribute('src')
+        media.load()
+        resolve(value)
+      }
+      // Never hang the import: metadata should arrive in well under 10s.
+      const timer = setTimeout(() => finish(5), 10_000)
+      media.preload = 'metadata'
+      media.onloadedmetadata = () =>
+        finish(Number.isFinite(media.duration) && media.duration > 0 ? media.duration : 5)
+      media.onerror = () => finish(5)
       media.src = url
-      media.onloadedmetadata = () => resolve(media.duration)
-      media.onerror = () => resolve(5)
     })
   }
 
