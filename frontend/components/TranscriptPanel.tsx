@@ -15,10 +15,11 @@
  * speed-aware math as the ripple engine.
  */
 
-import { useEffect, useMemo, useState } from 'react'
-import { Loader2, Scissors, Mic, Wand2, Copy, ImageIcon, Film, BookOpen, Music } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Loader2, Scissors, Mic, Wand2, Copy, ImageIcon, Film, BookOpen, Music, FileCheck2, Undo2 } from 'lucide-react'
 import { sourceTimeToTimelineTime, snapSpanToSilence, type RippleClip } from '../lib/transcript-ripple'
 import { transcribeAudio, transcriptToPrompt, type TranscriptWord, type TranscriptMode } from '../lib/transcript-api'
+import { alignScriptToTranscript } from '../lib/transcript-align'
 
 interface TranscriptClip extends RippleClip {
   id: string
@@ -77,6 +78,16 @@ export function TranscriptPanel({
   const [mode, setMode] = useState<TranscriptMode>('story')
   const [lyrics, setLyrics] = useState('')
   const [mediaType, setMediaType] = useState<MediaType>('image')
+  // Script-of-truth: the user's real script replaces STT text but keeps STT timing.
+  const [scriptOpen, setScriptOpen] = useState(false)
+  const [scriptDraft, setScriptDraft] = useState('')
+  const [sttWords, setSttWords] = useState<TranscriptWord[] | null>(null)
+  const [alignmentInfo, setAlignmentInfo] = useState<{
+    coverage: number
+    interpolatedCount: number
+    droppedSttCount: number
+  } | null>(null)
+  const wordsContainerRef = useRef<HTMLParagraphElement>(null)
 
   // Sync from the asset's cached words when the parent provides/updates them.
   useEffect(() => {
@@ -85,6 +96,17 @@ export function TranscriptPanel({
 
   const words = localWords
   const sourceNow = timelineTimeToSourceTime(currentTime, clip)
+
+  // Descript behavior: keep the currently-spoken word in view during playback.
+  const activeIndex = useMemo(
+    () => words.findIndex((w) => sourceNow >= w.start && sourceNow < w.end),
+    [words, sourceNow],
+  )
+  useEffect(() => {
+    if (activeIndex < 0 || editingIndex !== null) return
+    const el = wordsContainerRef.current?.querySelector('[data-active-word="true"]')
+    el?.scrollIntoView({ block: 'nearest' })
+  }, [activeIndex, editingIndex])
   const fullStory = useMemo(() => words.map((w) => w.text).join(' ').trim(), [words])
 
   const selection = useMemo(() => {
@@ -106,12 +128,46 @@ export function TranscriptPanel({
     try {
       const result = await transcribeAudio(audioPath)
       setLocalWords(result)
+      setSttWords(result)
+      setAlignmentInfo(null)
       onWordsLoaded?.(clip.id, result)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Transcription failed')
     } finally {
       setIsTranscribing(false)
     }
+  }
+
+  const handleAlignScript = () => {
+    setError(null)
+    // The timing basis is the raw STT output; cached words serve when this
+    // panel never ran the transcription itself.
+    const basis = sttWords ?? words
+    if (!sttWords && words.length) setSttWords(words)
+    try {
+      const result = alignScriptToTranscript(scriptDraft, basis)
+      setLocalWords(result.words)
+      onWordsChange?.(clip.id, result.words)
+      setAlignmentInfo({
+        coverage: result.coverage,
+        interpolatedCount: result.interpolatedCount,
+        droppedSttCount: result.droppedSttCount,
+      })
+      setScriptOpen(false)
+      setSelStart(null)
+      setSelEnd(null)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Alignment failed')
+    }
+  }
+
+  const handleRevertToStt = () => {
+    if (!sttWords) return
+    setLocalWords(sttWords)
+    onWordsChange?.(clip.id, sttWords)
+    setAlignmentInfo(null)
+    setSelStart(null)
+    setSelEnd(null)
   }
 
   const handleWordClick = (index: number, e: React.MouseEvent) => {
@@ -205,17 +261,89 @@ export function TranscriptPanel({
         <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: 'var(--dp-accent-teal)' }}>
           <Mic className="h-3.5 w-3.5" /> Transcript
         </span>
-        {selection && (
-          <button
-            onClick={handleDelete}
-            className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-white transition-colors"
-            style={{ background: 'var(--dp-accent-teal)' }}
-            title="Ripple-delete the selected words from the timeline"
-          >
-            <Scissors className="h-3 w-3" /> Delete
-          </button>
-        )}
+        <div className="flex items-center gap-1.5">
+          {words.length > 0 && (
+            <button
+              onClick={() => setScriptOpen((v) => !v)}
+              className="flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium transition-colors"
+              style={{
+                borderColor: 'var(--dp-border)',
+                color: scriptOpen ? 'white' : 'var(--dp-primary-amber)',
+                background: scriptOpen ? 'var(--dp-primary-amber)' : 'transparent',
+              }}
+              title="Paste the real script — its words become the transcript, the transcription supplies the timing"
+            >
+              <FileCheck2 className="h-3 w-3" /> Script
+            </button>
+          )}
+          {selection && (
+            <button
+              onClick={handleDelete}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-white transition-colors"
+              style={{ background: 'var(--dp-accent-teal)' }}
+              title="Ripple-delete the selected words from the timeline"
+            >
+              <Scissors className="h-3 w-3" /> Delete
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Script-of-truth: paste the real script and align it to the STT timings. */}
+      {scriptOpen && (
+        <div
+          className="mb-2 rounded-md border p-2"
+          style={{ borderColor: 'var(--dp-border)', background: 'var(--dp-popover)' }}
+        >
+          <p className="mb-1.5 text-[10px] text-zinc-400">
+            Speech-to-text mishears things. Paste the <span className="font-medium text-zinc-200">real script</span> —
+            it becomes the transcript word-for-word, timed against the audio.
+          </p>
+          <textarea
+            value={scriptDraft}
+            onChange={(e) => setScriptDraft(e.target.value)}
+            placeholder="Paste the script / audiobook chapter / drama dialogue here…"
+            rows={5}
+            className="w-full rounded-md border bg-transparent px-2 py-1.5 text-[11px] text-zinc-200 outline-none"
+            style={{ borderColor: 'var(--dp-border)' }}
+          />
+          <div className="mt-1.5 flex items-center gap-2">
+            <button
+              onClick={handleAlignScript}
+              disabled={!scriptDraft.trim()}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-white transition-colors disabled:opacity-40"
+              style={{ background: 'var(--dp-primary-amber)' }}
+            >
+              <FileCheck2 className="h-3 w-3" /> Use as source of truth
+            </button>
+            <button
+              onClick={() => setScriptOpen(false)}
+              className="rounded-md px-2 py-1 text-[11px] text-zinc-400 hover:text-white"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {alignmentInfo && (
+        <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px]" style={{ color: 'var(--dp-accent-teal)' }}>
+          <FileCheck2 className="h-3 w-3" />
+          <span className="font-medium">Script-aligned</span>
+          <span className="text-zinc-500">
+            {Math.round(alignmentInfo.coverage * 100)}% timed from speech
+            {alignmentInfo.interpolatedCount > 0 && ` · ${alignmentInfo.interpolatedCount} interpolated`}
+            {alignmentInfo.droppedSttCount > 0 && ` · ${alignmentInfo.droppedSttCount} mishears dropped`}
+          </span>
+          <button
+            onClick={handleRevertToStt}
+            className="flex items-center gap-0.5 text-zinc-400 hover:text-white"
+            title="Restore the raw speech-to-text words"
+          >
+            <Undo2 className="h-3 w-3" /> Revert
+          </button>
+        </div>
+      )}
 
       {/* Prompt controls — only meaningful with a selection */}
       {selection && (
@@ -309,7 +437,7 @@ export function TranscriptPanel({
           {!audioPath && <p className="text-[11px] text-zinc-500">Select a clip with audio to transcribe.</p>}
         </div>
       ) : (
-        <p className="leading-7">
+        <p ref={wordsContainerRef} className="leading-7">
           {words.map((word, i) => {
             if (editingIndex === i) {
               return (
@@ -328,11 +456,12 @@ export function TranscriptPanel({
                 />
               )
             }
-            const isActive = sourceNow >= word.start && sourceNow < word.end
+            const isActive = i === activeIndex
             const isSelected = selection !== null && i >= selection.lo && i <= selection.hi
             return (
               <span
                 key={`${i}-${word.start}`}
+                data-active-word={isActive || undefined}
                 onClick={(e) => handleWordClick(i, e)}
                 onDoubleClick={() => startEdit(i)}
                 className="cursor-text rounded px-0.5 transition-colors"

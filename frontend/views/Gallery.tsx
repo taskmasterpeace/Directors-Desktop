@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, Image as ImageIcon, Film, Trash2, CloudUpload, Download, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Image as ImageIcon, Film, Trash2, CloudUpload, Download, X, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
 import { useProjects } from '../contexts/ProjectContext'
 import { LtxLogo } from '../components/LtxLogo'
 import { Button } from '../components/ui/button'
@@ -45,8 +45,13 @@ function formatDate(dateStr: string): string {
   })
 }
 
+function pathToFileUrl(filePath: string): string {
+  const normalized = filePath.replace(/\\/g, '/')
+  return normalized.startsWith('/') ? `file://${normalized}` : `file:///${normalized}`
+}
+
 export function Gallery() {
-  const { goHome } = useProjects()
+  const { goHome, setPendingAnimateImage, openPlayground } = useProjects()
   const [filter, setFilter] = useState<FilterType>('all')
   const [items, setItems] = useState<GalleryItem[]>([])
   const [total, setTotal] = useState(0)
@@ -223,7 +228,21 @@ export function Gallery() {
                     </div>
                   </div>
 
-                  {/* Delete button */}
+                  {/* Hover actions */}
+                  {item.type === 'image' && (
+                    <button
+                      aria-label="Animate this image"
+                      title="Animate in Playground — image-to-video, Shot Animator style"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setPendingAnimateImage({ url: pathToFileUrl(item.path) })
+                        openPlayground()
+                      }}
+                      className="absolute top-2 right-10 p-1.5 rounded bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-amber-500/80"
+                    >
+                      <Sparkles className="h-3.5 w-3.5 text-white" />
+                    </button>
+                  )}
                   <button
                     aria-label="Delete"
                     onClick={(e) => { e.stopPropagation(); void handleDelete(item) }}

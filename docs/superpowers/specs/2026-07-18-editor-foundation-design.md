@@ -88,6 +88,45 @@ IS the action-based store:
   skill); the sync route domain (`_routes/sync.py`) is the integration point,
   following the existing reference-sync download-and-register pattern.
 
+## Addendum (2026-07-18, later): transcript-of-truth + animate-still
+
+Assessment against the goal "Descript-style transcript, script as source of
+truth, animate stills like the Shot Animator":
+
+- **Already existed** (verified, not rebuilt): the Descript-style
+  `TranscriptPanel` — click-to-seek with speed-aware source↔timeline math,
+  active-word highlight, shift-click selection, silence-snapped ripple delete,
+  double-click word editing, transcript→prompt→generate bridge; backend
+  word-level STT via Replicate `incredibly-fast-whisper` (accepts video
+  directly). Mounted for both video AND audio clips (audio dramas covered),
+  words cached per clip.
+- **New — script of truth** (`frontend/lib/transcript-align.ts`): the user's
+  real script (audiobook chapter, drama dialogue) aligns to STT timings —
+  two-pointer walk with a bounded resync window; exact matches anchor, near
+  misses become substitutions (script text, STT timing), STT-missed words get
+  length-weighted interpolated timings between anchors, STT hallucinations
+  are dropped, output forced monotonic. Panel UI: "Script" → paste →
+  "Use as source of truth", alignment-quality badge (% timed from speech /
+  interpolated / mishears dropped) and Revert-to-STT. 16 unit tests including
+  a realistic audiobook passage.
+- **New — animate a still (Shot Animator flow)**: `pendingAnimateImage`
+  handoff → Playground opens in image-to-video with the still preloaded,
+  model `seedance-2.0`, prompt seeded from the shot's original prompt and
+  focused for directed motion. Entry points: "Animate in Playground" on image
+  clips in the editor properties panel and a hover Sparkles action on Gallery
+  images. (The editor's inline quick "Generate Video (I2V)" stays for
+  in-timeline regeneration.)
+- **UX lift**: transcript auto-scrolls the active word into view during
+  playback (Descript behavior).
+- **OpenReel bring-over verdict for this area**: their
+  `speech-to-text-engine` is the browser Web Speech API — sentence-level, no
+  word timestamps, online-only — strictly worse than our Replicate whisper
+  path; do NOT adopt. Their karaoke subtitle rendering remains the Phase 3
+  candidate for styled word-by-word subtitles.
+- **Known limit**: transcription inlines audio as a base64 data URI —
+  fine for scenes/chapters (minutes), not for a full multi-hour audiobook
+  file in one shot; chunked/Files-API upload is future work if needed.
+
 ## Testing/verification policy
 
 Every phase keeps the CI contract green: `pnpm typecheck` (ts+py),
