@@ -4,6 +4,7 @@ import { useProjects } from '../contexts/ProjectContext'
 import { LtxLogo } from '../components/LtxLogo'
 import { Button } from '../components/ui/button'
 import { logger } from '../lib/logger'
+import { toImgSrc } from '../lib/path-to-img-src'
 
 interface Character {
   id: string
@@ -285,7 +286,7 @@ export function Characters() {
                 <div className="flex flex-wrap gap-2 mb-2">
                   {formImages.map((img, i) => (
                     <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border border-zinc-700">
-                      <img src={img} alt="" className="w-full h-full object-cover" />
+                      <img src={toImgSrc(img)} alt="" className="w-full h-full object-cover" />
                       <button
                         onClick={() => setFormImages(prev => prev.filter((_, idx) => idx !== i))}
                         className="absolute top-0.5 right-0.5 bg-black/70 rounded p-0.5"

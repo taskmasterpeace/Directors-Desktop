@@ -40,7 +40,7 @@ class ReferenceLike(Protocol):
 
 
 # Director's Palette reference categories (a ``@category`` mention picks from a pool).
-REFERENCE_CATEGORIES: frozenset[str] = frozenset({"people", "places", "props", "other"})
+REFERENCE_CATEGORIES: frozenset[str] = frozenset({"people", "places", "wardrobe", "styles", "props", "other"})
 
 
 def _slug(value: str) -> str:

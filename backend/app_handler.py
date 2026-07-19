@@ -344,6 +344,12 @@ class AppHandler:
 
     def determine_slot(self, model: str) -> str:
         """Determine whether a job should use the gpu or api slot."""
+        # Director's Palette models (dp-*) are cloud-only — same predicate the
+        # image executor routes on. Mis-slotting them to "gpu" blocked local
+        # generation during long cloud polls, collided with concurrent api-slot
+        # jobs, broke cancel (wrong slot), and skipped credit deduction.
+        if model.startswith("dp-"):
+            return "api"
         always_api_models = {"seedance-1.5-pro", "seedance-2.0", "seedance-2.0-fast", "nano-banana-2"}
         if model in always_api_models:
             return "api"

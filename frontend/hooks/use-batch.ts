@@ -7,7 +7,9 @@ export interface UseBatchReturn {
   batchStatus: BatchStatusResponse | null
   batchReport: BatchReport | null
   isRunning: boolean
-  submit: (request: BatchSubmitRequest) => Promise<void>
+  /** Resolves true when accepted; false sets `submitError` (never throws). */
+  submit: (request: BatchSubmitRequest) => Promise<boolean>
+  submitError: string | null
   cancel: () => Promise<void>
   retryFailed: () => Promise<void>
   reset: () => void
@@ -43,11 +45,25 @@ export function useBatch(): UseBatchReturn {
     }, 1000)
   }, [stopPolling])
 
-  const submit = useCallback(async (request: BatchSubmitRequest) => {
-    const response = await submitBatch(request)
-    setActiveBatchId(response.batch_id)
-    setBatchReport(null)
-    startPolling(response.batch_id)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+
+  /**
+   * Submit a batch. Never throws — a failed submit sets `submitError` so the UI
+   * can show it (previously a non-2xx became an unhandled rejection: the user
+   * clicked Generate and nothing visibly happened).
+   */
+  const submit = useCallback(async (request: BatchSubmitRequest): Promise<boolean> => {
+    setSubmitError(null)
+    try {
+      const response = await submitBatch(request)
+      setActiveBatchId(response.batch_id)
+      setBatchReport(null)
+      startPolling(response.batch_id)
+      return true
+    } catch (e) {
+      setSubmitError(e instanceof Error ? e.message : 'Batch submit failed')
+      return false
+    }
   }, [startPolling])
 
   const cancel = useCallback(async () => {
@@ -74,7 +90,7 @@ export function useBatch(): UseBatchReturn {
 
   const isRunning = batchStatus !== null && batchStatus.report === null
 
-  return { activeBatchId, batchStatus, batchReport, isRunning, submit, cancel, retryFailed, reset }
+  return { activeBatchId, batchStatus, batchReport, isRunning, submit, submitError, cancel, retryFailed, reset }
 }
 
 function playCompletionSound(): void {
