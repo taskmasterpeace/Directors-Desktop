@@ -879,8 +879,16 @@ class VideoGenerationHandler(StateHandlerBase):
         audio included."""
         if seconds <= 0:
             return
-        # An unreadable file means the generation itself is suspect — let it raise.
-        actual = self._video_trimmer.probe_duration(output_path)
+        # Probe failure must NOT discard a completed (possibly paid) generation:
+        # some valid MP4 containers (fragmented/odd-moov) play fine but imageio-ffmpeg
+        # can't read a duration banner from them. If we can't measure it, deliver as-is.
+        try:
+            actual = self._video_trimmer.probe_duration(output_path)
+        except Exception:
+            logger.warning(
+                "Exact-duration probe failed; delivering output untrimmed", exc_info=True
+            )
+            return
         if actual <= seconds + 0.05:
             return
         self._generation.update_progress("conforming_duration", 97, None, None)

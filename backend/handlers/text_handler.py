@@ -51,47 +51,40 @@ class TextHandler(StateHandlerBase):
         self._set_api_embeddings(None)
 
     def should_use_local_encoding(self) -> bool:
-        """Decide whether to use local text encoding based on availability.
+        """Whether local text encoding is used.
 
-        The user's ``use_local_text_encoder`` setting acts as a tiebreaker only
-        when **both** the API key and the local encoder are available.  When only
-        one option exists, that option is used regardless of the setting.
+        LTX cloud text encoding is permanently disabled fork-wide, so local is
+        the ONLY encoder — a stored ``ltx_api_key`` is never a valid provider.
+        (This must stay independent of the persisted ``use_local_text_encoder``
+        tiebreaker: an upgrader's settings.json can carry ``false`` from the old
+        API-encoder default, and honoring it would route to the dead API.)
         """
-        settings = self.state.app_settings.model_copy(deep=True)
-        api_available = bool(settings.ltx_api_key)
         text_encoder_dir = self._config.model_path("text_encoder")
-        local_available = text_encoder_dir.exists() and any(text_encoder_dir.iterdir())
-
-        if api_available and local_available:
-            return settings.use_local_text_encoder  # setting is tiebreaker
-        return local_available  # use whichever is available
+        return text_encoder_dir.exists() and any(text_encoder_dir.iterdir())
 
     def prepare_text_encoding(self, prompt: str, enhance_prompt: bool) -> None:
         """Validate settings and prepare text embeddings for a generation run.
 
-        Raises RuntimeError with a prefixed message if text encoding is
-        misconfigured, the local encoder is missing, or API encoding fails
-        with no local fallback.
+        LTX cloud text encoding is disabled fork-wide, so the local encoder is
+        the only option and must be present. Raises a prefixed RuntimeError if
+        it isn't.
         """
-        settings = self.state.app_settings.model_copy(deep=True)
-        api_available = bool(settings.ltx_api_key)
         text_encoder_dir = self._config.model_path("text_encoder")
         local_available = text_encoder_dir.exists() and any(text_encoder_dir.iterdir())
 
-        if not api_available and not local_available:
+        if not local_available:
             raise RuntimeError(
-                "TEXT_ENCODING_NOT_CONFIGURED: To generate videos, you need to configure text encoding. "
-                "Either enter an LTX API Key in Settings, or enable the Local Text Encoder."
+                "TEXT_ENCODER_NOT_DOWNLOADED: To generate videos, download the Local Text "
+                "Encoder in Settings."
             )
 
-        use_local = self.should_use_local_encoding()
-        gemma_root = self.resolve_gemma_root()
-        embeddings = self._prepare_api_embeddings(prompt, enhance_prompt)
+        # Clears any stale API embeddings so generation uses the local encoder path.
+        self._prepare_api_embeddings(prompt, enhance_prompt)
 
-        if not use_local and embeddings is None and gemma_root is None:
+        if self.resolve_gemma_root() is None:
             raise RuntimeError(
-                "LTX API text encoding failed and local text encoder is not available. "
-                "Please download the text encoder from Settings or check your API key."
+                "TEXT_ENCODER_NOT_DOWNLOADED: The Local Text Encoder is required but could "
+                "not be resolved. Re-download it in Settings."
             )
 
     def resolve_gemma_root(self) -> str | None:

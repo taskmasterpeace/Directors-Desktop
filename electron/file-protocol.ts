@@ -40,6 +40,11 @@ function fileUrlToPath(requestUrl: string): string | null {
     const u = new URL(requestUrl)
     if (u.protocol !== 'file:') return null
     let p = decodeURIComponent(u.pathname)
+    // RFC-form UNC (file://SERVER/share/x) carries the server in the host — rebuild
+    // the \\SERVER\share path rather than resolving to a bogus local \share.
+    if (process.platform === 'win32' && u.host && u.host !== 'localhost') {
+      return path.normalize(`\\\\${u.host}${p.replace(/\//g, '\\')}`)
+    }
     // file:///C:/x → /C:/x → C:/x  (strip the leading slash before a drive letter)
     if (process.platform === 'win32' && /^\/[A-Za-z]:/.test(p)) p = p.slice(1)
     return path.normalize(p)

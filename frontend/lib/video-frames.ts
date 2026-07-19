@@ -127,9 +127,14 @@ async function seekAndCapture(
   await loaded
 
   const target = clampSeekTime(seekTime, video.duration)
-  const seeked = once(video, 'seeked', SEEK_TIMEOUT_MS, 'seek')
-  video.currentTime = target
-  await seeked
+  // Setting currentTime to (approximately) the current position may not emit a
+  // 'seeked' event, which would otherwise stall until the 5s timeout. When we're
+  // already there (common for a frame-at-0 thumbnail), skip the wait.
+  if (Math.abs(video.currentTime - target) > 0.01) {
+    const seeked = once(video, 'seeked', SEEK_TIMEOUT_MS, 'seek')
+    video.currentTime = target
+    await seeked
+  }
 
   const { width: w, height: h } = scaledDimensions(video.videoWidth, video.videoHeight, width)
   if (w <= 0 || h <= 0) throw new Error('video has no dimensions')

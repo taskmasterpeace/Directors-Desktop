@@ -351,6 +351,22 @@ class TestExactDuration:
         assert fake_services.ltx_api_client.image_to_video_calls == []
         assert fake_services.video_trimmer.trim_calls == [(r.json()["video_path"], 3.0)]
 
+    def test_probe_failure_still_delivers_the_video(self, client, test_state, fake_services):
+        # A container whose duration imageio-ffmpeg can't read must NOT discard a
+        # completed (possibly paid) generation — deliver it untrimmed.
+        test_state.state.app_settings.fal_api_key = "fal-key"
+        fake_services.video_trimmer.raise_on_probe = RuntimeError("no duration banner")
+
+        r = client.post(
+            "/api/generate",
+            json={"prompt": "a dog", "model": "seedance-2.0", "duration": "3", "exactDuration": True},
+        )
+
+        assert r.status_code == 200, r.text
+        assert r.json()["status"] == "complete"
+        assert r.json()["video_path"]
+        assert fake_services.video_trimmer.trim_calls == []
+
     def test_trim_failure_still_delivers_the_video(self, client, test_state, fake_services):
         test_state.state.app_settings.fal_api_key = "fal-key"
         fake_services.video_trimmer.probe_result = 4.0

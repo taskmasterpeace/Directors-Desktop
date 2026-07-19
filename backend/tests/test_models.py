@@ -37,13 +37,17 @@ class TestModelsStatus:
 
     def test_ltx_key_no_longer_waives_local_text_encoder(self, client, create_fake_model_files, test_state):
         # Fork policy: cloud text encoding is disabled, so an LTX key must not
-        # make the local text encoder optional.
+        # make the local text encoder optional — even for an upgrader whose
+        # persisted use_local_text_encoder is still False (the old default).
         create_fake_model_files(include_zit=True)
         test_state.state.app_settings.ltx_api_key = "test-key"
+        test_state.state.app_settings.use_local_text_encoder = False
 
         r = client.get("/api/models/status")
         te_model = next(m for m in r.json()["models"] if m["name"] == "gemma-3-12b-it-qat-q4_0-unquantized")
         assert te_model["required"] is True
+        # And the misleading "optional with API key" / "Uses LTX API" labels are gone.
+        assert "optional with API key" not in te_model["description"]
 
     def test_forced_mode_requires_no_local_models(self, client, test_state):
         test_state.config.force_api_generations = True

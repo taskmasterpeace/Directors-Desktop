@@ -476,95 +476,32 @@ class TestEmptyPromptRejected:
         assert r.status_code == 422
 
 
-class TestEnhancePromptFlag:
-    """Verify enhance_prompt is passed correctly to the text encoder API."""
+class TestTextEncoderRouting:
+    """Text encoding is local-only (LTX cloud is disabled fork-wide). Generation
+    must always use the local encoder and never the dead API path — including the
+    upgrader config that previously dead-ended at Generate (see the LTX-removal
+    review, Finding A)."""
 
-    def _setup_api_encoding(self, test_state, fake_services, create_fake_model_files):
+    def test_local_encoding_never_calls_api(self, client, test_state, fake_services, create_fake_model_files):
         create_fake_model_files()
-        test_state.state.app_settings.ltx_api_key = "test-key"
-        test_state.state.app_settings.use_local_text_encoder = False
-        fake_services.text_encoder.encode_responses.append(_FakeEncodingResult())
-
-    def test_t2v_enhance_enabled(self, client, test_state, fake_services, create_fake_model_files):
-        self._setup_api_encoding(test_state, fake_services, create_fake_model_files)
-        test_state.state.app_settings.prompt_enhancer_enabled_t2v = True
-
-        r = client.post("/api/generate", json=_T2V_JSON)
-        assert r.status_code == 200
-
-        assert len(fake_services.text_encoder.encode_calls) == 1
-        assert fake_services.text_encoder.encode_calls[0]["enhance_prompt"] is True
-
-    def test_t2v_enhance_disabled(self, client, test_state, fake_services, create_fake_model_files):
-        self._setup_api_encoding(test_state, fake_services, create_fake_model_files)
-        test_state.state.app_settings.prompt_enhancer_enabled_t2v = False
-
-        r = client.post("/api/generate", json=_T2V_JSON)
-        assert r.status_code == 200
-
-        assert len(fake_services.text_encoder.encode_calls) == 1
-        assert fake_services.text_encoder.encode_calls[0]["enhance_prompt"] is False
-
-    def test_i2v_enhance_enabled(self, client, test_state, fake_services, create_fake_model_files, make_test_image, tmp_path):
-        self._setup_api_encoding(test_state, fake_services, create_fake_model_files)
-        test_state.state.app_settings.prompt_enhancer_enabled_i2v = True
-        image_path = tmp_path / "input.png"
-        image_path.write_bytes(make_test_image().getvalue())
-
-        r = client.post("/api/generate", json={**_T2V_JSON, "imagePath": str(image_path)})
-        assert r.status_code == 200
-
-        assert len(fake_services.text_encoder.encode_calls) == 1
-        assert fake_services.text_encoder.encode_calls[0]["enhance_prompt"] is True
-
-    def test_i2v_enhance_disabled(self, client, test_state, fake_services, create_fake_model_files, make_test_image, tmp_path):
-        self._setup_api_encoding(test_state, fake_services, create_fake_model_files)
-        test_state.state.app_settings.prompt_enhancer_enabled_i2v = False
-        image_path = tmp_path / "input.png"
-        image_path.write_bytes(make_test_image().getvalue())
-
-        r = client.post("/api/generate", json={**_T2V_JSON, "imagePath": str(image_path)})
-        assert r.status_code == 200
-
-        assert len(fake_services.text_encoder.encode_calls) == 1
-        assert fake_services.text_encoder.encode_calls[0]["enhance_prompt"] is False
-
-    def test_a2v_without_image_uses_t2v_setting(self, client, test_state, fake_services, create_fake_model_files, tmp_path):
-        self._setup_api_encoding(test_state, fake_services, create_fake_model_files)
-        test_state.state.app_settings.prompt_enhancer_enabled_t2v = True
-        audio_file = tmp_path / "test_audio.wav"
-        _write_test_wav(audio_file)
-
-        r = client.post("/api/generate", json={**_T2V_JSON, "audioPath": str(audio_file)})
-        assert r.status_code == 200
-
-        assert len(fake_services.text_encoder.encode_calls) == 1
-        assert fake_services.text_encoder.encode_calls[0]["enhance_prompt"] is True
-
-    def test_a2v_with_image_uses_i2v_setting(self, client, test_state, fake_services, create_fake_model_files, make_test_image, tmp_path):
-        self._setup_api_encoding(test_state, fake_services, create_fake_model_files)
-        test_state.state.app_settings.prompt_enhancer_enabled_i2v = True
-        test_state.state.app_settings.prompt_enhancer_enabled_t2v = False
-        audio_file = tmp_path / "test_audio.wav"
-        _write_test_wav(audio_file)
-        image_path = tmp_path / "input.png"
-        image_path.write_bytes(make_test_image().getvalue())
-
-        r = client.post("/api/generate", json={**_T2V_JSON, "audioPath": str(audio_file), "imagePath": str(image_path)})
-        assert r.status_code == 200
-
-        assert len(fake_services.text_encoder.encode_calls) == 1
-        assert fake_services.text_encoder.encode_calls[0]["enhance_prompt"] is True
-
-    def test_local_encoding_skips_api(self, client, test_state, fake_services, create_fake_model_files):
-        create_fake_model_files()
-        test_state.state.app_settings.ltx_api_key = "test-key"
         test_state.state.app_settings.use_local_text_encoder = True
         test_state.state.app_settings.prompt_enhancer_enabled_t2v = True
 
         r = client.post("/api/generate", json=_T2V_JSON)
         assert r.status_code == 200
+        assert len(fake_services.text_encoder.encode_calls) == 0
 
+    def test_upgrader_config_uses_local_not_dead_api(self, client, test_state, fake_services, create_fake_model_files):
+        # Regression (Finding A): an upgrader's settings.json can carry
+        # {ltx_api_key set, use_local_text_encoder: False} from the old
+        # API-encoder default. With the local encoder present, generation MUST
+        # route to it — not the disabled API — and must NOT dead-end at Generate.
+        create_fake_model_files()
+        test_state.state.app_settings.ltx_api_key = "stale-upgrader-key"
+        test_state.state.app_settings.use_local_text_encoder = False
+
+        r = client.post("/api/generate", json=_T2V_JSON)
+        assert r.status_code == 200, r.text
         assert len(fake_services.text_encoder.encode_calls) == 0
 
 

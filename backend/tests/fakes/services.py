@@ -360,9 +360,12 @@ class FakeVideoTrimmer:
         self.probe_calls: list[str] = []
         self.trim_calls: list[tuple[str, float]] = []
         self.raise_on_trim: Exception | None = None
+        self.raise_on_probe: Exception | None = None
 
     def probe_duration(self, path: str) -> float:
         self.probe_calls.append(path)
+        if self.raise_on_probe is not None:
+            raise self.raise_on_probe
         return self.probe_result
 
     def trim_to(self, path: str, seconds: float) -> None:
@@ -961,6 +964,9 @@ class FakeTextEncoder:
         self.install_calls += 1
 
     def encode_via_api(self, prompt: str, api_key: str, checkpoint_path: str, enhance_prompt: bool) -> Any | None:
+        # Mirrors production: LTX cloud encoding is disabled, so this always
+        # returns None. Calls are still recorded so tests can assert it is NEVER
+        # reached on the live generation path.
         self.encode_calls.append(
             {
                 "prompt": prompt,
@@ -969,8 +975,6 @@ class FakeTextEncoder:
                 "enhance_prompt": enhance_prompt,
             }
         )
-        if self.encode_responses:
-            return self.encode_responses.pop(0)
         return None
 
 
