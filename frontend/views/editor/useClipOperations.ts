@@ -163,10 +163,17 @@ export function useClipOperations(params: UseClipOperationsParams) {
     if (!files || !currentProjectId) return
     
     for (const file of Array.from(files)) {
-      const isVideo = file.type.startsWith('video/')
-      const isAudio = file.type.startsWith('audio/')
-      const isImage = file.type.startsWith('image/')
-      
+      // Chromium reports an empty File.type for common containers (.mkv always,
+      // .avi/.m4v/.flac often), which the file:// handler CAN serve — so fall
+      // back to the extension instead of silently skipping the import.
+      const ext = file.name.slice(file.name.lastIndexOf('.') + 1).toLowerCase()
+      const isVideo =
+        file.type.startsWith('video/') || ['mp4', 'mov', 'mkv', 'webm', 'avi', 'm4v'].includes(ext)
+      const isAudio =
+        file.type.startsWith('audio/') || ['mp3', 'wav', 'ogg', 'oga', 'aac', 'flac', 'm4a', 'opus'].includes(ext)
+      const isImage =
+        file.type.startsWith('image/') || ['png', 'jpg', 'jpeg', 'webp', 'gif', 'avif', 'bmp'].includes(ext)
+
       if (!isVideo && !isAudio && !isImage) continue
       
       // In Electron, File objects have a .path property with the full filesystem path

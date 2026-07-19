@@ -49,10 +49,9 @@ def route_model_download(
     if handler.downloads.is_download_running():
         raise HTTPError(409, "Download already in progress")
 
-    settings = handler.settings.get_settings_snapshot()
+    # LTX cloud text encoding is disabled fork-wide, so an ltx_api_key no longer
+    # lets the download skip the (now mandatory) local text encoder.
     skip_text_encoder = req.skipTextEncoder
-    if settings.ltx_api_key and not settings.use_local_text_encoder:
-        skip_text_encoder = True
 
     if handler.downloads.start_model_download(skip_text_encoder=skip_text_encoder):
         return ModelDownloadStartResponse(

@@ -94,10 +94,12 @@ DEFAULT_REQUIRED_MODEL_TYPES: frozenset[ModelFileType] = frozenset(
 def resolve_required_model_types(
     base_required: frozenset[ModelFileType],
     has_api_key: bool,
-    use_local_text_encoder: bool = False,
+    use_local_text_encoder: bool = True,
 ) -> frozenset[ModelFileType]:
+    # LTX cloud text encoding is disabled fork-wide, so the local text encoder is
+    # ALWAYS required for local generation — a stored ltx_api_key no longer waives
+    # it (that waiver used to hide the download and dead-end upgraders at Generate).
+    _ = has_api_key, use_local_text_encoder
     if not base_required:
-        return base_required
-    if has_api_key and not use_local_text_encoder:
         return base_required
     return cast(frozenset[ModelFileType], base_required | {"text_encoder"})

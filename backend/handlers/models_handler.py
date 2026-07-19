@@ -111,9 +111,8 @@ class ModelsHandler(StateHandlerBase):
 
             description = spec.description
             optional_reason: str | None = None
-            if model_type == "text_encoder":
-                description += " (optional with API key)" if has_api_key else ""
-                optional_reason = "Uses LTX API for text encoding" if has_api_key else None
+            # text_encoder is always required now (LTX cloud encoding is disabled);
+            # it is no longer "optional with an API key".
             if model_type == "text_encoder_abliterated":
                 description += " (optional)"
                 optional_reason = (
