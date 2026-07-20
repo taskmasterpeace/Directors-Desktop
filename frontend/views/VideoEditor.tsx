@@ -29,7 +29,7 @@ import { ImportTimelineModal } from '../components/ImportTimelineModal'
 import { useConfirm } from '../components/ConfirmDialog'
 import { ClipWaveform } from '../components/AudioWaveform'
 // IC-LORA HIDDEN - import { ICLoraPanel } from '../components/ICLoraPanel'
-import type { TimelineClip, Track, SubtitleClip } from '../types/project' // EFFECTS HIDDEN: removed EffectType
+import type { TimelineClip, Track, SubtitleClip, TimelineMarker } from '../types/project' // EFFECTS HIDDEN: removed EffectType
 import { DEFAULT_TRACKS } from '../types/project' // EFFECTS HIDDEN: removed EFFECT_DEFINITIONS
 import {
   type ToolType, PRIMARY_TOOLS, TRIM_TOOLS,
@@ -119,6 +119,7 @@ export function VideoEditor() {
   const [clips, setClips] = useState<TimelineClip[]>((activeTimeline?.clips || []).map(migrateClip))
   const [tracks, setTracks] = useState<Track[]>(migrateTracks(activeTimeline?.tracks || DEFAULT_TRACKS.map(t => ({ ...t }))))
   const [subtitles, setSubtitles] = useState<SubtitleClip[]>(activeTimeline?.subtitles || [])
+  const [markers, setMarkers] = useState<TimelineMarker[]>(activeTimeline?.markers || [])
   
   // Transient UI state (not persisted)
   const [currentTime, setCurrentTime] = useState(0)
@@ -155,6 +156,45 @@ export function VideoEditor() {
     window.addEventListener('keyup', onKey)
     return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('keyup', onKey) }
   }, [])
+  // ── Timeline markers (notes on the timeline; part of the agent surface) ──
+  const [markerEditor, setMarkerEditor] = useState<{ id: string; x: number; y: number } | null>(null)
+  const MARKER_COLORS: Record<string, string> = {
+    amber: 'bg-amber-400', red: 'bg-red-400', green: 'bg-green-400',
+    blue: 'bg-blue-400', zinc: 'bg-zinc-400',
+  }
+  const addMarkerAtPlayhead = useCallback(() => {
+    const id = `mk_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`
+    setMarkers((prev) => [
+      ...prev,
+      {
+        id,
+        time: currentTime,
+        title: `Marker ${prev.length + 1}`,
+        color: 'amber' as const,
+        author: 'user' as const,
+        createdAt: Date.now(),
+      },
+    ])
+  }, [currentTime])
+  const updateMarker = useCallback((id: string, patch: Partial<TimelineMarker>) => {
+    setMarkers((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)))
+  }, [])
+  const deleteMarker = useCallback((id: string) => {
+    setMarkers((prev) => prev.filter((m) => m.id !== id))
+    setMarkerEditor(null)
+  }, [])
+  useEffect(() => {
+    const onMarkerKey = (e: KeyboardEvent) => {
+      if (e.key !== 'm' && e.key !== 'M') return
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      const t = e.target as HTMLElement | null
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return
+      addMarkerAtPlayhead()
+    }
+    window.addEventListener('keydown', onMarkerKey)
+    return () => window.removeEventListener('keydown', onMarkerKey)
+  }, [addMarkerAtPlayhead])
+
   const [snapEnabled, setSnapEnabled] = useState(true)
   const [showEffectsBrowser, setShowEffectsBrowser] = useState(false)
   const [showTrimFlyout, setShowTrimFlyout] = useState(false)
@@ -861,6 +901,7 @@ export function VideoEditor() {
     clips: typeof clips
     tracks: typeof tracks
     subtitles: typeof subtitles
+    markers: typeof markers
     dirty: boolean
   } | null>(null)
 
@@ -871,20 +912,20 @@ export function VideoEditor() {
     pendingSaveRef.current = {
       projectId: currentProjectId,
       timelineId: loadedTimelineIdRef.current,
-      clips, tracks, subtitles,
+      clips, tracks, subtitles, markers,
       dirty: true,
     }
 
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
     autoSaveTimerRef.current = setTimeout(() => {
-      updateTimeline(currentProjectId, loadedTimelineIdRef.current!, { clips, tracks, subtitles })
+      updateTimeline(currentProjectId, loadedTimelineIdRef.current!, { clips, tracks, subtitles, markers })
       if (pendingSaveRef.current) pendingSaveRef.current.dirty = false
     }, AUTOSAVE_DELAY)
 
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
     }
-  }, [clips, tracks, subtitles, currentProjectId])
+  }, [clips, tracks, subtitles, markers, currentProjectId])
 
   // Save on unmount: flush the latest snapshot if a debounced save was still
   // pending, so edits made within AUTOSAVE_DELAY of navigating away aren't lost.
@@ -894,7 +935,7 @@ export function VideoEditor() {
       const p = pendingSaveRef.current
       if (p && p.dirty) {
         updateTimeline(p.projectId, p.timelineId, {
-          clips: p.clips, tracks: p.tracks, subtitles: p.subtitles,
+          clips: p.clips, tracks: p.tracks, subtitles: p.subtitles, markers: p.markers,
         })
         p.dirty = false
       }
@@ -2627,6 +2668,91 @@ export function VideoEditor() {
                       )
                     }
                     return ticks
+                  })()}
+                  {/* Timeline markers: range bands + flag pins (M adds at playhead) */}
+                  {markers.map((m) => (
+                    <React.Fragment key={m.id}>
+                      {m.duration && m.duration > 0 && (
+                        <div
+                          className={`absolute top-0 bottom-0 ${MARKER_COLORS[m.color]} opacity-20 pointer-events-none z-[11]`}
+                          style={{ left: `${m.time * pixelsPerSecond}px`, width: `${m.duration * pixelsPerSecond}px` }}
+                        />
+                      )}
+                      <div
+                        title={`${m.title}${m.note ? ` — ${m.note}` : ''}${m.author === 'agent' ? ' (AI)' : ''}`}
+                        className={`absolute top-0 h-3 w-2.5 rounded-b-sm cursor-pointer z-[16] ${MARKER_COLORS[m.color]} ${m.author === 'agent' ? 'outline outline-1 outline-dashed outline-white/80' : ''}`}
+                        style={{ left: `${m.time * pixelsPerSecond - 5}px` }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setMarkerEditor({ id: m.id, x: e.clientX, y: e.clientY })
+                        }}
+                      />
+                    </React.Fragment>
+                  ))}
+                  {markerEditor && (() => {
+                    const m = markers.find((x) => x.id === markerEditor.id)
+                    if (!m) return null
+                    const left = Math.min(markerEditor.x, window.innerWidth - 280)
+                    const top = Math.min(markerEditor.y + 10, window.innerHeight - 260)
+                    return (
+                      <div
+                        className="fixed z-[80] w-[260px] rounded-lg border border-zinc-700 bg-zinc-900 p-3 shadow-2xl"
+                        style={{ left, top }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          value={m.title}
+                          onChange={(e) => updateMarker(m.id, { title: e.target.value })}
+                          className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-sm text-white mb-2"
+                          placeholder="Marker title"
+                          autoFocus
+                        />
+                        <textarea
+                          value={m.note ?? ''}
+                          onChange={(e) => updateMarker(m.id, { note: e.target.value })}
+                          className="w-full bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs text-zinc-200 mb-2 h-14 resize-none"
+                          placeholder="Note (the AI reads these)"
+                        />
+                        <div className="flex items-center gap-1.5 mb-2">
+                          {(Object.keys(MARKER_COLORS) as (keyof typeof MARKER_COLORS)[]).map((c) => (
+                            <button
+                              key={c}
+                              onClick={() => updateMarker(m.id, { color: c as TimelineMarker['color'] })}
+                              className={`h-4 w-4 rounded-full ${MARKER_COLORS[c]} ${m.color === c ? 'ring-2 ring-white' : ''}`}
+                            />
+                          ))}
+                          <span className="ml-auto text-[10px] text-zinc-500">{m.author === 'agent' ? 'AI marker' : formatTime(m.time)}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <label className="text-[10px] text-zinc-400">Range (s)</label>
+                          <input
+                            type="number"
+                            min={0}
+                            step={0.5}
+                            value={m.duration ?? 0}
+                            onChange={(e) => {
+                              const v = Number(e.target.value)
+                              updateMarker(m.id, { duration: v > 0 ? v : undefined })
+                            }}
+                            className="w-16 bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 text-xs text-white"
+                          />
+                          <button
+                            onClick={() => deleteMarker(m.id)}
+                            className="ml-auto text-[11px] text-red-400 hover:text-red-300"
+                          >
+                            Delete
+                          </button>
+                          <button
+                            onClick={() => setMarkerEditor(null)}
+                            className="text-[11px] text-zinc-400 hover:text-white"
+                          >
+                            Close
+                          </button>
+                        </div>
+                      </div>
+                    )
                   })()}
                   {/* Dimmed region BEFORE In point on ruler */}
                   {inPoint !== null && (

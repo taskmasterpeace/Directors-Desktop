@@ -36,7 +36,7 @@ interface ProjectContextType {
   renameTimeline: (projectId: string, timelineId: string, name: string) => void
   duplicateTimeline: (projectId: string, timelineId: string) => Timeline | null
   setActiveTimeline: (projectId: string, timelineId: string) => void
-  updateTimeline: (projectId: string, timelineId: string, updates: Partial<Pick<Timeline, 'tracks' | 'clips' | 'subtitles'>>) => void
+  updateTimeline: (projectId: string, timelineId: string, updates: Partial<Pick<Timeline, 'tracks' | 'clips' | 'subtitles' | 'markers'>>) => void
   getActiveTimeline: (projectId: string) => Timeline | null
   
   // Navigation helpers
@@ -493,7 +493,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     ))
   }, [])
   
-  const updateTimeline = useCallback((projectId: string, timelineId: string, updates: Partial<Pick<Timeline, 'tracks' | 'clips' | 'subtitles'>>) => {
+  const updateTimeline = useCallback((projectId: string, timelineId: string, updates: Partial<Pick<Timeline, 'tracks' | 'clips' | 'subtitles' | 'markers'>>) => {
     setProjects(prev => prev.map(p => 
       p.id === projectId 
         ? {

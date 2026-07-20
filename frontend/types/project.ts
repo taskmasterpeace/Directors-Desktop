@@ -415,6 +415,24 @@ export interface TimelineClip {
   textStyle?: TextOverlayStyle
 }
 
+export type MarkerColor = 'amber' | 'red' | 'green' | 'blue' | 'zinc'
+
+/**
+ * A note pinned to the timeline — a point (no duration) or a range. Markers are
+ * part of the agent surface: the AI reads the user's markers as instructions
+ * and leaves its own (author: 'agent') as reviewable suggestions.
+ */
+export interface TimelineMarker {
+  id: string
+  time: number        // timeline seconds (start, for ranges)
+  duration?: number   // undefined → point marker; > 0 → range
+  title: string
+  note?: string
+  color: MarkerColor
+  author: 'user' | 'agent'
+  createdAt: number
+}
+
 export interface Timeline {
   id: string
   name: string
@@ -422,6 +440,7 @@ export interface Timeline {
   tracks: Track[]
   clips: TimelineClip[]
   subtitles?: SubtitleClip[]  // Subtitle cues on subtitle tracks
+  markers?: TimelineMarker[]
 }
 
 export interface Project {
