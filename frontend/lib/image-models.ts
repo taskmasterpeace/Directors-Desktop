@@ -46,6 +46,8 @@ export interface ImageModelConfig {
   badge?: string
   /** Tailwind text colour for the badge/glyph, mirroring Palette's palette. */
   badgeColor?: string
+  /** Typical wall-clock seconds per image (Palette's estimatedSeconds). */
+  estimatedSeconds?: number
 }
 
 const NANO_ASPECTS = ['16:9', '9:16', '1:1', '4:3', '3:4', '21:9', '3:2', '2:3']
@@ -70,6 +72,7 @@ export const PALETTE_IMAGE_MODELS: ImageModelConfig[] = [
     requiresInputImage: false,
     aspectRatios: NANO_ASPECTS,
     badge: 'Premium',
+    estimatedSeconds: 15,
     badgeColor: 'text-green-300',
   },
   {
@@ -83,6 +86,7 @@ export const PALETTE_IMAGE_MODELS: ImageModelConfig[] = [
     requiresInputImage: false,
     aspectRatios: NANO_ASPECTS,
     badge: 'Fast & Cheap',
+    estimatedSeconds: 6,
     badgeColor: 'text-yellow-300',
   },
   {
@@ -99,6 +103,7 @@ export const PALETTE_IMAGE_MODELS: ImageModelConfig[] = [
     // gpt-image-2 only accepts these three — anything else 422s upstream.
     aspectRatios: ['1:1', '3:2', '2:3'],
     badge: 'Text Master',
+    estimatedSeconds: 25,
     badgeColor: 'text-emerald-300',
   },
   {
@@ -113,6 +118,7 @@ export const PALETTE_IMAGE_MODELS: ImageModelConfig[] = [
     aspectRatios: ['match_input_image', '1:1', '16:9', '9:16', '4:3', '3:4'],
     supportsCameraAngle: true,
     badge: 'Camera',
+    estimatedSeconds: 30,
     badgeColor: 'text-cyan-300',
   },
 ]
@@ -131,6 +137,7 @@ export const LOCAL_IMAGE_MODELS: ImageModelConfig[] = [
     aspectRatios: LOCAL_ASPECTS,
     supportsStrength: true,
     badgeColor: 'text-zinc-400',
+    estimatedSeconds: 4,
   },
   {
     id: 'flux-klein-9b',
@@ -145,6 +152,7 @@ export const LOCAL_IMAGE_MODELS: ImageModelConfig[] = [
     supportsLora: true,
     supportsStrength: true,
     badgeColor: 'text-zinc-400',
+    estimatedSeconds: 8,
   },
   {
     id: 'flux-dev',
@@ -159,6 +167,7 @@ export const LOCAL_IMAGE_MODELS: ImageModelConfig[] = [
     supportsLora: true,
     supportsStrength: true,
     badgeColor: 'text-zinc-400',
+    estimatedSeconds: 34,
   },
 ]
 
@@ -175,6 +184,7 @@ export const REPLICATE_IMAGE_MODELS: ImageModelConfig[] = [
     requiresInputImage: false,
     aspectRatios: NANO_ASPECTS,
     badgeColor: 'text-zinc-400',
+    estimatedSeconds: 20,
   },
 ]
 

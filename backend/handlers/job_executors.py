@@ -17,9 +17,15 @@ logger = logging.getLogger(__name__)
 
 
 def _str_list(value: object) -> list[str]:
-    """Coerce an opaque queue-param value into a list of strings."""
+    """Coerce an opaque queue-param value into a list of strings.
+
+    A bare string becomes a one-element list — pipeline dependency substitution
+    ($dep.result_paths[0]) writes a single path string into list-typed params.
+    """
     if isinstance(value, list):
         return [str(item) for item in cast("list[Any]", value)]
+    if isinstance(value, str) and value:
+        return [value]
     return []
 
 

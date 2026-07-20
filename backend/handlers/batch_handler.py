@@ -157,7 +157,11 @@ class BatchHandler:
             depends_on: str | None = None
             if prev_job_id is not None:
                 depends_on = prev_job_id
-                auto_params["imagePath"] = "$dep.result_paths[0]"
+                # Image steps consume the previous output as a REFERENCE image
+                # (Palette pipe-chaining: each stage feeds the next); video steps
+                # keep it as the start frame.
+                chain_key = "referenceImagePaths" if step.type == "image" else "imagePath"
+                auto_params[chain_key] = "$dep.result_paths[0]"
                 if step.auto_prompt:
                     auto_params["auto_prompt"] = "true"
 

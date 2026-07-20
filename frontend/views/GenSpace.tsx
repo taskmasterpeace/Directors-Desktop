@@ -20,6 +20,7 @@ import { extractVideoFrame } from '../lib/video-frames'
 import {
   getImageModel,
   getImageModelCost,
+  isPaletteImageModel,
   listImageModelGroups,
   migrateImageModelId,
   coerceAspectRatio,
@@ -31,6 +32,8 @@ import {
 } from '../lib/shot-creator/camera-angle'
 import { CameraAnglePad } from '../components/CameraAnglePad'
 import { QUICK_MODES, type QuickModeKind } from '../lib/shot-creator/quick-modes'
+import { parseDynamicPrompt, type DynamicPromptResult } from '../lib/shot-creator/dynamic-prompt'
+import { useBatch } from '../hooks/use-batch'
 import { Shirt, UserRound, MapPin, Palette as StylePaletteIcon } from 'lucide-react'
 
 /** Icons for the one-tap quick modes (Palette Shot Creator parity). */
@@ -39,6 +42,15 @@ const QUICK_MODE_ICONS: Record<QuickModeKind, React.ComponentType<{ className?: 
   character: UserRound,
   location: MapPin,
   style: StylePaletteIcon,
+}
+
+const IMAGE_DIMS_SHORT = 1080
+function imageDimsForAspect(aspect: string): { width: number; height: number } {
+  const [w, h] = aspect.split(':').map(Number)
+  const ratio = w && h ? w / h : 16 / 9
+  return ratio >= 1
+    ? { width: Math.round(IMAGE_DIMS_SHORT * ratio), height: IMAGE_DIMS_SHORT }
+    : { width: IMAGE_DIMS_SHORT, height: Math.round(IMAGE_DIMS_SHORT / ratio) }
 }
 
 /** Friendly labels for the aspect ratios the image models expose. */
@@ -1437,6 +1449,8 @@ export function GenSpace() {
   const [lastFrameUrl, setLastFrameUrl] = useState<string | null>(null)
   const [isEnhancing, setIsEnhancing] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
+  const [batchNote, setBatchNote] = useState<string | null>(null)
+  const batch = useBatch()
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null)
   const [copiedPrompt, setCopiedPrompt] = useState(false)
   const [showFavorites, setShowFavorites] = useState(false)
@@ -1716,6 +1730,32 @@ export function GenSpace() {
     })()
   }, [retakeResult, isRetaking, currentProjectId, currentProject?.assets, activeRetakeSource, addAsset, addTakeToAsset, assetSavePath, setPendingRetakeUpdate, resetRetake])
   
+  // Batch (bracket/pipe) results land in the project bin like any other generation.
+  useEffect(() => {
+    const report = batch.batchReport
+    if (!report || !currentProjectId) return
+    ;(async () => {
+      for (const rp of report.result_paths ?? []) {
+        if (!/\.(png|jpe?g|webp)$/i.test(rp)) continue
+        if (assets.some((a) => a.path === rp)) continue
+        const fileUrl = `file:///${rp.replace(/\\/g, '/')}`
+        const { path: finalPath, url: finalUrl } = await copyToAssetFolder(fileUrl, fileUrl, assetSavePath)
+        addAsset(currentProjectId, {
+          type: 'image',
+          path: finalPath,
+          url: finalUrl,
+          prompt: lastPrompt,
+          resolution: settings.imageResolution,
+          takes: [{ url: finalUrl, path: finalPath, createdAt: Date.now() }],
+          activeTakeIndex: 0,
+        })
+      }
+      setBatchNote(null)
+      batch.reset()
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [batch.batchReport, currentProjectId])
+
   // When image generation/editing completes, add all images to project assets
   useEffect(() => {
     if (imageUrls.length > 0 && currentProjectId && !isGenerating) {
@@ -1800,6 +1840,50 @@ export function GenSpace() {
     })()
   }
 
+  /** Bracket/wildcard lists and pipe chains run through the batch queue. */
+  const submitDynamicBatch = async (parsed: DynamicPromptResult) => {
+    const modelId = migrateImageModelId(appSettings.imageModel)
+    const dims = imageDimsForAspect(coerceAspectRatio(modelId, settings.aspectRatio))
+    const baseParams: Record<string, unknown> = {
+      width: dims.width,
+      height: dims.height,
+      numSteps: 4,
+      numImages: 1,
+      ...(settings.referenceImagePaths?.length ? { referenceImagePaths: settings.referenceImagePaths } : {}),
+      ...(settings.imageModelParams ? { modelParams: settings.imageModelParams } : {}),
+    }
+    const target: 'local' | 'cloud' =
+      isPaletteImageModel(modelId) || modelId === 'nano-banana-2' ? 'cloud' : 'local'
+    if (parsed.hasPipes) {
+      for (const chain of parsed.chains) {
+        await batch.submit({
+          mode: 'pipeline',
+          target,
+          pipeline: {
+            steps: chain.map((stagePrompt) => ({
+              type: 'image' as const,
+              model: modelId,
+              params: { ...baseParams, prompt: stagePrompt },
+              auto_prompt: false,
+            })),
+          },
+        })
+      }
+      setBatchNote(`Queued ${parsed.chains.length} chain${parsed.chains.length === 1 ? '' : 's'} (${parsed.chains[0]?.length ?? 0} stages each) — each stage feeds the next as a reference.`)
+    } else {
+      await batch.submit({
+        mode: 'list',
+        target,
+        jobs: parsed.expandedPrompts.map((p) => ({
+          type: 'image' as const,
+          model: modelId,
+          params: { ...baseParams, prompt: p },
+        })),
+      })
+      setBatchNote(`Queued ${parsed.totalCount} images — they land here as they finish.`)
+    }
+  }
+
   const handleGenerate = async () => {
     if (mode === 'retake') {
       if (!retakeInput.videoPath || retakeInput.duration < 2) return
@@ -1845,6 +1929,41 @@ export function GenSpace() {
               ? `${qm.prompt}\n\nADDITIONAL NOTES: ${prompt.trim()}`
               : qm.prompt)
         : prompt
+
+      // Full Palette prompt language (quick modes carry fixed prompts, so only
+      // free-form prompts get parsed): wildcards -> brackets -> pipes.
+      let dynamicPromptOverride: string | null = null
+      if (!qm) {
+        let wcs: { name: string; entries: string[] }[] = []
+        try {
+          const base = await window.electronAPI.getBackendUrl()
+          const wcRes = await fetch(`${base}/api/wildcards`)
+          if (wcRes.ok) {
+            const data = (await wcRes.json()) as { wildcards?: { name: string; values: string[] }[] }
+            wcs = (data.wildcards ?? []).map((w) => ({ name: w.name, entries: w.values }))
+          }
+        } catch { /* wildcards unavailable */ }
+        const parsed = parseDynamicPrompt(prompt, wcs)
+        if (!parsed.isValid) {
+          setLocalError(parsed.error ?? 'Invalid prompt syntax')
+          return
+        }
+        if (parsed.totalCount > 1 || parsed.hasPipes) {
+          if (parsed.needsConfirmation) {
+            const ok = await confirm({
+              title: `Generate ${parsed.totalCount} images?`,
+              message: 'Bracket/wildcard expansion produced more than 10 generations.',
+              confirmLabel: 'Generate all',
+            })
+            if (!ok) return
+          }
+          await submitDynamicBatch(parsed)
+          return
+        }
+        if (parsed.expandedPrompts[0] && parsed.expandedPrompts[0] !== prompt) {
+          dynamicPromptOverride = parsed.expandedPrompts[0] // wildcard substitution
+        }
+      }
       const imageSettings = {
         model: 'fast' as const,
         duration: 5,
@@ -1876,11 +1995,11 @@ export function GenSpace() {
         // Armed quick mode always GENERATES the sheet from the attached photo(s)
         // — it must never fall into img2img edit just because the photo arrived
         // via the edit slot.
-        generateImage(quickPrompt, imageSettings)
+        generateImage(dynamicPromptOverride ?? quickPrompt, imageSettings)
       } else if (editSourceImage) {
         editImage(prompt, editSourceImage.path, imageSettings, editStrength)
       } else {
-        generateImage(quickPrompt, imageSettings)
+        generateImage(dynamicPromptOverride ?? quickPrompt, imageSettings)
       }
     } else {
       // Generate video (t2v if no image/audio, i2v if image, a2v if audio)
@@ -2137,6 +2256,9 @@ export function GenSpace() {
           {/* Assets grid — fills remaining space, scrollable */}
           <div className="overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable] flex-1">
             <div className={`grid ${gallerySizeClasses[gallerySize]} gap-4`}>
+              {batchNote && (
+                <div className="col-span-full text-[11px] text-amber-300/90 px-1">{batchNote}</div>
+              )}
               {isGenerating && (
                 <div className="relative rounded-xl overflow-hidden bg-zinc-800 aspect-video">
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -2148,6 +2270,12 @@ export function GenSpace() {
                       </div>
                     </div>
                     <p className="text-sm text-zinc-400">{statusMessage || 'Generating...'}</p>
+                    {mode === 'image' && (() => {
+                      const m = getImageModel(appSettings.imageModel)
+                      return m.estimatedSeconds ? (
+                        <p className="text-[11px] text-zinc-500 mt-0.5">{m.icon} {m.displayName} · ~{m.estimatedSeconds}s typical</p>
+                      ) : null
+                    })()}
                     <div className="w-32 h-1 bg-zinc-700 rounded-full mt-2 overflow-hidden">
                       {/* Drive the bar from the backend's real per-job progress, not
                           elapsed/estimated time (which freezes at 95% on long jobs). */}
