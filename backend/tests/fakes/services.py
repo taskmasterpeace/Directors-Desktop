@@ -1063,6 +1063,50 @@ class FakeTextEncoder:
         return None
 
 
+class FakeAudioAnalyzer:
+    """Deterministic 40s / 120bpm analysis: intro (quiet) + chorus (loud)."""
+
+    def __init__(self) -> None:
+        self.analyze_calls: list[str] = []
+        self.raise_on_analyze: Exception | None = None
+
+    def analyze(self, audio_path: str):
+        from services.audio_analysis import AudioAnalysis, AudioSection
+
+        self.analyze_calls.append(audio_path)
+        if self.raise_on_analyze is not None:
+            raise self.raise_on_analyze
+        beats = [round(i * 0.5, 3) for i in range(80)]
+        return AudioAnalysis(
+            duration=40.0,
+            tempo_bpm=120.0,
+            beats=beats,
+            downbeats=beats[::4],
+            sections=[
+                AudioSection(start=0.0, end=16.0, label="intro", energy=0.25),
+                AudioSection(start=16.0, end=40.0, label="chorus", energy=0.9),
+            ],
+        )
+
+
+class FakeVideoAssembler:
+    def __init__(self) -> None:
+        self.assemble_calls: list[dict[str, Any]] = []
+        self.raise_on_assemble: Exception | None = None
+
+    def assemble(self, *, shots, audio_path: str, output_path: str) -> None:
+        self.assemble_calls.append(
+            {"shots": list(shots), "audio_path": audio_path, "output_path": output_path}
+        )
+        if self.raise_on_assemble is not None:
+            raise self.raise_on_assemble
+        from pathlib import Path
+
+        out = Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_bytes(b"fake-assembled-video")
+
+
 @dataclass
 class FakeServices:
     http: FakeHTTPClient = field(default_factory=FakeHTTPClient)
@@ -1089,6 +1133,8 @@ class FakeServices:
     retake_pipeline: FakeRetakePipeline = field(default_factory=FakeRetakePipeline)
     ic_lora_model_downloader: FakeIcLoraModelDownloader = field(default_factory=FakeIcLoraModelDownloader)
     model_scanner: FakeModelScanner = field(default_factory=FakeModelScanner)
+    audio_analyzer: FakeAudioAnalyzer = field(default_factory=FakeAudioAnalyzer)
+    video_assembler: FakeVideoAssembler = field(default_factory=FakeVideoAssembler)
 
     def __post_init__(self) -> None:
         FakeFastVideoPipeline.bind_singleton(self.fast_video_pipeline)

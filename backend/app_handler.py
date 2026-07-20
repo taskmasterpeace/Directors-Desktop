@@ -54,6 +54,8 @@ from services.interfaces import (
     VideoTrimmer,
 )
 from services.model_scanner.model_scanner import ModelScanner
+from services.audio_analysis import AudioAnalyzer
+from services.video_assembler import VideoAssembler
 from state.app_state_types import AppState, StartupPending, TextEncoderState
 
 
@@ -90,6 +92,8 @@ class AppHandler:
         retake_pipeline_class: type[RetakePipeline],
         ic_lora_model_downloader: IcLoraModelDownloader,
         model_scanner: ModelScanner,
+        audio_analyzer: AudioAnalyzer,
+        video_assembler: VideoAssembler,
     ) -> None:
         self.config = config
 
@@ -101,6 +105,8 @@ class AppHandler:
         self.video_processor = video_processor
         self.task_runner = task_runner
         self.ltx_api_client = ltx_api_client
+        self.audio_analyzer = audio_analyzer
+        self.video_assembler = video_assembler
         self.image_api_client = image_api_client
         self.video_api_client = video_api_client
         self.fal_video_client = fal_video_client
@@ -302,6 +308,16 @@ class AppHandler:
             persistence_path=config.settings_file.parent / "project_read_model.json",
         )
 
+        from handlers.director_handler import DirectorHandler
+        from state.director_store import DirectorStore
+        self.director = DirectorHandler(
+            store=DirectorStore(config.settings_file.parent / "director_runs.json"),
+            job_queue=self.job_queue,
+            audio_analyzer=audio_analyzer,
+            video_assembler=video_assembler,
+            outputs_dir=config.outputs_dir,
+        )
+
         self.prompts = PromptHandler(
             state=self.state,
             lock=self._lock,
@@ -391,6 +407,8 @@ class ServiceBundle:
     retake_pipeline_class: type[RetakePipeline]
     ic_lora_model_downloader: IcLoraModelDownloader
     model_scanner: ModelScanner
+    audio_analyzer: AudioAnalyzer
+    video_assembler: VideoAssembler
 
 
 def build_default_service_bundle(config: RuntimeConfig) -> ServiceBundle:
@@ -403,6 +421,8 @@ def build_default_service_bundle(config: RuntimeConfig) -> ServiceBundle:
     from services.fal_video_client.fal_video_client_impl import FalVideoClientImpl
     from services.upload_client.fal_upload_client_impl import FalUploadClientImpl
     from services.palette_image_client.palette_image_client_impl import PaletteImageClientImpl
+    from services.audio_analysis import AudioAnalyzerImpl
+    from services.video_assembler import VideoAssemblerImpl
     from services.gpu_cleaner.torch_cleaner import TorchCleaner
     from services.gpu_info.gpu_info_impl import GpuInfoImpl
     from services.http_client.http_client_impl import HTTPClientImpl
@@ -455,6 +475,8 @@ def build_default_service_bundle(config: RuntimeConfig) -> ServiceBundle:
         retake_pipeline_class=LTXRetakePipeline,
         ic_lora_model_downloader=IcLoraModelDownloaderImpl(),
         model_scanner=ModelScannerImpl(),
+        audio_analyzer=AudioAnalyzerImpl(),
+        video_assembler=VideoAssemblerImpl(),
     )
 
 
@@ -494,4 +516,6 @@ def build_initial_state(
         retake_pipeline_class=bundle.retake_pipeline_class,
         ic_lora_model_downloader=bundle.ic_lora_model_downloader,
         model_scanner=bundle.model_scanner,
+        audio_analyzer=bundle.audio_analyzer,
+        video_assembler=bundle.video_assembler,
     )

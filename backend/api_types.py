@@ -883,3 +883,55 @@ class AgentActionReportRequest(BaseModel):
 
 class AgentActionStatusResponse(BaseModel):
     actions: list[dict[str, object]]
+
+
+# --- Director (music-video builds) ---
+
+
+class DirectorStartRequest(BaseModel):
+    audioPath: str
+    concept: str
+    model: str = "seedance-2.0"
+    resolution: str = "720p"
+    referenceImagePaths: list[str] = []
+
+
+class DirectorTargetRequest(BaseModel):
+    runId: str
+
+
+class DirectorShotPayload(BaseModel):
+    index: int
+    start: float
+    end: float
+    sectionLabel: str
+    shotType: str
+    prompt: str
+    generateSeconds: int
+    status: str
+    error: str | None
+    resultPath: str | None
+
+
+class DirectorRunPayload(BaseModel):
+    id: str
+    phase: str
+    error: str | None
+    audioPath: str
+    concept: str
+    model: str
+    resolution: str
+    createdAt: float
+    outputPath: str | None
+    tempoBpm: float | None
+    songSeconds: float | None
+    sectionCount: int | None
+    shots: list[DirectorShotPayload]
+
+
+class DirectorRunResponse(BaseModel):
+    run: DirectorRunPayload | None
+
+
+class DirectorRunsResponse(BaseModel):
+    runs: list[DirectorRunPayload]

@@ -92,6 +92,8 @@ def test_state(tmp_path: Path, fake_services: FakeServices):
         retake_pipeline_class=type(fake_services.retake_pipeline),
         ic_lora_model_downloader=fake_services.ic_lora_model_downloader,
         model_scanner=fake_services.model_scanner,
+        audio_analyzer=fake_services.audio_analyzer,
+        video_assembler=fake_services.video_assembler,
     )
 
     handler = build_initial_state(
