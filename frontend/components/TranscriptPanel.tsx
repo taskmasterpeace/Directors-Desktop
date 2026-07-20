@@ -44,6 +44,8 @@ interface TranscriptPanelProps {
   targetModel?: string
   /** Kick off the generate chain from a prompt: image first, then video-from-image. */
   onGenerate?: (prompt: string, mediaType: MediaType) => void
+  /** Turn the transcript into subtitle cues on the timeline. */
+  onMakeCaptions?: () => void
   /** True while the host is running a generation (disables the Generate button). */
   isBusy?: boolean
 }
@@ -64,6 +66,7 @@ export function TranscriptPanel({
   onWordsChange,
   targetModel = 'seedance-2.0',
   onGenerate,
+  onMakeCaptions,
   isBusy,
 }: TranscriptPanelProps) {
   const [localWords, setLocalWords] = useState<TranscriptWord[]>(providedWords ?? [])
@@ -438,6 +441,18 @@ export function TranscriptPanel({
         </div>
       )}
 
+      {words.length > 0 && onMakeCaptions && (
+        <div className="mb-2">
+          <button
+            onClick={onMakeCaptions}
+            className="flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11px] font-medium text-white transition-colors"
+            style={{ background: 'var(--dp-primary-amber)' }}
+            title="Create subtitle cues from these words (sentence + silence aware)"
+          >
+            Make captions
+          </button>
+        </div>
+      )}
       {words.length === 0 ? (
         <div className="flex flex-col items-start gap-2">
           {error && <p className="text-[11px] text-red-400">{error}</p>}

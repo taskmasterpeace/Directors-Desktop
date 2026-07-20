@@ -46,7 +46,8 @@ import { AssetContextMenu } from './editor/AssetContextMenu'
 import { TakeContextMenu } from './editor/TakeContextMenu'
 import { ClipPropertiesPanel } from './editor/ClipPropertiesPanel'
 import { TranscriptPanel } from '../components/TranscriptPanel'
-import { rippleDeleteSpan } from '../lib/transcript-ripple'
+import { rippleDeleteSpan, sourceTimeToTimelineTime } from '../lib/transcript-ripple'
+import { captionsFromWords } from '../lib/captions-from-transcript'
 import { generateFromPrompt } from '../lib/transcript-generate'
 import { migrateImageModelId } from '../lib/image-models'
 import type { TranscriptWord } from '../lib/transcript-api'
@@ -718,12 +719,64 @@ export function VideoEditor() {
     }
   }, [clips, assets, currentProjectId, updateAsset])
 
+  // Transcript -> captions: turn word timestamps into real subtitle cues on a
+  // subtitle track. Same engine the agent's captions_from_transcript action
+  // uses, so human button and AI action produce identical results.
+  const handleMakeCaptions = useCallback((clip: TimelineClip) => {
+    const words = transcriptCache[clip.id] ?? persistedTranscriptForRef.current?.(clip)
+    if (!words || words.length === 0) return
+    const speed = clip.speed || 1
+    const srcStart = clip.trimStart
+    const srcEnd = clip.trimStart + clip.duration * speed
+    const mapped = words
+      .filter((w) => w.end > srcStart && w.start < srcEnd)
+      .map((w) => ({
+        text: w.text,
+        start: sourceTimeToTimelineTime(Math.max(w.start, srcStart), clip),
+        end: sourceTimeToTimelineTime(Math.min(w.end, srcEnd), clip),
+      }))
+    const cues = captionsFromWords(mapped)
+    if (cues.length === 0) return
+    let subIdx = tracks.findIndex((t) => t.type === 'subtitle')
+    if (subIdx === -1) {
+      const newTrack: Track = {
+        id: `track-sub-${Date.now()}`,
+        name: 'Subtitles',
+        muted: false,
+        locked: false,
+        type: 'subtitle',
+      }
+      setClips((prev) => prev.map((c) => ({ ...c, trackIndex: c.trackIndex + 1 })))
+      setSubtitles((prev) => prev.map((sub) => ({ ...sub, trackIndex: sub.trackIndex + 1 })))
+      setTracks((prev) => [newTrack, ...prev])
+      subIdx = 0
+    }
+    const clipStart = clip.startTime
+    const clipEnd = clip.startTime + clip.duration
+    const stamp = Date.now()
+    const newSubs: SubtitleClip[] = cues.map((c, i) => ({
+      id: `sub-${stamp}-${i}-${Math.random().toString(36).slice(2, 7)}`,
+      text: c.text,
+      startTime: c.start,
+      endTime: c.end,
+      trackIndex: subIdx,
+    }))
+    // Re-clicking refreshes: replace existing cues under this clip's window on that track.
+    setSubtitles((prev) => [
+      ...prev.filter((sub) => sub.trackIndex !== subIdx || sub.endTime <= clipStart || sub.startTime >= clipEnd),
+      ...newSubs,
+    ])
+    setFrameActionMsg({ kind: 'ok', text: `Added ${newSubs.length} caption${newSubs.length === 1 ? '' : 's'} from the transcript.` })
+  }, [transcriptCache, tracks, setClips, setSubtitles, setTracks])
+
   /** Persisted transcript for a clip's asset — hydrates the cache-less case. */
   const persistedTranscriptFor = useCallback((clip: TimelineClip): TranscriptWord[] | undefined => {
     const assetId = clip.assetId ?? clip.asset?.id
     if (!assetId) return undefined
     return assets.find((a) => a.id === assetId)?.transcript?.words
   }, [assets])
+  const persistedTranscriptForRef = useRef<typeof persistedTranscriptFor | null>(null)
+  persistedTranscriptForRef.current = persistedTranscriptFor
 
   // Story-aware generate chain: prompt → image → (for video) video-from-image. Results land
   // in the gallery via the queue executor; the user can drag them onto the timeline.
@@ -4282,6 +4335,7 @@ export function VideoEditor() {
               onWordsLoaded={handleTranscriptWords}
               onWordsChange={handleTranscriptWords}
               onGenerate={handleTranscriptGenerate}
+              onMakeCaptions={() => handleMakeCaptions(selectedClip)}
               isBusy={transcriptGenPhase !== null}
             />
             {transcriptGenPhase && (
