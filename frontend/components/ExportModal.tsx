@@ -30,11 +30,48 @@ const CODEC_INFO: Record<ExportCodec, { label: string; ext: string; description:
   vp9: { label: 'VP9 / WebM', ext: 'webm', description: 'Web-optimized format', filterName: 'WebM Video' },
 }
 
-const RESOLUTIONS = [
-  { label: '4K (3840 x 2160)', width: 3840, height: 2160 },
-  { label: '1080p (1920 x 1080)', width: 1920, height: 1080 },
-  { label: '720p (1280 x 720)', width: 1280, height: 720 },
+// Grouped by aspect. Vertical/square were missing entirely, so a 9:16 project
+// could only be exported pillarboxed into a 16:9 frame with permanent black bars.
+const RESOLUTION_GROUPS: { group: string; items: { label: string; width: number; height: number }[] }[] = [
+  {
+    group: 'Landscape 16:9',
+    items: [
+      { label: '4K — 3840 x 2160', width: 3840, height: 2160 },
+      { label: '1080p — 1920 x 1080', width: 1920, height: 1080 },
+      { label: '720p — 1280 x 720', width: 1280, height: 720 },
+    ],
+  },
+  {
+    group: 'Vertical 9:16 — TikTok / Reels / Shorts',
+    items: [
+      { label: '4K — 2160 x 3840', width: 2160, height: 3840 },
+      { label: '1080p — 1080 x 1920', width: 1080, height: 1920 },
+      { label: '720p — 720 x 1280', width: 720, height: 1280 },
+    ],
+  },
+  {
+    group: 'Square 1:1 / Portrait 4:5',
+    items: [
+      { label: 'Square — 1080 x 1080', width: 1080, height: 1080 },
+      { label: 'Portrait 4:5 — 1080 x 1350', width: 1080, height: 1350 },
+    ],
+  },
+  {
+    group: 'Cinematic',
+    items: [
+      { label: '2.39:1 — 1920 x 804', width: 1920, height: 804 },
+      { label: 'Ultrawide 21:9 — 2560 x 1080', width: 2560, height: 1080 },
+    ],
+  },
 ]
+
+/** Reduce w:h to a readable ratio label (e.g. 1080x1920 → "9:16"). */
+function aspectLabel(width: number, height: number): string {
+  if (!width || !height) return ''
+  const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b))
+  const d = gcd(width, height)
+  return `${width / d}:${height / d}`
+}
 
 const FRAME_RATES = [24, 25, 30, 60]
 
@@ -494,7 +531,12 @@ export function ExportModal({ open, onClose, clips, tracks, timeline, projectNam
               {/* Resolution & Frame rate row */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1.5 block">Resolution</label>
+                  <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1.5 block">
+                    Resolution
+                    <span className="ml-1.5 normal-case tracking-normal text-amber-400/90 font-medium">
+                      {aspectLabel(settings.width, settings.height)}
+                    </span>
+                  </label>
                   <div className="relative">
                     <select
                       value={`${settings.width}x${settings.height}`}
@@ -504,14 +546,21 @@ export function ExportModal({ open, onClose, clips, tracks, timeline, projectNam
                       }}
                       className="w-full appearance-none bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 pr-8 cursor-pointer"
                     >
-                      {RESOLUTIONS.map(r => (
-                        <option key={`${r.width}x${r.height}`} value={`${r.width}x${r.height}`}>
-                          {r.label}
-                        </option>
+                      {RESOLUTION_GROUPS.map(g => (
+                        <optgroup key={g.group} label={g.group}>
+                          {g.items.map(r => (
+                            <option key={`${r.width}x${r.height}`} value={`${r.width}x${r.height}`}>
+                              {r.label}
+                            </option>
+                          ))}
+                        </optgroup>
                       ))}
                     </select>
                     <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500 pointer-events-none" />
                   </div>
+                  <p className="text-[10px] text-zinc-500 mt-1 leading-snug">
+                    Clips that don&apos;t match this shape are fitted whole, with black bars.
+                  </p>
                 </div>
                 <div>
                   <label className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold mb-1.5 block">Frame Rate</label>
