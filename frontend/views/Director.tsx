@@ -70,7 +70,7 @@ async function backendBase(): Promise<string> {
 }
 
 export function Director() {
-  const { goHome, createProject, getActiveTimeline, updateTimeline, openProject, setCurrentTab } = useProjects()
+  const { goHome, createProject, updateTimeline, openProject, setCurrentTab } = useProjects()
   const [audioPath, setAudioPath] = useState<string | null>(null)
   const [concept, setConcept] = useState('')
   const [model, setModel] = useState(MODELS[0].id)
@@ -189,9 +189,12 @@ export function Director() {
     const timeline = directorRunToTimeline(run)
     const songName = run.audioPath.split(/[\\/]/).pop() || 'song'
     const project = createProject(`Director — ${songName.replace(/\.[^.]+$/, '')}`)
-    const active = getActiveTimeline(project.id)
-    if (active) {
-      updateTimeline(project.id, active.id, {
+    // Use the RETURNED project's default timeline id — getActiveTimeline reads
+    // the projects array from the previous render and can't see this project
+    // yet (stale closure), which would silently open an empty editor.
+    const timelineId = project.activeTimelineId ?? project.timelines[0]?.id
+    if (timelineId) {
+      updateTimeline(project.id, timelineId, {
         clips: timeline.clips,
         tracks: timeline.tracks,
         markers: timeline.markers,
@@ -199,11 +202,15 @@ export function Director() {
     }
     openProject(project.id)
     setCurrentTab('video-editor')
-  }, [run, createProject, getActiveTimeline, updateTimeline, openProject, setCurrentTab])
+  }, [run, createProject, updateTimeline, openProject, setCurrentTab])
 
   const isActive = run != null && !['complete', 'error', 'cancelled'].includes(run.phase)
   const shotsDone = run?.shots.filter((s) => s.status === 'complete').length ?? 0
-  const phaseIndex = run ? PHASE_STEPS.findIndex((p) => p.key === run.phase) : -1
+  const phaseIndex = run
+    ? run.phase === 'error' || run.phase === 'cancelled'
+      ? run.outputPath ? 2 : run.shots.length > 0 ? 1 : 0 // how far it got
+      : PHASE_STEPS.findIndex((p) => p.key === run.phase)
+    : -1
 
   return (
     <div className="h-screen flex flex-col bg-zinc-950 text-white">
@@ -382,7 +389,7 @@ export function Director() {
                   <span className="px-2 py-1 rounded-md bg-zinc-800 text-zinc-300">{Math.round(run.tempoBpm)} BPM</span>
                   {run.songSeconds != null && (
                     <span className="px-2 py-1 rounded-md bg-zinc-800 text-zinc-300">
-                      {Math.floor(run.songSeconds / 60)}:{String(Math.round(run.songSeconds % 60)).padStart(2, '0')}
+                      {Math.floor(Math.round(run.songSeconds) / 60)}:{String(Math.round(run.songSeconds) % 60).padStart(2, '0')}
                     </span>
                   )}
                   {run.sectionCount != null && (
