@@ -98,6 +98,7 @@ def build_prompt(
     artist_name: str = "",
     story_beat: str = "",
     director_style: str = "",
+    wardrobe_look: str = "",
 ) -> str:
     desc = _TYPE_DESC.get(shot_type, _TYPE_DESC["broll"]).replace(
         "{artist}", artist_name.strip() or _DEFAULT_ARTIST
@@ -113,6 +114,10 @@ def build_prompt(
         parts.append("calm, lingering camera")
     if director_style:
         parts.append(director_style)
+    if wardrobe_look and shot_type != "broll":
+        # The performer's look reads on people shots; pure b-roll has no one
+        # to dress and the text would leak wardrobe into empty scenery.
+        parts.append(f"{artist_name.strip() or _DEFAULT_ARTIST} wearing {wardrobe_look}")
     prompt = ", ".join(parts)
     # Narrative shots (establishing/b-roll) carry the story; the performer
     # carries the words. This is how a video tells a story ACROSS the song
@@ -122,6 +127,19 @@ def build_prompt(
     if lyric_line and shot_type == "performance":
         prompt += f'. They sing the words "{lyric_line}" in sync with the music'
     return prompt
+
+
+def wardrobe_for_section(section_label: str, wardrobe: list[str]) -> str:
+    """Map looks to sections the music-video way: look A carries the story
+    (verses/intro/outro), look B owns the chorus, look C takes the bridge."""
+    looks = [w.strip() for w in wardrobe if w.strip()]
+    if not looks:
+        return ""
+    if section_label == "chorus" and len(looks) >= 2:
+        return looks[1]
+    if section_label == "bridge" and len(looks) >= 3:
+        return looks[2]
+    return looks[0]
 
 
 def distribute_treatment(section_count: int, chorus_flags: list[bool], treatment: str) -> list[str]:
@@ -174,6 +192,7 @@ def plan_shots(
     treatment: str = "",
     artist_name: str = "",
     director_style: str = "",
+    wardrobe: list[str] | None = None,
 ) -> list[PlannedShot]:
     """Tile the whole song with beat-aligned shots. Deterministic."""
     if analysis.duration <= 0:
@@ -259,6 +278,7 @@ def plan_shots(
                             artist_name=artist_name,
                             story_beat=story_beats[sections.index(section)],
                             director_style=director_style,
+                            wardrobe_look=wardrobe_for_section(section.label, wardrobe or []),
                         ),
                         generate_seconds=max(GEN_MIN_SECONDS, min(GEN_MAX_SECONDS, math.ceil(end - cursor))),
                     )
@@ -315,6 +335,7 @@ def plan_shots(
                     artist_name=artist_name,
                     story_beat=story_beats[-1] if story_beats else "",
                     director_style=director_style,
+                    wardrobe_look=wardrobe_for_section(tail_section.label, wardrobe or []),
                 ),
                 generate_seconds=max(GEN_MIN_SECONDS, min(GEN_MAX_SECONDS, math.ceil(end - start))),
             )

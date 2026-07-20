@@ -84,6 +84,7 @@ class DirectorRun:
     approval: Literal["auto", "approve"] = "auto"
     image_model: str = "dp-nano-banana-2"
     director_style: str = ""
+    wardrobe: list[str] = field(default_factory=lambda: list[str]())
 
     @property
     def is_terminal(self) -> bool:
@@ -111,6 +112,7 @@ class DirectorStore:
         approval: Literal["auto", "approve"] = "auto",
         image_model: str = "dp-nano-banana-2",
         director_style: str = "",
+        wardrobe: list[str] | None = None,
     ) -> DirectorRun:
         run = DirectorRun(
             id=f"dir_{uuid.uuid4().hex[:10]}",
@@ -126,6 +128,7 @@ class DirectorStore:
             approval=approval,
             image_model=image_model,
             director_style=director_style,
+            wardrobe=wardrobe or [],
         )
         with self._lock:
             self._runs.append(run)

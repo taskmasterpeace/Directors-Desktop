@@ -198,6 +198,25 @@ def test_all_sliver_sections_fall_back_to_full_span():
     assert abs(shots[-1].end - 3.0) < 0.01
 
 
+def test_wardrobe_maps_looks_to_sections():
+    from server_utils.shot_planner import wardrobe_for_section
+
+    looks = ["denim look", "fur coat look", "leather look"]
+    assert wardrobe_for_section("verse", looks) == "denim look"
+    assert wardrobe_for_section("chorus", looks) == "fur coat look"
+    assert wardrobe_for_section("bridge", looks) == "leather look"
+    assert wardrobe_for_section("chorus", ["only look"]) == "only look"
+    assert wardrobe_for_section("verse", []) == ""
+
+    shots = plan_shots(_analysis(), "city night", artist_name="NOVA", wardrobe=looks)
+    chorus_perf = [s for s in shots if s.section_label == "chorus" and s.shot_type != "broll"]
+    verse_perf = [s for s in shots if s.section_label == "verse" and s.shot_type != "broll"]
+    assert chorus_perf and all("fur coat look" in s.prompt for s in chorus_perf)
+    assert verse_perf and all("denim look" in s.prompt for s in verse_perf)
+    # Pure b-roll never dresses empty scenery.
+    assert all("wearing" not in s.prompt for s in shots if s.shot_type == "broll")
+
+
 def test_empty_sections_fall_back_to_single_span():
     analysis = AudioAnalysis(duration=30.0, tempo_bpm=100.0, beats=[i * 0.6 for i in range(50)])
     shots = plan_shots(analysis, "fallback")

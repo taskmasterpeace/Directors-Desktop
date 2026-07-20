@@ -904,6 +904,7 @@ class DirectorStartRequest(BaseModel):
     approval: str = "auto"
     imageModel: str = "dp-nano-banana-2"
     directorStyle: str = ""
+    wardrobe: list[str] = []
 
 
 class DirectorTargetRequest(BaseModel):
@@ -956,6 +957,7 @@ class DirectorRunPayload(BaseModel):
     treatment: str = ""
     artistName: str = ""
     directorStyle: str = ""
+    wardrobe: list[str] = []
     shots: list[DirectorShotPayload]
 
 
@@ -971,6 +973,7 @@ class DirectorStylePayload(BaseModel):
     id: str
     name: str
     description: str
+    wardrobe: list[str] = []
 
 
 class DirectorStylesResponse(BaseModel):

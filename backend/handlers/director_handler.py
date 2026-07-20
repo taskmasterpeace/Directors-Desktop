@@ -72,6 +72,7 @@ class DirectorHandler:
         approval: str = "auto",
         image_model: str = "dp-nano-banana-2",
         director_style: str = "",
+        wardrobe: list[str] | None = None,
         run_thread: bool = True,
     ) -> DirectorRun:
         if not Path(audio_path).is_file():
@@ -96,6 +97,7 @@ class DirectorHandler:
             approval="approve" if approval == "approve" else "auto",
             image_model=image_model,
             director_style=director_style,
+            wardrobe=wardrobe,
         )
         if run_thread:
             self._launch_thread(run.id)
@@ -238,6 +240,7 @@ class DirectorHandler:
             treatment=run.treatment,
             artist_name=run.artist_name,
             director_style=style.style if style else "",
+            wardrobe=run.wardrobe,
         )
         if not planned:
             raise RuntimeError("Could not plan any shots from this song")

@@ -20,12 +20,13 @@ class DirectorStyle:
     style: str  # comma fragment appended to EVERY shot prompt
     performance_note: str  # extra flavor for performance shots
     keyframe_note: str  # extra flavor for storyboard stills
+    wardrobe: tuple[str, str, str]  # the director's three signature looks (A=story, B=chorus, C=bridge)
 
 
 DIRECTOR_STYLES: dict[str, DirectorStyle] = {
-    "ryan-cooler": DirectorStyle(
-        id="ryan-cooler",
-        name="Ryan Cooler",
+    "mylan-kooler": DirectorStyle(
+        id="mylan-kooler",
+        name="Mylan Kooler",
         description="Emotion and legacy — intimate, warm, character-first",
         style=(
             "intimate shallow-focus framing, warm naturalistic light, anamorphic glow, "
@@ -33,10 +34,15 @@ DIRECTOR_STYLES: dict[str, DirectorStyle] = {
         ),
         performance_note="the performance feels confessional, eyes carrying the story",
         keyframe_note="film still with warm Kodak tones and human-scale intimacy",
+        wardrobe=(
+            "worn denim jacket over a plain white tee, small gold chain, lived-in and warm",
+            "deep burgundy leather jacket, clean silhouette, quiet confidence",
+            "heirloom knit sweater in earth tones, story in the texture",
+        ),
     ),
-    "clint-westwood": DirectorStyle(
-        id="clint-westwood",
-        name="Clint Westwood",
+    "flint-vestwood": DirectorStyle(
+        id="flint-vestwood",
+        name="Flint Vestwood",
         description="Restraint — still camera, hard shadows, unhurried",
         style=(
             "locked-off composed frames, hard directional shadow, muted desaturated palette, "
@@ -44,10 +50,15 @@ DIRECTOR_STYLES: dict[str, DirectorStyle] = {
         ),
         performance_note="minimal movement, weight in the stillness",
         keyframe_note="austere composed film still, negative space doing the talking",
+        wardrobe=(
+            "dusty long coat over a plain shirt, weathered boots, no ornament",
+            "black western shirt with bone buttons, stark and simple",
+            "rain-darkened canvas jacket, collar up, functional",
+        ),
     ),
-    "david-pincher": DirectorStyle(
-        id="david-pincher",
-        name="David Pincher",
+    "damir-pincher": DirectorStyle(
+        id="damir-pincher",
+        name="Damir Pincher",
         description="Precision dread — clinical moves, green-slate grade",
         style=(
             "surgically precise camera moves, cold green-slate grade, controlled symmetry "
@@ -55,10 +66,15 @@ DIRECTOR_STYLES: dict[str, DirectorStyle] = {
         ),
         performance_note="performance shot like surveillance — exact, unblinking",
         keyframe_note="clinical film still, perfect geometry, low-key contrast",
+        wardrobe=(
+            "slate-gray tailored shirt, precise fit, no logos, surgical minimalism",
+            "black turtleneck under a charcoal coat, controlled and exact",
+            "muted olive utility jacket, every zipper deliberate",
+        ),
     ),
-    "wes-sanderson": DirectorStyle(
-        id="wes-sanderson",
-        name="Wes Sanderson",
+    "vess-zanderson": DirectorStyle(
+        id="vess-zanderson",
+        name="Vess Zanderson",
         description="Symmetry and pastel — deadpan storybook tableaux",
         style=(
             "perfectly centered symmetrical tableau, flat frontal staging, pastel storybook "
@@ -66,10 +82,15 @@ DIRECTOR_STYLES: dict[str, DirectorStyle] = {
         ),
         performance_note="deadpan direct-to-camera performance inside a dollhouse frame",
         keyframe_note="storybook film still, centered one-point perspective, pastel wardrobe",
+        wardrobe=(
+            "mustard corduroy suit with a powder-blue shirt, storybook neat",
+            "pastel pink blazer with a monogrammed pocket square, deadpan formal",
+            "vintage track jacket in cream and burgundy stripes, museum-piece casual",
+        ),
     ),
-    "hype-millions": DirectorStyle(
-        id="hype-millions",
-        name="Hype Millions",
+    "hype-trillions": DirectorStyle(
+        id="hype-trillions",
+        name="Hype Trillions",
         description="Fisheye gloss — shiny-suit spectacle, bullet-time flash",
         style=(
             "glossy high-shine music-video sheen, fisheye energy, low-angle hero framing, "
@@ -77,6 +98,11 @@ DIRECTOR_STYLES: dict[str, DirectorStyle] = {
         ),
         performance_note="in-your-face wide-lens performance, larger than life",
         keyframe_note="high-gloss film still, barrel-distorted hero shot, wet reflective surfaces",
+        wardrobe=(
+            "high-shine metallic puffer, oversized, catching every light",
+            "all-white fur coat over chrome accents, larger than life",
+            "patent-leather two-piece with gold hardware, blacklight-ready",
+        ),
     ),
 }
 

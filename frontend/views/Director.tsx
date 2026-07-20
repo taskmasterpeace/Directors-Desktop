@@ -55,7 +55,7 @@ interface DirectorRun {
 }
 
 const MODELS = [
-  { id: 'ltx-fast', label: 'LTX-2 Local — TRUE lip-sync, free (your GPU)' },
+  { id: 'ltx-fast', label: 'LTX-2.3 Local — audio-conditioned TRUE lip-sync, free' },
   { id: 'seedance-2.0', label: 'Seedance 2.0 — cloud, approximate lip-sync' },
   { id: 'seedance-2.0-fast', label: 'Seedance 2.0 Fast — cloud, approximate lip-sync' },
 ]
@@ -93,11 +93,12 @@ export function Director() {
   const [treatment, setTreatment] = useState('')
   const [artistName, setArtistName] = useState('')
   const [directorStyle, setDirectorStyle] = useState('')
-  const [directorStyles, setDirectorStyles] = useState<{ id: string; name: string; description: string }[]>([])
+  const [directorStyles, setDirectorStyles] = useState<{ id: string; name: string; description: string; wardrobe: string[] }[]>([])
   const [artists, setArtists] = useState<{ id: string; name: string; reference_image_paths: string[] }[]>([])
   const [storyboard, setStoryboard] = useState(false)
   const [approval, setApproval] = useState<'auto' | 'approve'>('approve')
   const [imageModel, setImageModel] = useState('dp-nano-banana-2')
+  const [wardrobe, setWardrobe] = useState<[string, string, string]>(['', '', ''])
   const [redoSelection, setRedoSelection] = useState<Set<number>>(new Set())
   const [resolution, setResolution] = useState('720p')
   const [referencePaths, setReferencePaths] = useState<string[]>([])
@@ -117,7 +118,7 @@ export function Director() {
           fetch(`${base}/api/library/characters`),
         ])
         if (stylesRes.ok) {
-          const data = (await stylesRes.json()) as { styles?: { id: string; name: string; description: string }[] }
+          const data = (await stylesRes.json()) as { styles?: { id: string; name: string; description: string; wardrobe: string[] }[] }
           setDirectorStyles(data.styles ?? [])
         }
         if (charsRes.ok) {
@@ -222,6 +223,7 @@ export function Director() {
           approval,
           imageModel,
           directorStyle,
+          wardrobe: wardrobe.filter(Boolean),
         }),
       })
       const data = (await res.json()) as { run?: DirectorRun; error?: string }
@@ -235,7 +237,7 @@ export function Director() {
     } finally {
       setStarting(false)
     }
-  }, [audioPath, concept, model, resolution, referencePaths, treatment, artistName, storyboard, approval, imageModel, directorStyle, starting])
+  }, [audioPath, concept, model, resolution, referencePaths, treatment, artistName, storyboard, approval, imageModel, directorStyle, wardrobe, starting])
 
   const post = useCallback(async (endpoint: 'cancel' | 'resume') => {
     if (!runIdRef.current) return
@@ -440,6 +442,44 @@ export function Director() {
               </select>
               <p className="text-[10px] text-zinc-600 mt-1">Their visual voice flavors every shot.</p>
             </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Wardrobe</label>
+              {(() => {
+                const chosen = directorStyles.find((d) => d.id === directorStyle)
+                if (!chosen || chosen.wardrobe.length < 3) return null
+                return (
+                  <button
+                    onClick={() => setWardrobe([chosen.wardrobe[0], chosen.wardrobe[1], chosen.wardrobe[2]])}
+                    disabled={isActive}
+                    className="text-[11px] text-amber-300 hover:text-amber-200 px-2 py-0.5 rounded bg-amber-500/10 hover:bg-amber-500/20 transition-colors disabled:opacity-40"
+                  >
+                    Use {chosen.name}'s looks
+                  </button>
+                )
+              })()}
+            </div>
+            <div className="mt-1.5 space-y-1.5">
+              {(['Story look (verses)', 'Chorus look', 'Bridge look'] as const).map((label, i) => (
+                <input
+                  key={label}
+                  value={wardrobe[i]}
+                  onChange={(e) =>
+                    setWardrobe((prev) => {
+                      const next: [string, string, string] = [...prev]
+                      next[i] = e.target.value
+                      return next
+                    })
+                  }
+                  disabled={isActive}
+                  placeholder={label + " — e.g. 'all-white fur coat over chrome accents'"}
+                  className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-[11px] text-zinc-200 disabled:opacity-50"
+                />
+              ))}
+            </div>
+            <p className="text-[10px] text-zinc-600 mt-1">Optional — describes what the artist wears; verses carry look A, choruses B, bridge C. Attach wardrobe photos via Reference images.</p>
           </div>
 
           <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 space-y-2">

@@ -65,6 +65,7 @@ def _to_payload(run: DirectorRun) -> DirectorRunPayload:
         treatment=run.treatment,
         artistName=run.artist_name,
         directorStyle=run.director_style,
+        wardrobe=list(run.wardrobe),
         shots=[
             DirectorShotPayload(
                 index=s.index,
@@ -103,6 +104,7 @@ def route_start_director_run(
         approval=request.approval,
         image_model=request.imageModel,
         director_style=request.directorStyle,
+        wardrobe=request.wardrobe or None,
     )
     return DirectorRunResponse(run=_to_payload(run))
 
@@ -137,7 +139,9 @@ def route_director_styles() -> DirectorStylesResponse:
 
     return DirectorStylesResponse(
         styles=[
-            DirectorStylePayload(id=s.id, name=s.name, description=s.description)
+            DirectorStylePayload(
+                id=s.id, name=s.name, description=s.description, wardrobe=list(s.wardrobe)
+            )
             for s in DIRECTOR_STYLES.values()
         ]
     )

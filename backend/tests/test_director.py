@@ -299,14 +299,14 @@ def test_director_style_flavors_every_prompt(test_state, client, tmp_path: Path)
     handler = test_state
     handler.state.app_settings.fal_api_key = "test-fal-key"
     styles = client.get("/api/director/styles").json()["styles"]
-    assert len(styles) == 5 and any(st["id"] == "hype-millions" for st in styles)
+    assert len(styles) == 5 and any(st["id"] == "hype-trillions" for st in styles)
 
     run = handler.director.start(
         audio_path=_make_song(tmp_path),
         concept="rooftop",
         model="seedance-2.0",
         resolution="720p",
-        director_style="hype-millions",
+        director_style="hype-trillions",
         run_thread=False,
     )
     handler.director.step(run.id)
