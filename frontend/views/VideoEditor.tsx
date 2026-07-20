@@ -125,6 +125,7 @@ export function VideoEditor() {
   const [tracks, setTracks] = useState<Track[]>(migrateTracks(activeTimeline?.tracks || DEFAULT_TRACKS.map(t => ({ ...t }))))
   const [subtitles, setSubtitles] = useState<SubtitleClip[]>(activeTimeline?.subtitles || [])
   const [markers, setMarkers] = useState<TimelineMarker[]>(activeTimeline?.markers || [])
+  const [timelineAspect, setTimelineAspect] = useState<'16:9' | '9:16' | '1:1'>(activeTimeline?.aspectRatio ?? '16:9')
   
   // Transient UI state (not persisted)
   const [currentTime, setCurrentTime] = useState(0)
@@ -1052,13 +1053,14 @@ export function VideoEditor() {
     // Save current timeline before switching (if we had one loaded)
     if (loadedTimelineIdRef.current && currentProjectId) {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
-      updateTimeline(currentProjectId, loadedTimelineIdRef.current, { clips, tracks, subtitles })
+      updateTimeline(currentProjectId, loadedTimelineIdRef.current, { clips, tracks, subtitles, markers, aspectRatio: timelineAspect })
     }
     
     // Load new timeline (migrate old clips without new effect fields)
     setClips((activeTimeline.clips || []).map(migrateClip))
     setTracks(migrateTracks(activeTimeline.tracks?.length > 0 ? activeTimeline.tracks : DEFAULT_TRACKS.map(t => ({ ...t }))))
     setSubtitles(activeTimeline.subtitles || [])
+    setTimelineAspect(activeTimeline.aspectRatio ?? '16:9')
     setCurrentTime(0)
     setIsPlaying(false)
     setPlayingInOut(false)
@@ -1078,6 +1080,7 @@ export function VideoEditor() {
     tracks: typeof tracks
     subtitles: typeof subtitles
     markers: typeof markers
+    aspectRatio: '16:9' | '9:16' | '1:1'
     dirty: boolean
   } | null>(null)
 
@@ -1089,19 +1092,20 @@ export function VideoEditor() {
       projectId: currentProjectId,
       timelineId: loadedTimelineIdRef.current,
       clips, tracks, subtitles, markers,
+      aspectRatio: timelineAspect,
       dirty: true,
     }
 
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
     autoSaveTimerRef.current = setTimeout(() => {
-      updateTimeline(currentProjectId, loadedTimelineIdRef.current!, { clips, tracks, subtitles, markers })
+      updateTimeline(currentProjectId, loadedTimelineIdRef.current!, { clips, tracks, subtitles, markers, aspectRatio: timelineAspect })
       if (pendingSaveRef.current) pendingSaveRef.current.dirty = false
     }, AUTOSAVE_DELAY)
 
     return () => {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current)
     }
-  }, [clips, tracks, subtitles, markers, currentProjectId])
+  }, [clips, tracks, subtitles, markers, timelineAspect, currentProjectId])
 
   // Save on unmount: flush the latest snapshot if a debounced save was still
   // pending, so edits made within AUTOSAVE_DELAY of navigating away aren't lost.
@@ -1112,6 +1116,7 @@ export function VideoEditor() {
       if (p && p.dirty) {
         updateTimeline(p.projectId, p.timelineId, {
           clips: p.clips, tracks: p.tracks, subtitles: p.subtitles, markers: p.markers,
+          aspectRatio: p.aspectRatio,
         })
         p.dirty = false
       }
@@ -1782,6 +1787,7 @@ export function VideoEditor() {
     playbackResOpen, setPlaybackResOpen,
     previewZoom, setPreviewZoom, setPreviewPan,
     previewContainerRef, setIsFullscreen, setVideoFrameSize,
+    projectRatio: timelineAspect === '9:16' ? 9 / 16 : timelineAspect === '1:1' ? 1 : 16 / 9,
     timelineAddMenuOpen, setTimelineAddMenuOpen,
     creatingBin, newBinInputRef,
   })
@@ -2481,6 +2487,8 @@ export function VideoEditor() {
             previewZoomOpen={previewZoomOpen}
             setPreviewZoomOpen={setPreviewZoomOpen}
             videoFrameSize={videoFrameSize}
+            projectAspect={timelineAspect}
+            onProjectAspectChange={setTimelineAspect}
             playbackResolution={playbackResolution}
             setPlaybackResolution={setPlaybackResolution}
             playbackResOpen={playbackResOpen}

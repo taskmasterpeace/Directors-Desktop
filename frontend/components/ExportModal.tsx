@@ -176,8 +176,25 @@ function escapeXml(str: string): string {
     .replace(/'/g, '&apos;')
 }
 
+const ASPECT_DEFAULTS: Record<string, { width: number; height: number }> = {
+  '9:16': { width: 1080, height: 1920 },
+  '1:1': { width: 1080, height: 1080 },
+}
+
 export function ExportModal({ open, onClose, clips, tracks, timeline, projectName }: ExportModalProps) {
   const [exportStatus, setExportStatus] = useState<ExportStatus>('idle')
+  // Match the sequence: a 9:16 timeline defaults to a 9:16 export so the
+  // result plays like a normal portrait video instead of pillarboxing small
+  // inside a landscape file.
+  const appliedAspectRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!open) { appliedAspectRef.current = null; return }
+    const aspect = timeline?.aspectRatio ?? '16:9'
+    if (appliedAspectRef.current === aspect) return
+    appliedAspectRef.current = aspect
+    const preset = ASPECT_DEFAULTS[aspect]
+    if (preset) setSettings(prev => ({ ...prev, width: preset.width, height: preset.height }))
+  }, [open, timeline?.aspectRatio])
   const [exportType, setExportType] = useState<'package' | 'video' | null>(null)
   const [exportProgress, setExportProgress] = useState(0)
   const [exportError, setExportError] = useState<string | null>(null)
@@ -559,6 +576,9 @@ export function ExportModal({ open, onClose, clips, tracks, timeline, projectNam
                     <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-zinc-500 pointer-events-none" />
                   </div>
                   <p className="text-[10px] text-zinc-500 mt-1 leading-snug">
+                    {timeline?.aspectRatio && timeline.aspectRatio !== '16:9'
+                      ? `Matched to your ${timeline.aspectRatio} sequence. `
+                      : ''}
                     Clips that don&apos;t match this shape are fitted whole, with black bars.
                   </p>
                 </div>

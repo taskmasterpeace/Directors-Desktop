@@ -32,6 +32,7 @@ interface UseContextMenuEffectsParams {
   previewContainerRef: React.RefObject<HTMLDivElement>
   setIsFullscreen: (v: boolean) => void
   setVideoFrameSize: React.Dispatch<React.SetStateAction<{ width: number; height: number }>>
+  projectRatio: number
   timelineAddMenuOpen: boolean
   setTimelineAddMenuOpen: (v: boolean) => void
   creatingBin: boolean
@@ -48,7 +49,7 @@ export function useContextMenuEffects(params: UseContextMenuEffectsParams) {
     previewZoomOpen, setPreviewZoomOpen,
     playbackResOpen, setPlaybackResOpen,
     previewZoom, setPreviewZoom, setPreviewPan,
-    previewContainerRef, setIsFullscreen, setVideoFrameSize,
+    previewContainerRef, setIsFullscreen, setVideoFrameSize, projectRatio,
     timelineAddMenuOpen, setTimelineAddMenuOpen,
     creatingBin, newBinInputRef,
   } = params
@@ -182,23 +183,24 @@ export function useContextMenuEffects(params: UseContextMenuEffectsParams) {
     return () => el.removeEventListener('wheel', handler)
   }, [])
   
-  // Observe preview container size → compute video frame dimensions (16:9 "contain" fit)
+  // Observe preview container size → compute video frame dimensions
+  // ("contain" fit at the SEQUENCE aspect — 16:9, 9:16 or 1:1).
   useEffect(() => {
     const el = previewContainerRef.current
     if (!el) return
-    const PROJECT_RATIO = 16 / 9
+    const ratio = projectRatio > 0 ? projectRatio : 16 / 9
     const compute = () => {
       const { width, height } = el.getBoundingClientRect()
       if (width === 0 || height === 0) return
       let fw: number, fh: number
-      if (width / height > PROJECT_RATIO) {
+      if (width / height > ratio) {
         // Container is wider → height is the constraint
         fh = height
-        fw = height * PROJECT_RATIO
+        fw = height * ratio
       } else {
         // Container is taller → width is the constraint
         fw = width
-        fh = width / PROJECT_RATIO
+        fh = width / ratio
       }
       setVideoFrameSize(prev => (prev.width === fw && prev.height === fh) ? prev : { width: fw, height: fh })
     }
@@ -206,7 +208,7 @@ export function useContextMenuEffects(params: UseContextMenuEffectsParams) {
     const observer = new ResizeObserver(compute)
     observer.observe(el)
     return () => observer.disconnect()
-  }, [])
+  }, [projectRatio])
 
   // Close asset context menu on click elsewhere
   useEffect(() => {

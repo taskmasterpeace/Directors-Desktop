@@ -433,6 +433,8 @@ export interface TimelineMarker {
   createdAt: number
 }
 
+export type TimelineAspect = '16:9' | '9:16' | '1:1'
+
 export interface Timeline {
   id: string
   name: string
@@ -441,6 +443,8 @@ export interface Timeline {
   clips: TimelineClip[]
   subtitles?: SubtitleClip[]  // Subtitle cues on subtitle tracks
   markers?: TimelineMarker[]
+  /** Sequence aspect — drives the program monitor frame and export defaults. */
+  aspectRatio?: TimelineAspect
 }
 
 /** A story/context document attached to the project — any format, verbatim. */

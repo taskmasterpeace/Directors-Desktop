@@ -84,6 +84,8 @@ export interface ProgramMonitorProps {
   previewZoomOpen: boolean
   setPreviewZoomOpen: React.Dispatch<React.SetStateAction<boolean>>
   videoFrameSize: { width: number; height: number }
+  projectAspect: '16:9' | '9:16' | '1:1'
+  onProjectAspectChange: (aspect: '16:9' | '9:16' | '1:1') => void
   playbackResolution: 1 | 0.5 | 0.25
   setPlaybackResolution: (v: 1 | 0.5 | 0.25) => void
   playbackResOpen: boolean
@@ -141,6 +143,8 @@ export function ProgramMonitor({
   previewZoomOpen,
   setPreviewZoomOpen,
   videoFrameSize,
+  projectAspect,
+  onProjectAspectChange,
   playbackResolution,
   setPlaybackResolution,
   playbackResOpen,
@@ -181,6 +185,16 @@ export function ProgramMonitor({
         {showSourceMonitor && (
           <div className="h-7 bg-zinc-900 border-b border-zinc-800 flex items-center px-3 flex-shrink-0">
             <span className="text-[11px] font-semibold text-zinc-400 tracking-wide">Timeline Viewer</span>
+            <select
+              value={projectAspect}
+              onChange={(e) => onProjectAspectChange(e.target.value as '16:9' | '9:16' | '1:1')}
+              title="Sequence aspect — the frame you're making (drives export defaults)"
+              className="ml-auto bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 text-[10px] text-zinc-300 cursor-pointer"
+            >
+              <option value="16:9">16:9</option>
+              <option value="9:16">9:16</option>
+              <option value="1:1">1:1</option>
+            </select>
           </div>
         )}
         {/* Preview (existing) */}
@@ -224,7 +238,7 @@ export function ProgramMonitor({
               {/* Video frame wrapper — black bg with exact 16:9 dimensions */}
               <div
                 className="relative bg-black overflow-hidden"
-                style={videoFrameSize.width > 0 ? { width: videoFrameSize.width, height: videoFrameSize.height } : { width: '100%', aspectRatio: '16/9' }}
+                style={videoFrameSize.width > 0 ? { width: videoFrameSize.width, height: videoFrameSize.height } : { width: '100%', aspectRatio: projectAspect.replace(':', '/') }}
                 onClick={() => {
                   if (clickedTextOverlayRef.current) {
                     return

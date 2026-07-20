@@ -6,6 +6,7 @@ import { LtxLogo } from '../components/LtxLogo'
 import { logger } from '../lib/logger'
 import { toImgSrc } from '../lib/path-to-img-src'
 import { estimateCloudPoints, formatPoints } from '../lib/palette-points'
+import { MANNEQUIN_REFERENCE_URL } from '../lib/shot-creator/quick-modes'
 
 /**
  * Director — turn a song into a finished music video.
@@ -99,6 +100,7 @@ export function Director() {
   const [approval, setApproval] = useState<'auto' | 'approve'>('approve')
   const [imageModel, setImageModel] = useState('dp-nano-banana-2')
   const [wardrobe, setWardrobe] = useState<[string, string, string]>(['', '', ''])
+  const [mannequins, setMannequins] = useState<[{ path?: string; jobId?: string }, { path?: string; jobId?: string }, { path?: string; jobId?: string }]>([{}, {}, {}])
   const [redoSelection, setRedoSelection] = useState<Set<number>>(new Set())
   const [resolution, setResolution] = useState('720p')
   const [referencePaths, setReferencePaths] = useState<string[]>([])
@@ -216,7 +218,10 @@ export function Director() {
           concept: concept.trim(),
           model,
           resolution,
-          referenceImagePaths: referencePaths,
+          referenceImagePaths: [
+            ...referencePaths,
+            ...mannequins.map((m) => m.path).filter((p): p is string => Boolean(p)),
+          ].slice(0, 6),
           treatment: treatment.trim(),
           artistName: artistName.trim(),
           storyboard,
@@ -237,7 +242,7 @@ export function Director() {
     } finally {
       setStarting(false)
     }
-  }, [audioPath, concept, model, resolution, referencePaths, treatment, artistName, storyboard, approval, imageModel, directorStyle, wardrobe, starting])
+  }, [audioPath, concept, model, resolution, referencePaths, mannequins, treatment, artistName, storyboard, approval, imageModel, directorStyle, wardrobe, starting])
 
   const post = useCallback(async (endpoint: 'cancel' | 'resume') => {
     if (!runIdRef.current) return
@@ -310,6 +315,74 @@ export function Director() {
     openProject(project.id)
     setCurrentTab('video-editor')
   }, [run, createProject, updateTimeline, openProject, setCurrentTab])
+
+  // Wardrobe -> mannequin: render the described look on the neutral three-view
+  // mannequin sheet (Palette points) so you can SEE it, swap it, approve it.
+  const visualizeLook = useCallback(async (index: number) => {
+    const description = wardrobe[index]?.trim()
+    if (!description) return
+    try {
+      const base = await backendBase()
+      const res = await fetch(`${base}/api/queue/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'image',
+          model: imageModel,
+          params: {
+            prompt:
+              'Reference image 1 is a neutral gray articulated mannequin shown in three orthographic views — FRONT, SIDE, BACK — on a clean off-white studio background. ' +
+              `Redraw this exact three-view mannequin sheet with the mannequin DRESSED in the following outfit: ${description}. ` +
+              'Render the garments with realistic fabric, fit and detail on all three views. Keep the neutral gray mannequin, the same poses and views, and the clean off-white studio background. No human model, no text, no labels.',
+            referenceImagePaths: [MANNEQUIN_REFERENCE_URL],
+            numImages: 1,
+          },
+        }),
+      })
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string }
+        throw new Error(body.error || `Submit failed (${res.status})`)
+      }
+      const data = (await res.json()) as { id: string }
+      setMannequins((prev) => {
+        const next = [...prev] as typeof prev
+        next[index] = { jobId: data.id }
+        return next
+      })
+    } catch (e) {
+      setStartError(e instanceof Error ? e.message : 'Mannequin render failed')
+      logger.error(`Mannequin visualize failed: ${e}`)
+    }
+  }, [wardrobe, imageModel])
+
+  // Poll pending mannequin jobs.
+  useEffect(() => {
+    if (!mannequins.some((m) => m.jobId)) return
+    const interval = setInterval(async () => {
+      try {
+        const base = await backendBase()
+        const res = await fetch(`${base}/api/queue/status`)
+        if (!res.ok) return
+        const data = (await res.json()) as { jobs: { id: string; status: string; result_paths: string[]; error?: string | null }[] }
+        setMannequins((prev) => {
+          let changed = false
+          const next = [...prev] as typeof prev
+          prev.forEach((m, i) => {
+            if (!m.jobId) return
+            const job = data.jobs.find((j) => j.id === m.jobId)
+            if (!job || job.status === 'queued' || job.status === 'running') return
+            changed = true
+            next[i] = job.status === 'complete' && job.result_paths[0] ? { path: job.result_paths[0] } : {}
+            if (job.status !== 'complete') setStartError(`Look ${i + 1} render failed: ${job.error || job.status}`)
+          })
+          return changed ? next : prev
+        })
+      } catch {
+        /* transient */
+      }
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [mannequins])
 
   const approveStoryboard = useCallback(async (regenerate: number[]) => {
     if (!runIdRef.current) return
@@ -463,20 +536,39 @@ export function Director() {
             </div>
             <div className="mt-1.5 space-y-1.5">
               {(['Story look (verses)', 'Chorus look', 'Bridge look'] as const).map((label, i) => (
-                <input
-                  key={label}
-                  value={wardrobe[i]}
-                  onChange={(e) =>
-                    setWardrobe((prev) => {
-                      const next: [string, string, string] = [...prev]
-                      next[i] = e.target.value
-                      return next
-                    })
-                  }
-                  disabled={isActive}
-                  placeholder={label + " — e.g. 'all-white fur coat over chrome accents'"}
-                  className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-[11px] text-zinc-200 disabled:opacity-50"
-                />
+                <div key={label} className="flex items-center gap-1.5">
+                  {mannequins[i].path ? (
+                    <img
+                      src={toImgSrc(mannequins[i].path)}
+                      alt=""
+                      title="Wardrobe on the mannequin — rides the run as a reference"
+                      className="h-12 w-12 object-cover rounded-md border border-emerald-500/50 shrink-0"
+                    />
+                  ) : mannequins[i].jobId ? (
+                    <div className="h-12 w-12 rounded-md bg-zinc-800 animate-pulse shrink-0" title="Rendering on the mannequin…" />
+                  ) : null}
+                  <input
+                    value={wardrobe[i]}
+                    onChange={(e) =>
+                      setWardrobe((prev) => {
+                        const next: [string, string, string] = [...prev]
+                        next[i] = e.target.value
+                        return next
+                      })
+                    }
+                    disabled={isActive}
+                    placeholder={label + " — e.g. 'all-white fur coat over chrome accents'"}
+                    className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 py-1.5 text-[11px] text-zinc-200 disabled:opacity-50"
+                  />
+                  <button
+                    onClick={() => visualizeLook(i)}
+                    disabled={isActive || !wardrobe[i].trim() || Boolean(mannequins[i].jobId)}
+                    title={`Render this look on the mannequin (${KEYFRAME_MODELS.find((m) => m.id === imageModel)?.pts ?? 10} pts)`}
+                    className="text-[10px] text-zinc-300 hover:text-white px-2 py-1 rounded bg-zinc-800 hover:bg-zinc-700 transition-colors disabled:opacity-40 shrink-0"
+                  >
+                    {mannequins[i].path ? 'Redo' : 'Try on'}
+                  </button>
+                </div>
               ))}
             </div>
             <p className="text-[10px] text-zinc-600 mt-1">Optional — describes what the artist wears; verses carry look A, choruses B, bridge C. Attach wardrobe photos via Reference images.</p>
@@ -760,6 +852,45 @@ export function Director() {
                   </div>
                 </div>
               )}
+
+              {/* Clapper slate: how long this is going to take */}
+              {['generating', 'storyboarding'].includes(run.phase) && (() => {
+                const perShot = LOCAL_MODELS.has(run.model)
+                  ? (resolution === '1080p' ? 150 : 90)
+                  : 50
+                const remainingShots = run.shots.filter((sh) => sh.status !== 'complete').length
+                const keyframesLeft = run.phase === 'storyboarding'
+                  ? run.shots.filter((sh) => !sh.keyframePath).length
+                  : 0
+                const secondsLeft = run.phase === 'storyboarding'
+                  ? keyframesLeft * 20
+                  : remainingShots * perShot
+                const mins = Math.max(1, Math.round(secondsLeft / 60))
+                return (
+                  <div className="rounded-xl border border-zinc-700 overflow-hidden">
+                    <div
+                      className="h-4"
+                      style={{
+                        background:
+                          'repeating-linear-gradient(-45deg, #18181b 0 14px, #e4e4e7 14px 28px)',
+                      }}
+                    />
+                    <div className="bg-zinc-900 px-4 py-2.5 flex items-center justify-between">
+                      <div className="text-[11px] text-zinc-400 uppercase tracking-widest font-semibold">
+                        {run.phase === 'storyboarding' ? 'Frames' : 'Rolling'} — {run.phase === 'storyboarding' ? keyframesLeft : remainingShots} to go
+                      </div>
+                      <div className="text-sm text-amber-300 font-semibold tabular-nums">
+                        ≈ {mins} min left
+                      </div>
+                    </div>
+                    <div className="bg-zinc-900 px-4 pb-2 text-[10px] text-zinc-600">
+                      {LOCAL_MODELS.has(run.model)
+                        ? `~${perShot}s per shot on your GPU, one at a time`
+                        : `~${perShot}s per shot on fal (parallel-queued)`}
+                    </div>
+                  </div>
+                )
+              })()}
 
               {/* Shot progress */}
               {run.shots.length > 0 && run.phase !== 'complete' && (
