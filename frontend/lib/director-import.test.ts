@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { directorRunToTimeline } from './director-import'
+import { directorRunToAlternateTrack, directorRunToTimeline } from './director-import'
 
 const run = {
   id: 'dir_abc',
@@ -55,5 +55,30 @@ describe('directorRunToTimeline', () => {
     expect(tl.markers).toHaveLength(0)
     const audio = tl.clips.find((c) => c.type === 'audio')
     expect(audio!.duration).toBe(16) // falls back to the last shot's end
+  })
+})
+
+
+describe('directorRunToAlternateTrack', () => {
+  it('appends a new muted video lane at the same beat positions', () => {
+    const existing = directorRunToTimeline(run)
+    const alt = directorRunToAlternateTrack({ ...run, id: 'dir_second' }, existing)
+    expect(alt.trackIndex).toBe(existing.tracks.length)
+    expect(alt.track.name).toBe('Director Alt 1')
+    expect(alt.clips).toHaveLength(2)
+    expect(alt.clips[0].startTime).toBe(0)
+    expect(alt.clips[0].trackIndex).toBe(alt.trackIndex)
+    expect(alt.clips[0].muted).toBe(true)
+    expect(alt.clips[0].id).toContain('dir_second')
+  })
+
+  it('numbers subsequent alternates', () => {
+    const existing = directorRunToTimeline(run)
+    const withAlt = {
+      ...existing,
+      tracks: [...existing.tracks, directorRunToAlternateTrack({ ...run, id: 'a' }, existing).track],
+    }
+    const second = directorRunToAlternateTrack({ ...run, id: 'b' }, withAlt)
+    expect(second.track.name).toBe('Director Alt 2')
   })
 })

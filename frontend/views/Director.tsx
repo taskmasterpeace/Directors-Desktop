@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { ArrowLeft, Clapperboard, Film, FolderOpen, Image as ImageIcon, Music, Play, RotateCcw, Square, X } from 'lucide-react'
 import { useProjects } from '../contexts/ProjectContext'
-import { directorRunToTimeline } from '../lib/director-import'
+import { directorRunToAlternateTrack, directorRunToTimeline } from '../lib/director-import'
 import { LtxLogo } from '../components/LtxLogo'
 import { logger } from '../lib/logger'
 import { toImgSrc } from '../lib/path-to-img-src'
+import { estimateCloudPoints, formatPoints } from '../lib/palette-points'
 
 /**
  * Director — turn a song into a finished music video.
@@ -74,16 +75,34 @@ async function backendBase(): Promise<string> {
 }
 
 export function Director() {
-  const { goHome, createProject, updateTimeline, openProject, setCurrentTab } = useProjects()
+  const { goHome, createProject, updateTimeline, openProject, setCurrentTab, projects } = useProjects()
   const [audioPath, setAudioPath] = useState<string | null>(null)
   const [concept, setConcept] = useState('')
   const [model, setModel] = useState('seedance-2.0')
   const [resolution, setResolution] = useState('720p')
   const [referencePaths, setReferencePaths] = useState<string[]>([])
   const [run, setRun] = useState<DirectorRun | null>(null)
+  const [gpu, setGpu] = useState<{ name: string; vramGb: number } | null>(null)
   const [starting, setStarting] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
   const runIdRef = useRef<string | null>(null)
+
+  // System check for the local path: what GPU + how much VRAM.
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const base = await backendBase()
+        const res = await fetch(`${base}/health`)
+        if (!res.ok) return
+        const data = (await res.json()) as { gpu_info?: { name?: string; vram?: number } }
+        if (data.gpu_info?.name && data.gpu_info.vram) {
+          setGpu({ name: data.gpu_info.name, vramGb: Math.round(data.gpu_info.vram / (1024 ** 3)) })
+        }
+      } catch {
+        /* backend warming up */
+      }
+    })()
+  }, [])
 
   // Adopt the latest run on mount so a restarted app shows the in-flight build.
   useEffect(() => {
@@ -184,6 +203,39 @@ export function Director() {
       logger.error(`Director ${endpoint} failed: ${e}`)
     }
   }, [])
+
+  // A prior Director project built from THIS song (its timeline carries the
+  // dsong- audio clip with the same file name) — the stack-alternates target.
+  const altTarget = (() => {
+    if (!run) return null
+    const songName = run.audioPath.split(/[\\/]/).pop() || ''
+    for (const project of projects) {
+      for (const timeline of project.timelines || []) {
+        const songClip = (timeline.clips || []).find(
+          (c) => c.id.startsWith('dsong-') && (c.importedUrl || '').endsWith(encodeURIComponent(songName).replace(/%20/g, ' ')),
+        ) || (timeline.clips || []).find(
+          (c) => c.id.startsWith('dsong-') && (c.importedUrl || '').split('/').pop() === songName,
+        )
+        if (songClip) return { project, timeline }
+      }
+    }
+    return null
+  })()
+
+  // Stack this run onto the existing project as a new muted video lane —
+  // same beat grid, alternate shots. Run it three times, get three lanes.
+  const addAsAlternateTrack = useCallback(() => {
+    if (!run || !altTarget) return
+    const { project, timeline } = altTarget
+    const alt = directorRunToAlternateTrack(run, timeline)
+    if (alt.clips.length === 0) return
+    updateTimeline(project.id, timeline.id, {
+      tracks: [...timeline.tracks, alt.track],
+      clips: [...timeline.clips, ...alt.clips],
+    })
+    openProject(project.id)
+    setCurrentTab('video-editor')
+  }, [run, altTarget, updateTimeline, openProject, setCurrentTab])
 
   // Rebuild the run as an editable project: shots at their beat positions on
   // V1 (muted), the song on A1, sections as range markers. Works for partial
@@ -326,11 +378,28 @@ export function Director() {
             {starting ? 'Starting…' : 'Make the video'}
           </button>
           {startError && <p className="text-xs text-red-400">{startError}</p>}
-          <p className="text-[10px] text-zinc-600">
-            {LOCAL_MODELS.has(model)
-              ? 'Renders free on your GPU with true lip-sync (each shot hears its bars of the song). Expect ~1-2 min per shot; needs the local models downloaded (Model Status).'
-              : 'Each shot renders on fal (paid) — a 3-minute song is roughly 25-40 shots. Reference images ride every shot.'}
-          </p>
+          {LOCAL_MODELS.has(model) ? (
+            <div className="space-y-1">
+              <p className="text-[10px] text-zinc-600">
+                Renders free on your GPU with true lip-sync — each shot hears its bars of the song.
+                Expect ~1-2 min per shot; shots queue one at a time. Needs the local models downloaded (Model Status, top bar).
+              </p>
+              <p className="text-[10px] text-amber-400/80">
+                System intensive: local LTX-2 wants ~18GB+ of free VRAM.
+                {gpu ? ` Your GPU: ${gpu.name} (${gpu.vramGb}GB).` : ''}
+                {gpu && gpu.vramGb < 18 ? ' This GPU is below the comfortable minimum — expect slow or failed renders.' : ''}
+              </p>
+            </div>
+          ) : (
+            <p className="text-[10px] text-zinc-600">
+              Cloud renders bill Directors Palette points
+              {(() => {
+                const est = estimateCloudPoints(model, resolution, 180 * 1.15)
+                return est ? ` — a 3-minute song ≈ ${formatPoints(est.points)}${est.approx ? ' (estimate)' : ''}` : ''
+              })()}
+              . A 3-minute song is roughly 25-40 shots; reference images ride every shot.
+            </p>
+          )}
         </div>
 
         {/* ── Run column ── */}
@@ -473,6 +542,15 @@ export function Director() {
                     >
                       <Film className="h-3 w-3" /> Open in editor
                     </button>
+                    {altTarget && (
+                      <button
+                        onClick={addAsAlternateTrack}
+                        className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-white px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors"
+                        title="Stack this pass onto the existing project as a new muted video lane — same beat grid, alternate shots to compare and mix"
+                      >
+                        <Film className="h-3 w-3" /> Add as alt track to "{altTarget.project.name.slice(0, 24)}"
+                      </button>
+                    )}
                     <button
                       onClick={() => run.outputPath && window.electronAPI.showItemInFolder(run.outputPath)}
                       className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-white px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors"

@@ -16,7 +16,7 @@ def _files(tmp_path: Path) -> tuple[str, str]:
 def test_recast_models_route_to_api_slot(test_state):
     handler = test_state
     assert handler.determine_slot("wan-animate-replace") == "api"
-    assert handler.determine_slot("scail-2-replace") == "api"
+    # scail-2-replace removed from cloud (too expensive; local path planned)
 
 
 def test_recast_executes_upload_then_replace(test_state, tmp_path: Path):
@@ -53,8 +53,8 @@ def test_recast_through_the_job_queue(client, test_state, tmp_path: Path):
         "/api/queue/submit",
         json={
             "type": "video",
-            "model": "scail-2-replace",
-            "params": {"videoPath": video, "characterImagePath": image, "resolution": "704p"},
+            "model": "wan-animate-replace",
+            "params": {"videoPath": video, "characterImagePath": image, "resolution": "720p"},
         },
     )
     assert resp.status_code == 200
@@ -67,7 +67,7 @@ def test_recast_through_the_job_queue(client, test_state, tmp_path: Path):
     result_paths = ApiJobExecutor(handler).execute(job)
     assert len(result_paths) == 1
     assert Path(result_paths[0]).is_file()
-    assert handler.recast_client.replace_calls[-1]["model"] == "scail-2-replace"
+    assert handler.recast_client.replace_calls[-1]["model"] == "wan-animate-replace"
 
 
 def test_recast_trims_to_the_clip_window_before_upload(test_state, tmp_path: Path):

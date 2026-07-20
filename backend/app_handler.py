@@ -395,7 +395,7 @@ class AppHandler:
             return "api"
         always_api_models = {
             "seedance-1.5-pro", "seedance-2.0", "seedance-2.0-fast", "nano-banana-2",
-            "wan-animate-replace", "scail-2-replace",
+            "wan-animate-replace",
         }
         if model in always_api_models:
             return "api"

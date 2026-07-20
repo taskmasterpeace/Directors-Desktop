@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ImageIcon, Loader2, UserRound, X } from 'lucide-react'
 import { toImgSrc } from '../../lib/path-to-img-src'
+import { dollarsToPoints, formatPoints } from '../../lib/palette-points'
 import { logger } from '../../lib/logger'
 
 /**
@@ -29,29 +30,27 @@ export interface RecastModelOption {
 export const RECAST_MODEL_OPTIONS: RecastModelOption[] = [
   {
     id: 'wan-animate-replace',
-    label: 'Standard — Wan 2.2 Animate',
-    hint: 'Best for realistic people.',
+    label: 'Cloud — Wan 2.2 Animate',
+    hint: 'Best for realistic people. Bills Directors Palette points.',
     resolutions: ['480p', '580p', '720p'],
     defaultResolution: '580p',
   },
   {
-    id: 'scail-2-replace',
-    label: 'SCAIL-2 — stylized / hard shots',
-    hint: 'Stylized characters and wild motion. Max 10s per request.',
-    resolutions: ['512p', '704p'],
-    defaultResolution: '704p',
+    id: 'scail-2-local',
+    label: 'Local — SCAIL-2 on your GPU (coming)',
+    hint: 'Stylized characters and wild motion, free on your 4090. Needs the Wan runtime downloaded (Model Status will show progress).',
+    resolutions: [],
+    defaultResolution: '',
   },
 ]
 
 /** $ per second of footage, by model + resolution (fal published pricing). */
 const RATE_PER_SECOND: Record<string, Record<string, number>> = {
   'wan-animate-replace': { '480p': 0.04, '580p': 0.06, '720p': 0.08 },
-  'scail-2-replace': { '512p': 0.2, '704p': 0.2 },
 }
-const SCAIL_MAX_SECONDS = 10
 
 export function estimateRecastCost(model: string, resolution: string, seconds: number): number {
-  const rate = RATE_PER_SECOND[model]?.[resolution] ?? 0.1
+  const rate = RATE_PER_SECOND[model]?.[resolution] ?? 0.06
   return Math.max(0, seconds) * rate
 }
 
@@ -93,8 +92,8 @@ export function ReplacePersonModal({
   }, [])
 
   const modelOption = RECAST_MODEL_OPTIONS.find((m) => m.id === model) ?? RECAST_MODEL_OPTIONS[0]
-  const scailTooLong = model === 'scail-2-replace' && durationSeconds > SCAIL_MAX_SECONDS
   const estimatedCost = estimateRecastCost(model, resolution, durationSeconds)
+  const estimatedPoints = dollarsToPoints(estimatedCost)
   const chosenPath =
     customImagePath ??
     characters.find((c) => c.id === selectedCharacterId)?.reference_image_paths[0] ??
@@ -113,7 +112,7 @@ export function ReplacePersonModal({
   }
 
   const submit = async () => {
-    if (!chosenPath || !consent || submitting || scailTooLong) return
+    if (!chosenPath || !consent || submitting) return
     setSubmitting(true)
     setError(null)
     try {
@@ -192,18 +191,13 @@ export function ReplacePersonModal({
                   <input
                     type="radio"
                     checked={model === m.id}
-                    disabled={m.id === 'scail-2-replace' && durationSeconds > SCAIL_MAX_SECONDS}
+                    disabled={m.id === 'scail-2-local'}
                     onChange={() => { setModel(m.id); setResolution(m.defaultResolution) }}
                     className="mt-0.5"
                   />
                   <span>
                     <span className="block text-sm text-white">{m.label}</span>
-                    <span className="block text-[11px] text-zinc-500">
-                      {m.hint}
-                      {m.id === 'scail-2-replace' && durationSeconds > SCAIL_MAX_SECONDS
-                        ? ` — this clip is ${durationSeconds.toFixed(1)}s; trim it under ${SCAIL_MAX_SECONDS}s first.`
-                        : ''}
-                    </span>
+                    <span className="block text-[11px] text-zinc-500">{m.hint}</span>
                   </span>
                 </label>
               ))}
@@ -224,9 +218,11 @@ export function ReplacePersonModal({
           </div>
 
           <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-200/90">
-            Estimated cost: <span className="font-semibold text-amber-300">${estimatedCost.toFixed(2)}</span>
-            {' '}for {durationSeconds.toFixed(1)}s of footage at ${(RATE_PER_SECOND[model]?.[resolution] ?? 0.1).toFixed(2)}/s.
-            Every attempt bills again — start at a low resolution to test the look.
+            Estimated cost: <span className="font-semibold text-amber-300">{formatPoints(estimatedPoints)}</span>
+            {' '}for {durationSeconds.toFixed(1)}s of footage
+            ({dollarsToPoints(RATE_PER_SECOND[model]?.[resolution] ?? 0.06)} pts/s
+            {' '}&middot; ${estimatedCost.toFixed(2)} on a BYO fal key).
+            Every attempt bills again — start at 480p to test the look.
           </div>
 
           <label className="flex items-start gap-2 text-[11px] text-zinc-400 cursor-pointer">
@@ -244,7 +240,7 @@ export function ReplacePersonModal({
           <button onClick={onClose} className="text-xs text-zinc-400 hover:text-white px-3 py-2">Cancel</button>
           <button
             onClick={submit}
-            disabled={!chosenPath || !consent || submitting || scailTooLong}
+            disabled={!chosenPath || !consent || submitting}
             className="flex items-center gap-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 text-xs font-semibold px-3.5 py-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserRound className="h-3.5 w-3.5" />}

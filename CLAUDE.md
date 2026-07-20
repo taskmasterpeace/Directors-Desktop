@@ -22,6 +22,12 @@ Backend --> Local models + GPU | External APIs (when API-backed)
 - **Backend** (`backend/`): Python FastAPI server (port 8000) handling ML model orchestration and generation
 - **Vendored editor core** (`vendor/openreel-core/`): OpenReel's editor engines (action-based undoable editing, timeline managers, WebCodecs playback/export), vendored per `vendor/openreel-core/PROVENANCE.md` and resolved via the `@openreel/core` Vite alias. Excluded from `typecheck:ts`; compile-checked by `pnpm typecheck:vendor`; exercised by the smoke suite in `vendor/openreel-core/smoke/`. Editor-foundation roadmap: `docs/superpowers/specs/2026-07-18-editor-foundation-design.md`.
 
+## Billing & Security — Directors Palette points are the cost language
+
+**Rule: any generation that costs money and is not local MUST be denominated in Directors Palette points (1 pt = $0.01 — Palette's `credits.types.ts`: balance is cents).** `frontend/lib/palette-points.ts` is the client-side source of truth for conversion + per-second cloud video rates; every cost surface (Replace Person modal, Director cloud note, image models' `costPoints`) displays points.
+
+**Enforcement model (do not weaken):** client-side numbers are estimates, never enforcement — a desktop binary can be patched. The uncircumventable design is the dp- image path generalized: **end-user builds carry NO provider keys; all cloud generation routes through Palette v2, which deducts credits server-side before dispatching.** BYO-key mode (fal/Replicate keys typed into Settings) is owner/dev mode and bills those keys directly. When adding a new cloud capability: (1) points display via `palette-points.ts`, (2) a Palette v2 server endpoint with deduction for end users, (3) never embed a shared provider key in the app.
+
 ## Agent Bridge — reading and editing the user's project from Claude Code
 
 While the app is running, agents can see and edit the open project through the backend. Spec: `docs/superpowers/specs/2026-07-20-story-context-markers-agent-editing-design.md`.

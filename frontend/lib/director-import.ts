@@ -10,7 +10,7 @@
  */
 
 import { baseClip } from './story-loader'
-import { DEFAULT_TRACKS, type MarkerColor, type Timeline, type TimelineClip, type TimelineMarker } from '../types/project'
+import { DEFAULT_TRACKS, type MarkerColor, type Timeline, type TimelineClip, type TimelineMarker, type Track } from '../types/project'
 
 export interface DirectorRunForImport {
   id: string
@@ -45,6 +45,43 @@ function pathToFileUrl(filePath: string): string {
 
 function basename(p: string): string {
   return p.split(/[\\/]/).pop() || p
+}
+
+/**
+ * A second (third, ...) run of the same song lands as a NEW VIDEO TRACK on an
+ * existing Director project: same beat grid, alternate shots stacked above —
+ * pull the cuts you like down into the main lane, or mute/solo tracks to
+ * compare whole passes. The song and section markers already exist there.
+ */
+export function directorRunToAlternateTrack(
+  run: DirectorRunForImport,
+  existing: Timeline,
+): { track: Track; clips: TimelineClip[]; trackIndex: number } {
+  const altCount = existing.tracks.filter((t) => t.name.startsWith('Director Alt')).length
+  const trackIndex = existing.tracks.length
+  const track: Track = {
+    id: `track-diralt-${run.id}`,
+    name: `Director Alt ${altCount + 1}`,
+    muted: false,
+    locked: false,
+  }
+  const clips: TimelineClip[] = []
+  for (const shot of run.shots) {
+    if (!shot.resultPath) continue
+    clips.push(
+      baseClip({
+        id: `dshot-${run.id}-${shot.index}`,
+        type: 'video',
+        startTime: shot.start,
+        duration: Math.max(0.04, shot.end - shot.start),
+        trackIndex,
+        muted: true,
+        importedUrl: pathToFileUrl(shot.resultPath),
+        importedName: `Alt ${altCount + 1} · Shot ${shot.index + 1}`,
+      })
+    )
+  }
+  return { track, clips, trackIndex }
 }
 
 export function directorRunToTimeline(run: DirectorRunForImport): Timeline {

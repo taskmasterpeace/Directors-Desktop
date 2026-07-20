@@ -22,7 +22,6 @@ _POLL_INTERVAL_SECONDS = 2
 _POLL_TIMEOUT_SECONDS = 900
 
 _WAN_RESOLUTIONS = ("480p", "580p", "720p")
-_SCAIL_RESOLUTIONS = ("512p", "704p")
 
 
 class FalRecastClientImpl:
@@ -49,19 +48,9 @@ class FalRecastClientImpl:
         if route is None:
             raise RuntimeError(f"Unknown recast model: {model}")
 
-        payload: dict[str, Any]
-        if model == "scail-2-replace":
-            res = resolution if resolution in _SCAIL_RESOLUTIONS else "704p"
-            payload = {
-                "prompt": prompt or "replace the person in the video with the reference character",
-                "image_url": image_url,
-                "video_url": video_url,
-                "mode": "replacement",
-                "resolution": res,
-            }
-        else:
-            res = resolution if resolution in _WAN_RESOLUTIONS else "580p"
-            payload = {"video_url": video_url, "image_url": image_url, "resolution": res}
+        _ = prompt  # reserved for future models that take guidance text
+        res = resolution if resolution in _WAN_RESOLUTIONS else "580p"
+        payload: dict[str, Any] = {"video_url": video_url, "image_url": image_url, "resolution": res}
 
         submit_resp = self._http.post(
             f"{self._base_url}/{route}",
