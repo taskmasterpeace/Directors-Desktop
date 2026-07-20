@@ -29,11 +29,12 @@ interface DirectorShot {
   resultPath: string | null
   phase: string
   progress: number
+  keyframePath: string | null
 }
 
 interface DirectorRun {
   id: string
-  phase: 'analyzing' | 'generating' | 'assembling' | 'complete' | 'error' | 'cancelled'
+  phase: 'analyzing' | 'storyboarding' | 'awaiting_approval' | 'generating' | 'assembling' | 'complete' | 'error' | 'cancelled'
   error: string | null
   audioPath: string
   concept: string
@@ -45,13 +46,23 @@ interface DirectorRun {
   songSeconds: number | null
   sectionCount: number | null
   sections: { start: number; end: number; label: string }[] | null
+  storyboard: boolean
+  approval: 'auto' | 'approve'
+  treatment: string
+  artistName: string
+  directorStyle: string
   shots: DirectorShot[]
 }
 
 const MODELS = [
-  { id: 'ltx-fast', label: 'LTX-2 Local — real lip-sync, free (your GPU)' },
-  { id: 'seedance-2.0', label: 'Seedance 2.0 — cloud (fal), best look' },
-  { id: 'seedance-2.0-fast', label: 'Seedance 2.0 Fast — cloud (fal), cheaper' },
+  { id: 'ltx-fast', label: 'LTX-2 Local — TRUE lip-sync, free (your GPU)' },
+  { id: 'seedance-2.0', label: 'Seedance 2.0 — cloud, approximate lip-sync' },
+  { id: 'seedance-2.0-fast', label: 'Seedance 2.0 Fast — cloud, approximate lip-sync' },
+]
+const KEYFRAME_MODELS = [
+  { id: 'dp-nano-banana-2', label: 'Nano Banana 2', pts: 10 },
+  { id: 'dp-nano-banana-2-lite', label: 'Nano Banana 2 Lite', pts: 5 },
+  { id: 'dp-gpt-image-2', label: 'GPT Image 2', pts: 2 },
 ]
 const LOCAL_MODELS = new Set(['ltx-fast'])
 const RESOLUTIONS = ['480p', '720p', '1080p']
@@ -78,7 +89,16 @@ export function Director() {
   const { goHome, createProject, updateTimeline, openProject, setCurrentTab, projects } = useProjects()
   const [audioPath, setAudioPath] = useState<string | null>(null)
   const [concept, setConcept] = useState('')
-  const [model, setModel] = useState('seedance-2.0')
+  const [model, setModel] = useState('ltx-fast')
+  const [treatment, setTreatment] = useState('')
+  const [artistName, setArtistName] = useState('')
+  const [directorStyle, setDirectorStyle] = useState('')
+  const [directorStyles, setDirectorStyles] = useState<{ id: string; name: string; description: string }[]>([])
+  const [artists, setArtists] = useState<{ id: string; name: string; reference_image_paths: string[] }[]>([])
+  const [storyboard, setStoryboard] = useState(false)
+  const [approval, setApproval] = useState<'auto' | 'approve'>('approve')
+  const [imageModel, setImageModel] = useState('dp-nano-banana-2')
+  const [redoSelection, setRedoSelection] = useState<Set<number>>(new Set())
   const [resolution, setResolution] = useState('720p')
   const [referencePaths, setReferencePaths] = useState<string[]>([])
   const [run, setRun] = useState<DirectorRun | null>(null)
@@ -86,6 +106,29 @@ export function Director() {
   const [starting, setStarting] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
   const runIdRef = useRef<string | null>(null)
+
+  // Vision sources: director styles + the Characters library as artists.
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const base = await backendBase()
+        const [stylesRes, charsRes] = await Promise.all([
+          fetch(`${base}/api/director/styles`),
+          fetch(`${base}/api/library/characters`),
+        ])
+        if (stylesRes.ok) {
+          const data = (await stylesRes.json()) as { styles?: { id: string; name: string; description: string }[] }
+          setDirectorStyles(data.styles ?? [])
+        }
+        if (charsRes.ok) {
+          const data = (await charsRes.json()) as { characters?: { id: string; name: string; reference_image_paths: string[] }[] }
+          setArtists((data.characters ?? []).filter((c) => c.reference_image_paths?.length))
+        }
+      } catch {
+        /* backend warming up */
+      }
+    })()
+  }, [])
 
   // System check for the local path: what GPU + how much VRAM.
   useEffect(() => {
@@ -173,6 +216,12 @@ export function Director() {
           model,
           resolution,
           referenceImagePaths: referencePaths,
+          treatment: treatment.trim(),
+          artistName: artistName.trim(),
+          storyboard,
+          approval,
+          imageModel,
+          directorStyle,
         }),
       })
       const data = (await res.json()) as { run?: DirectorRun; error?: string }
@@ -186,7 +235,7 @@ export function Director() {
     } finally {
       setStarting(false)
     }
-  }, [audioPath, concept, model, resolution, referencePaths, starting])
+  }, [audioPath, concept, model, resolution, referencePaths, treatment, artistName, storyboard, approval, imageModel, directorStyle, starting])
 
   const post = useCallback(async (endpoint: 'cancel' | 'resume') => {
     if (!runIdRef.current) return
@@ -260,12 +309,45 @@ export function Director() {
     setCurrentTab('video-editor')
   }, [run, createProject, updateTimeline, openProject, setCurrentTab])
 
+  const approveStoryboard = useCallback(async (regenerate: number[]) => {
+    if (!runIdRef.current) return
+    try {
+      const base = await backendBase()
+      const res = await fetch(`${base}/api/director/storyboard/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runId: runIdRef.current, regenerate }),
+      })
+      const data = (await res.json()) as { run: DirectorRun | null }
+      if (data.run) setRun(data.run)
+      setRedoSelection(new Set())
+    } catch (e) {
+      logger.error(`Storyboard approve failed: ${e}`)
+    }
+  }, [])
+
   const isActive = run != null && !['complete', 'error', 'cancelled'].includes(run.phase)
   const shotsDone = run?.shots.filter((s) => s.status === 'complete').length ?? 0
+  const steps = run && run.storyboard
+    ? [
+        { key: 'analyzing', label: 'Listen' },
+        { key: 'storyboarding', label: 'Frames' },
+        ...(run.approval === 'approve' ? [{ key: 'awaiting_approval', label: 'Approve' }] : []),
+        { key: 'generating', label: 'Generate' },
+        { key: 'assembling', label: 'Assemble' },
+        { key: 'complete', label: 'Done' },
+      ]
+    : PHASE_STEPS
   const phaseIndex = run
     ? run.phase === 'error' || run.phase === 'cancelled'
-      ? run.outputPath ? 2 : run.shots.length > 0 ? 1 : 0 // how far it got
-      : PHASE_STEPS.findIndex((p) => p.key === run.phase)
+      ? run.outputPath
+        ? steps.findIndex((st) => st.key === 'assembling')
+        : run.shots.some((sh) => sh.status !== 'pending')
+          ? steps.findIndex((st) => st.key === 'generating')
+          : run.shots.some((sh) => sh.keyframePath)
+            ? Math.max(1, steps.findIndex((st) => st.key === 'storyboarding'))
+            : 0
+      : steps.findIndex((st) => st.key === run.phase)
     : -1
 
   return (
@@ -309,6 +391,94 @@ export function Director() {
               placeholder="One line about the video's world — e.g. 'neon-soaked rooftop chase at midnight, chrome and rain'"
               className="mt-1.5 w-full h-24 rounded-lg border border-zinc-700 bg-zinc-900 p-2.5 text-sm text-zinc-200 resize-y disabled:opacity-50"
             />
+          </div>
+
+          <div>
+            <label className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Story / Treatment</label>
+            <textarea
+              value={treatment}
+              onChange={(e) => setTreatment(e.target.value)}
+              disabled={isActive}
+              placeholder={"Optional — the story the video tells, sentence by sentence. Verses carry the story in order; choruses stay performance. e.g. 'A drifter finds a buried radio. It leads her to a hidden city. She frees its music.'"}
+              className="mt-1.5 w-full h-20 rounded-lg border border-zinc-700 bg-zinc-900 p-2.5 text-xs text-zinc-200 resize-y disabled:opacity-50"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Artist</label>
+              <select
+                value={artistName}
+                onChange={(e) => {
+                  const name = e.target.value
+                  setArtistName(name)
+                  const artist = artists.find((a) => a.name === name)
+                  if (artist) setReferencePaths(artist.reference_image_paths.slice(0, 4))
+                }}
+                disabled={isActive}
+                className="mt-1.5 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-2 text-xs text-zinc-200 disabled:opacity-50"
+              >
+                <option value="">— none —</option>
+                {artists.map((a) => (
+                  <option key={a.id} value={a.name}>{a.name}</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-zinc-600 mt-1">From your Characters library — their look rides every shot.</p>
+            </div>
+            <div>
+              <label className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Director</label>
+              <select
+                value={directorStyle}
+                onChange={(e) => setDirectorStyle(e.target.value)}
+                disabled={isActive}
+                className="mt-1.5 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-2 text-xs text-zinc-200 disabled:opacity-50"
+              >
+                <option value="">— no director —</option>
+                {directorStyles.map((d) => (
+                  <option key={d.id} value={d.id} title={d.description}>{d.name}</option>
+                ))}
+              </select>
+              <p className="text-[10px] text-zinc-600 mt-1">Their visual voice flavors every shot.</p>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 space-y-2">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={storyboard}
+                onChange={(e) => setStoryboard(e.target.checked)}
+                disabled={isActive}
+              />
+              <span className="text-xs text-zinc-200 font-medium">Storyboard first — a keyframe image per shot</span>
+            </label>
+            {storyboard && (
+              <div className="space-y-2 pl-6">
+                <div className="flex items-center gap-3 text-[11px] text-zinc-400">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="radio" checked={approval === 'approve'} onChange={() => setApproval('approve')} disabled={isActive} />
+                    Pause for my approval
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="radio" checked={approval === 'auto'} onChange={() => setApproval('auto')} disabled={isActive} />
+                    Full auto
+                  </label>
+                </div>
+                <select
+                  value={imageModel}
+                  onChange={(e) => setImageModel(e.target.value)}
+                  disabled={isActive}
+                  className="w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-[11px] text-zinc-200 disabled:opacity-50"
+                >
+                  {KEYFRAME_MODELS.map((m) => (
+                    <option key={m.id} value={m.id}>{m.label} — {m.pts} pts/frame</option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-zinc-600">
+                  Keyframes bill Directors Palette points (~{(KEYFRAME_MODELS.find((m) => m.id === imageModel)?.pts ?? 10)} pts x ~25-40 shots); the video stage then animates each approved frame.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -418,7 +588,7 @@ export function Director() {
             <div className="max-w-3xl mx-auto space-y-6">
               {/* Phase stepper */}
               <div className="flex items-center gap-2">
-                {PHASE_STEPS.map((step, i) => {
+                {steps.map((step, i) => {
                   const reached = phaseIndex >= i || run.phase === 'complete'
                   const current = run.phase === step.key
                   return (
@@ -434,7 +604,7 @@ export function Director() {
                       >
                         {step.label}
                       </div>
-                      {i < PHASE_STEPS.length - 1 && <div className="w-6 h-px bg-zinc-700" />}
+                      {i < steps.length - 1 && <div className="w-6 h-px bg-zinc-700" />}
                     </div>
                   )
                 })}
@@ -490,6 +660,65 @@ export function Director() {
                 >
                   <Film className="h-3 w-3" /> Open partial cut in editor ({shotsDone} shots)
                 </button>
+              )}
+
+              {/* Keyframe storyboard grid */}
+              {run.storyboard && ['storyboarding', 'awaiting_approval'].includes(run.phase) && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-zinc-400">
+                      Keyframes: {run.shots.filter((sh) => sh.keyframePath).length}/{run.shots.length}
+                      {run.phase === 'awaiting_approval' && ' — click frames to mark for regeneration'}
+                    </span>
+                    {run.phase === 'awaiting_approval' && (
+                      <div className="flex items-center gap-2">
+                        {redoSelection.size > 0 && (
+                          <button
+                            onClick={() => approveStoryboard([...redoSelection])}
+                            className="text-[11px] text-zinc-950 font-medium px-2.5 py-1 rounded-lg bg-red-400 hover:bg-red-300 transition-colors"
+                          >
+                            Regenerate {redoSelection.size} frame{redoSelection.size === 1 ? '' : 's'}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => approveStoryboard([])}
+                          className="text-[11px] text-zinc-950 font-semibold px-2.5 py-1 rounded-lg bg-emerald-400 hover:bg-emerald-300 transition-colors"
+                        >
+                          Approve — make the video
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-6 gap-1.5">
+                    {run.shots.map((sh) => (
+                      <button
+                        key={sh.index}
+                        onClick={() => {
+                          if (run.phase !== 'awaiting_approval') return
+                          setRedoSelection((prev) => {
+                            const next = new Set(prev)
+                            if (next.has(sh.index)) next.delete(sh.index)
+                            else next.add(sh.index)
+                            return next
+                          })
+                        }}
+                        title={`#${sh.index + 1} · ${sh.sectionLabel} · ${sh.shotType}\n${sh.prompt}`}
+                        className={`relative aspect-video rounded-md overflow-hidden border transition-colors ${
+                          redoSelection.has(sh.index)
+                            ? 'border-red-400 ring-1 ring-red-400'
+                            : 'border-zinc-700 hover:border-zinc-500'
+                        }`}
+                      >
+                        {sh.keyframePath ? (
+                          <img src={toImgSrc(sh.keyframePath)} alt="" className="h-full w-full object-cover" />
+                        ) : (
+                          <div className="h-full w-full bg-zinc-800 animate-pulse" />
+                        )}
+                        <span className="absolute bottom-0 left-0 px-1 text-[9px] bg-black/60 text-zinc-200">{sh.index + 1}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
 
               {/* Shot progress */}
