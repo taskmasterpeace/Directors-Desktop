@@ -8,6 +8,9 @@ Gallery and can come back as a take on the source asset).
 
 from __future__ import annotations
 
+import shutil
+import subprocess
+import tempfile
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
@@ -35,6 +38,31 @@ _VIDEO_CONTENT_TYPES = {
 }
 
 
+def _default_extract_segment(video_path: str, start: float, duration: float) -> str:
+    """Cut [start, start+duration) into a temp mp4 (re-encoded for frame accuracy)."""
+    import imageio_ffmpeg
+
+    out = Path(tempfile.mkdtemp(prefix="recast_seg_")) / "segment.mp4"
+    result = subprocess.run(
+        [
+            str(imageio_ffmpeg.get_ffmpeg_exe()), "-y",
+            "-ss", f"{max(0.0, start):.3f}",
+            "-i", video_path,
+            "-t", f"{max(0.1, duration):.3f}",
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+            "-pix_fmt", "yuv420p", "-an",
+            str(out),
+        ],
+        capture_output=True,
+        timeout=300,
+        check=False,
+    )
+    if result.returncode != 0 or not out.is_file():
+        tail = result.stderr.decode(errors="replace")[-400:]
+        raise RuntimeError(f"Could not trim footage for replacement: {tail}")
+    return str(out)
+
+
 class RecastHandler:
     def __init__(
         self,
@@ -43,11 +71,13 @@ class RecastHandler:
         recast_client: RecastClient,
         upload_client: UploadClient,
         outputs_dir: Path,
+        extract_segment: Callable[[str, float, float], str] | None = None,
     ) -> None:
         self._state = state
         self._client = recast_client
         self._upload = upload_client
         self._outputs_dir = outputs_dir
+        self._extract_segment = extract_segment or _default_extract_segment
 
     def execute(
         self,
@@ -68,32 +98,49 @@ class RecastHandler:
         resolution = str(params.get("resolution") or "")
         prompt = str(params.get("prompt") or "")
 
-        video_file = Path(video_path)
-        image_file = Path(image_path)
-        video_url = self._upload.upload(
-            api_key=api_key,
-            data=video_file.read_bytes(),
-            content_type=_VIDEO_CONTENT_TYPES.get(video_file.suffix.lower(), "video/mp4"),
-            file_name=video_file.name,
-        )
-        image_url = self._upload.upload(
-            api_key=api_key,
-            data=image_file.read_bytes(),
-            content_type=_IMAGE_CONTENT_TYPES.get(image_file.suffix.lower(), "image/png"),
-            file_name=image_file.name,
-        )
+        # Billing is per second of footage: trim to the clip's source window
+        # before upload so a 3s clip cut from a 60s take costs 3s, not 60s.
+        trim_start = params.get("trimStart")
+        trim_duration = params.get("trimDuration")
+        segment_path: str | None = None
+        if isinstance(trim_start, (int, float)) and isinstance(trim_duration, (int, float)) and trim_duration > 0:
+            segment_path = self._extract_segment(video_path, float(trim_start), float(trim_duration))
+            video_path = segment_path
 
-        result = self._client.replace(
-            api_key=api_key,
-            model=model,
-            video_url=video_url,
-            image_url=image_url,
-            resolution=resolution,
-            prompt=prompt,
-            should_cancel=should_cancel,
-        )
+        try:
+            video_file = Path(video_path)
+            image_file = Path(image_path)
+            video_url = self._upload.upload(
+                api_key=api_key,
+                data=video_file.read_bytes(),
+                content_type=_VIDEO_CONTENT_TYPES.get(video_file.suffix.lower(), "video/mp4"),
+                file_name=video_file.name,
+            )
+            image_url = self._upload.upload(
+                api_key=api_key,
+                data=image_file.read_bytes(),
+                content_type=_IMAGE_CONTENT_TYPES.get(image_file.suffix.lower(), "image/png"),
+                file_name=image_file.name,
+            )
 
-        self._outputs_dir.mkdir(parents=True, exist_ok=True)
-        out = self._outputs_dir / f"recast_{model.replace('-', '_')}_{int(time.time())}.mp4"
-        out.write_bytes(result)
-        return [str(out)]
+            result = self._client.replace(
+                api_key=api_key,
+                model=model,
+                video_url=video_url,
+                image_url=image_url,
+                resolution=resolution,
+                prompt=prompt,
+                should_cancel=should_cancel,
+            )
+
+            self._outputs_dir.mkdir(parents=True, exist_ok=True)
+            out = self._outputs_dir / f"recast_{model.replace('-', '_')}_{int(time.time())}.mp4"
+            out.write_bytes(result)
+            return [str(out)]
+        finally:
+            if segment_path is not None:
+                parent = Path(segment_path).parent
+                # Only remove the extractor's own dedicated temp dir — never a
+                # caller-owned directory an injected extractor might return.
+                if parent.name.startswith("recast_seg_"):
+                    shutil.rmtree(parent, ignore_errors=True)

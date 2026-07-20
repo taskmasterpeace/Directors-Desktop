@@ -70,6 +70,45 @@ def test_recast_through_the_job_queue(client, test_state, tmp_path: Path):
     assert handler.recast_client.replace_calls[-1]["model"] == "scail-2-replace"
 
 
+def test_recast_trims_to_the_clip_window_before_upload(test_state, tmp_path: Path):
+    # Billing is per second of footage: a 3s clip cut from a 60s take must
+    # upload a 3s segment, not the whole file.
+    handler = test_state
+    handler.state.app_settings.fal_api_key = "test-fal-key"
+    video, image = _files(tmp_path)
+
+    extracted: list[tuple[str, float, float]] = []
+    segment = tmp_path / "segment.mp4"
+    segment.write_bytes(b"segment")
+
+    def fake_extract(path: str, start: float, duration: float) -> str:
+        extracted.append((path, start, duration))
+        return str(segment)
+
+    from handlers.recast_handler import RecastHandler
+
+    recast = RecastHandler(
+        state=handler.state,
+        recast_client=handler.recast_client,
+        upload_client=handler.fal_upload_client,
+        outputs_dir=tmp_path / "out",
+        extract_segment=fake_extract,
+    )
+    recast.execute(
+        "wan-animate-replace",
+        {
+            "videoPath": video,
+            "characterImagePath": image,
+            "resolution": "480p",
+            "trimStart": 12.5,
+            "trimDuration": 3.0,
+        },
+    )
+    assert extracted == [(video, 12.5, 3.0)]
+    # The uploaded video is the SEGMENT, not the original file.
+    assert handler.fal_upload_client.calls[-2]["file_name"] == "segment.mp4"
+
+
 def test_recast_requires_fal_key(test_state, tmp_path: Path):
     from _routes._errors import HTTPError
 

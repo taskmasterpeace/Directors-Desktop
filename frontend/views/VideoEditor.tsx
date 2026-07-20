@@ -1882,6 +1882,7 @@ export function VideoEditor() {
     clip: TimelineClip,
     opts: { characterImagePath: string; model: string; resolution: string },
   ) => {
+    const sourceWindowSeconds = clip.duration * (clip.speed || 1)
     const liveAsset = clip.assetId ? assets.find((a) => a.id === clip.assetId) : clip.asset
     if (!liveAsset) throw new Error('This clip has no source asset')
     const takeIndex = clip.takeIndex ?? liveAsset.activeTakeIndex
@@ -1902,6 +1903,9 @@ export function VideoEditor() {
           videoPath,
           characterImagePath: opts.characterImagePath,
           resolution: opts.resolution,
+          // Pay for the clip's window, not the whole source file.
+          trimStart: clip.trimStart,
+          trimDuration: sourceWindowSeconds,
         },
       }),
     })
@@ -4769,6 +4773,7 @@ export function VideoEditor() {
       {/* Project Settings Modal */}
       {replacePersonClip && (
         <ReplacePersonModal
+          durationSeconds={replacePersonClip.duration * (replacePersonClip.speed || 1)}
           videoLabel={(replacePersonClip.asset?.prompt || replacePersonClip.importedName || 'clip').slice(0, 40)}
           onClose={() => setReplacePersonClip(null)}
           onSubmit={(opts) => handleReplacePersonSubmit(replacePersonClip, opts)}
