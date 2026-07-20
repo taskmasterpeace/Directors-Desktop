@@ -63,10 +63,15 @@ export async function generateFromPrompt(opts: {
   mediaType: 'image' | 'video'
   imageModel: string
   videoModel: string
+  referenceImagePaths?: string[]
   onPhase?: (phase: string) => void
 }): Promise<GenerateChainResult> {
   opts.onPhase?.('Generating image…')
-  const imageJobId = await submitJob('image', opts.imageModel, { prompt: opts.prompt })
+  const imageParams: Record<string, unknown> = { prompt: opts.prompt }
+  if (opts.referenceImagePaths && opts.referenceImagePaths.length > 0) {
+    imageParams.referenceImagePaths = opts.referenceImagePaths
+  }
+  const imageJobId = await submitJob('image', opts.imageModel, imageParams)
   const imageJob = await waitForJob(imageJobId)
   const imagePath = imageJob.result_paths[0]
   if (!imagePath) throw new Error('No image was produced')

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { generateFromPrompt } from '../../lib/transcript-generate'
 import type { MarkerColor, TimelineClip, TimelineMarker, Track } from '../../types/project'
 
 /**
@@ -39,6 +40,8 @@ export function useAgentActions({
   setMarkers,
   pushUndo,
   makeCaptions,
+  imageModel,
+  placeGenerated,
 }: {
   clips: TimelineClip[]
   tracks: Track[]
@@ -48,9 +51,71 @@ export function useAgentActions({
   pushUndo: () => void
   /** Phase 4 captions engine; returns false when the clip has no transcript words. */
   makeCaptions: (clip: TimelineClip) => boolean
+  /** Default image model id for the image stage of generate chains. */
+  imageModel: string
+  /** Import a finished generation into the project and drop a clip at `at`. */
+  placeGenerated: (
+    result: { imagePath: string; videoPath?: string },
+    at: { trackIndex: number; startTime: number },
+    prompt: string,
+  ) => Promise<boolean>
 }) {
   // Fresh-closure ref: the 1s interval calls whatever the latest render bound.
   const applyRef = useRef<(pending: PendingAction[]) => ActionResult[]>(() => [])
+  const placeGeneratedRef = useRef(placeGenerated)
+  placeGeneratedRef.current = placeGenerated
+  const imageModelRef = useRef(imageModel)
+  imageModelRef.current = imageModel
+
+  const reportResults = async (results: ActionResult[]) => {
+    if (results.length === 0) return
+    try {
+      const base = await window.electronAPI.getBackendUrl()
+      await fetch(`${base}/api/project/actions/report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ results }),
+      })
+    } catch {
+      /* bridge unreachable — agent will still see the action as delivered */
+    }
+  }
+  const reportRef = useRef(reportResults)
+  reportRef.current = reportResults
+
+  /** Long-running: generate through the queue, then import + place. Reports its own result late. */
+  const runGenerateAndPlace = (id: string, action: ActionRecord) => {
+    const prompt = str(action.prompt) ?? ''
+    const at = (action.at ?? {}) as ActionRecord
+    const trackIndex = num(at.trackIndex) ?? 0
+    const startTime = num(at.startTime) ?? 0
+    const mediaType = str(action.mediaType) === 'image' ? 'image' as const : 'video' as const
+    const model = str(action.model)
+    const refs = Array.isArray(action.referenceImagePaths)
+      ? (action.referenceImagePaths as unknown[]).filter((r): r is string => typeof r === 'string')
+      : undefined
+    void (async () => {
+      try {
+        const result = await generateFromPrompt({
+          prompt,
+          mediaType,
+          imageModel: mediaType === 'image' && model ? model : imageModelRef.current,
+          videoModel: mediaType === 'video' && model ? model : 'seedance-2.0',
+          referenceImagePaths: refs,
+        })
+        const placed = await placeGeneratedRef.current(result, { trackIndex, startTime }, prompt)
+        await reportRef.current([
+          placed
+            ? { id, status: 'applied' }
+            : { id, status: 'rejected', reason: 'generated, but placing the clip failed' },
+        ])
+      } catch (e) {
+        await reportRef.current([
+          { id, status: 'rejected', reason: `generation failed: ${e instanceof Error ? e.message : 'error'}` },
+        ])
+      }
+    })()
+  }
 
   applyRef.current = (pending: PendingAction[]): ActionResult[] => {
     const results: ActionResult[] = []
@@ -177,9 +242,22 @@ export function useAgentActions({
           }
           break
         }
-        case 'generate_and_place':
-          reject('generate_and_place is not available yet (Phase 7)')
+        case 'generate_and_place': {
+          const prompt = str(action.prompt)
+          const at = (action.at ?? {}) as ActionRecord
+          const trackIndex = num(at.trackIndex)
+          const startTime = num(at.startTime)
+          if (!prompt) { reject('prompt is required'); break }
+          if (trackIndex === undefined || trackIndex < 0 || trackIndex >= tracks.length) {
+            reject(`at.trackIndex out of range: ${at.trackIndex}`); break
+          }
+          if (tracks[trackIndex].type === 'subtitle') { reject('cannot place onto a subtitle track'); break }
+          if (startTime === undefined || startTime < 0) { reject(`invalid at.startTime: ${at.startTime}`); break }
+          // Long-running: no immediate result — stays 'delivered' until the
+          // generation lands (or fails), then reports on its own.
+          runGenerateAndPlace(id, action)
           break
+        }
         default:
           reject(`unknown action kind: ${String(action.kind)}`)
       }
@@ -223,11 +301,13 @@ export function useAgentActions({
         const pending = data.actions ?? []
         if (pending.length === 0) return
         const results = applyRef.current(pending)
-        await fetch(`${base}/api/project/actions/report`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ results }),
-        })
+        if (results.length > 0) {
+          await fetch(`${base}/api/project/actions/report`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ results }),
+          })
+        }
       } catch {
         /* backend down or mid-restart — next tick retries */
       } finally {

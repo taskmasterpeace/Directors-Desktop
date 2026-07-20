@@ -29,7 +29,7 @@ import { ImportTimelineModal } from '../components/ImportTimelineModal'
 import { useConfirm } from '../components/ConfirmDialog'
 import { ClipWaveform } from '../components/AudioWaveform'
 // IC-LORA HIDDEN - import { ICLoraPanel } from '../components/ICLoraPanel'
-import type { TimelineClip, Track, SubtitleClip, TimelineMarker } from '../types/project' // EFFECTS HIDDEN: removed EffectType
+import type { CastEntry, TimelineClip, Track, SubtitleClip, TimelineMarker } from '../types/project' // EFFECTS HIDDEN: removed EffectType
 import { DEFAULT_TRACKS } from '../types/project' // EFFECTS HIDDEN: removed EFFECT_DEFINITIONS
 import {
   type ToolType, PRIMARY_TOOLS, TRIM_TOOLS,
@@ -51,6 +51,7 @@ import { StoryCastPanel } from './editor/StoryCastPanel'
 import { useAgentActions } from './editor/useAgentActions'
 import { captionsFromWords } from '../lib/captions-from-transcript'
 import { generateFromPrompt } from '../lib/transcript-generate'
+import { copyToAssetFolder } from '../lib/asset-copy'
 import { migrateImageModelId } from '../lib/image-models'
 import type { TranscriptWord } from '../lib/transcript-api'
 import { SubtitlePropertiesPanel } from './editor/SubtitlePropertiesPanel'
@@ -784,11 +785,70 @@ export function VideoEditor() {
   const persistedTranscriptForRef = useRef<typeof persistedTranscriptFor | null>(null)
   persistedTranscriptForRef.current = persistedTranscriptFor
 
+  // Agent bridge Phase 7: import a finished generation into the project bin and
+  // drop it on the timeline at the requested spot, with an agent marker noting
+  // what landed. addClipToTimeline pushes its own undo step.
+  const placeGenerated = useCallback(async (
+    result: { imagePath: string; videoPath?: string },
+    at: { trackIndex: number; startTime: number },
+    prompt: string,
+  ): Promise<boolean> => {
+    if (!currentProjectId) return false
+    try {
+      const mediaPath = result.videoPath ?? result.imagePath
+      const isVideo = Boolean(result.videoPath)
+      const normalized = mediaPath.replace(/\\/g, '/')
+      const origUrl = normalized.startsWith('/') ? `file://${normalized}` : `file:///${normalized}`
+      const { path: finalPath, url: finalUrl } = await copyToAssetFolder(
+        mediaPath, origUrl, currentProject?.assetSavePath,
+      )
+      const duration = isVideo
+        ? await new Promise<number | undefined>((resolve) => {
+            const probe = document.createElement('video')
+            probe.preload = 'metadata'
+            probe.onloadedmetadata = () => {
+              resolve(Number.isFinite(probe.duration) ? probe.duration : undefined)
+              probe.src = ''
+            }
+            probe.onerror = () => resolve(undefined)
+            probe.src = finalUrl
+          })
+        : undefined
+      const asset = addAsset(currentProjectId, {
+        type: isVideo ? 'video' : 'image',
+        path: finalPath,
+        url: finalUrl,
+        prompt,
+        resolution: '',
+        ...(duration !== undefined ? { duration } : {}),
+        takes: [{ url: finalUrl, path: finalPath, createdAt: Date.now() }],
+        activeTakeIndex: 0,
+      })
+      addClipToTimeline(asset, at.trackIndex, at.startTime)
+      setMarkers((prev) => [
+        ...prev,
+        {
+          id: `mk_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`,
+          time: at.startTime,
+          title: `AI: ${prompt.slice(0, 48)}`,
+          color: 'green' as const,
+          author: 'agent' as const,
+          createdAt: Date.now(),
+        },
+      ])
+      return true
+    } catch {
+      return false
+    }
+  }, [currentProjectId, currentProject?.assetSavePath, addAsset, addClipToTimeline])
+
   // Agent bridge (Phase 6): poll queued agent actions, apply through one undo
   // step, report applied/rejected. Mounted for the life of the editor.
   useAgentActions({
     clips, tracks, markers, setClips, setMarkers, pushUndo,
     makeCaptions: handleMakeCaptions,
+    imageModel: migrateImageModelId(appSettings.imageModel),
+    placeGenerated,
   })
 
   // Story-aware generate chain: prompt → image → (for video) video-from-image. Results land
@@ -1761,6 +1821,28 @@ export function VideoEditor() {
     setPendingReferenceImage({ path: persisted, quickMode: kind })
     setCurrentTab('gen-space')
   }, [extractCurrentFrame, persistFrame, setPendingReferenceImage, setCurrentTab])
+
+  // Cast member -> Gen Space: arm the next generation with the linked library
+  // character's reference image attached (the "Generate with cast member" flow).
+  const handleGenerateWithCastMember = useCallback(async (entry: CastEntry) => {
+    if (!entry.characterId) return
+    try {
+      const base = await window.electronAPI.getBackendUrl()
+      const res = await fetch(`${base}/api/library/characters`)
+      if (!res.ok) throw new Error(`${res.status}`)
+      const data = (await res.json()) as { characters?: { id: string; reference_image_paths?: string[] }[] }
+      const character = data.characters?.find((c) => c.id === entry.characterId)
+      const refPath = character?.reference_image_paths?.[0]
+      if (!refPath) {
+        setFrameActionMsg({ kind: 'error', text: `"${entry.storyName}" has no reference image in the Characters library.` })
+        return
+      }
+      setPendingReferenceImage({ path: refPath })
+      setCurrentTab('gen-space')
+    } catch {
+      setFrameActionMsg({ kind: 'error', text: 'Could not load the Characters library.' })
+    }
+  }, [setPendingReferenceImage, setCurrentTab])
 
   // Capture the current frame and save it to the References library so it's a
   // reusable reference everywhere (ReferencePicker, @-mentions, future Shot Creator).
@@ -4509,6 +4591,8 @@ export function VideoEditor() {
             setI2vClipId={setI2vClipId}
             setI2vPrompt={setI2vPrompt}
             onRetakeClip={handleRetakeClip}
+            castEntries={currentProject?.cast ?? []}
+            onGenerateWithCastMember={handleGenerateWithCastMember}
             setIcLoraSourceClipId={_setIcLoraSourceClipId}
             setShowICLoraPanel={_setShowICLoraPanel}
             onCaptureFrameForVideo={handleCaptureFrameForVideo}

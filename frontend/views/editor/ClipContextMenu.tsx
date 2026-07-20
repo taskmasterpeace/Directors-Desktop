@@ -7,7 +7,7 @@ import {
   Video, Camera, Image as ImageIcon, Library,
   Shirt, UserRound, MapPin, Palette,
 } from 'lucide-react'
-import type { Asset, TimelineClip, Track, TextOverlayStyle } from '../../types/project'
+import type { Asset, CastEntry, TimelineClip, Track, TextOverlayStyle } from '../../types/project'
 import { TEXT_PRESETS } from '../../types/project'
 import { COLOR_LABELS } from './video-editor-utils'
 
@@ -51,6 +51,8 @@ export interface ClipContextMenuProps {
   setI2vClipId: (v: string | null) => void
   setI2vPrompt: (v: string) => void
   onRetakeClip: (clip: TimelineClip) => void
+  castEntries: CastEntry[]
+  onGenerateWithCastMember: (entry: CastEntry) => void
   setIcLoraSourceClipId: (v: string | null) => void
   setShowICLoraPanel: (v: boolean) => void
   onCaptureFrameForVideo: (clip: TimelineClip) => void
@@ -133,6 +135,8 @@ export function ClipContextMenu({
   setI2vClipId,
   setI2vPrompt,
   onRetakeClip,
+  castEntries,
+  onGenerateWithCastMember,
   setIcLoraSourceClipId, // IC-LORA HIDDEN: still passed to SingleClipMenu
   setShowICLoraPanel, // IC-LORA HIDDEN: still passed to SingleClipMenu
   onCaptureFrameForVideo,
@@ -253,6 +257,8 @@ export function ClipContextMenu({
           setI2vClipId={setI2vClipId}
           setI2vPrompt={setI2vPrompt}
           onRetakeClip={onRetakeClip}
+          castEntries={castEntries}
+          onGenerateWithCastMember={onGenerateWithCastMember}
           setIcLoraSourceClipId={setIcLoraSourceClipId}
           setShowICLoraPanel={setShowICLoraPanel}
           onCaptureFrameForVideo={onCaptureFrameForVideo}
@@ -289,7 +295,7 @@ function SingleClipMenu({
   duplicateClip, splitClipAtPlayhead, removeClip, updateClip,
   getLiveAsset, getMaxClipDuration,
   setAssetFilter, setSelectedBin, setTakesViewAssetId, setSelectedAssetIds,
-  setI2vClipId, setI2vPrompt, onRetakeClip, setIcLoraSourceClipId: _setIcLoraSourceClipId, setShowICLoraPanel: _setShowICLoraPanel, // IC-LORA HIDDEN
+  setI2vClipId, setI2vPrompt, onRetakeClip, castEntries, onGenerateWithCastMember, setIcLoraSourceClipId: _setIcLoraSourceClipId, setShowICLoraPanel: _setShowICLoraPanel, // IC-LORA HIDDEN
   onCaptureFrameForVideo,
   onCaptureFrameAsReference,
   onCaptureFrameToReferences,
@@ -324,6 +330,8 @@ function SingleClipMenu({
   setI2vClipId: (v: string | null) => void
   setI2vPrompt: (v: string) => void
   onRetakeClip: (clip: TimelineClip) => void
+  castEntries: CastEntry[]
+  onGenerateWithCastMember: (entry: CastEntry) => void
   setIcLoraSourceClipId: (v: string | null) => void
   setShowICLoraPanel: (v: boolean) => void
   onCaptureFrameForVideo: (clip: TimelineClip) => void
@@ -582,6 +590,27 @@ function SingleClipMenu({
                     disabled={isRegenerating && i2vClipId === contextClip.id}
                     onClick={() => { setI2vClipId(contextClip.id); setI2vPrompt(contextClip.asset?.prompt || ''); close() }} />
                 )}
+              </div>
+            </div>
+          )}
+          {castEntries.length > 0 && (
+            <div className="relative group/cast">
+              <button
+                className="w-full text-left px-3 py-1.5 flex items-center gap-3 transition-colors hover:bg-zinc-700 text-zinc-300"
+              >
+                <UserRound className="h-3.5 w-3.5 flex-shrink-0 text-emerald-400" />
+                <span className="flex-1 truncate">Generate with Cast Member...</span>
+                <ChevronRight className="h-3 w-3 text-zinc-500" />
+              </button>
+              <div className="absolute left-full top-0 ml-0.5 min-w-[200px] bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 z-[70] hidden group-hover/cast:block">
+                {castEntries.map((entry, i) => (
+                  <MenuItem key={i} icon={UserRound}
+                    iconClass={entry.characterId ? 'text-emerald-400' : 'text-zinc-600'}
+                    label={entry.storyName || '(unnamed)'}
+                    disabled={!entry.characterId}
+                    title={entry.characterId ? 'Arm Gen Space with this character as the reference' : 'Not linked to a character — Project Settings > Cast'}
+                    onClick={() => { onGenerateWithCastMember(entry); close() }} />
+                ))}
               </div>
             </div>
           )}
