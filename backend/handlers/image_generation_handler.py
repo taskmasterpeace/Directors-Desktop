@@ -335,6 +335,18 @@ class ImageGenerationHandler(StateHandlerBase):
             if use_palette:
                 if not settings.palette_api_key.strip():
                     raise HTTPError(400, "DIRECTORS_PALETTE_NOT_CONNECTED")
+                # Email login stores a Supabase session token, which the desktop
+                # routes (credits/sync) accept — but Palette's v2 generation and
+                # upload APIs only accept real dp_ API keys. Fail with the actual
+                # problem instead of a downstream 401 dressed as an upload error.
+                if not settings.palette_api_key.startswith("dp_"):
+                    raise HTTPError(
+                        400,
+                        "PALETTE_API_KEY_REQUIRED: You're signed in with email login, "
+                        "which covers credits and library sync — but image generation "
+                        "needs a Palette API key. Get one at directorspal.com/settings/api-keys "
+                        "and connect with it (Home → Directors Palette → Use API key).",
+                    )
             elif not settings.replicate_api_key.strip():
                 raise HTTPError(500, "REPLICATE_API_KEY_NOT_CONFIGURED")
 

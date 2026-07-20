@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import {
-  Trash2, Download, Image, Video, X,
+  Download, Image, Video, X,
   Heart, Film, Volume2, VolumeX, Sparkles,
   Clock, Monitor, ChevronUp, Scissors, Music,
   ChevronLeft, ChevronRight, Copy, Check, Wand2,
@@ -136,6 +136,8 @@ function AssetCard({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={onPlay}
+      onContextMenu={(e) => { e.preventDefault(); onDelete() }}
+      title="Right-click to remove from bin"
       draggable={asset.type === 'image'}
       onDragStart={(e) => asset.type === 'image' && onDragStart(e, asset)}
     >
@@ -246,18 +248,10 @@ function AssetCard({
           </div>
         )}
         
-        {/* Delete button (subtle, bottom right for images) */}
-        {asset.type === 'image' && (
-          <button
-            aria-label="Delete asset"
-            onClick={(e) => { e.stopPropagation(); onDelete() }}
-            className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-red-600/70 backdrop-blur-md text-white hover:bg-red-500 transition-colors opacity-0 group-hover:opacity-100"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-          </button>
-        )}
+        {/* Removal is deliberately NOT a hover button — one stray click was
+            deleting work. Right-click the card → confirmed Remove from bin. */}
       </div>
-      
+
     </div>
   )
 }
