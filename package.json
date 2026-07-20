@@ -1,11 +1,13 @@
 {
   "name": "ltx-desktop",
   "version": "1.0.1",
-  "description": "LTX-2 Video Generation - Desktop App",
+  "description": "Director's Desktop — AI creative studio for generating and cutting films",
   "type": "module",
   "main": "dist-electron/main.js",
-  "author": "Lightricks",
+  "author": "Machine King Labs",
   "license": "Apache-2.0",
+  "//license": "Derived from LTX Desktop (Copyright 2024 Lightricks), Apache-2.0. See LICENSE.txt and MODIFICATIONS.md.",
+  "//name": "PRE-SHIP: `name` and electron-builder `appId` still carry upstream identifiers. Changing them relocates app.getPath('userData') (dev settings + the multi-GB embedded Python) and changes the installed app identity, so migrate deliberately before a public release, not casually.",
   "private": true,
   "packageManager": "pnpm@10.30.3",
   "scripts": {
