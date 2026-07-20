@@ -5,6 +5,7 @@ import {
   FlipHorizontal2, FlipVertical2, Link2, Unlink2,
   ChevronLeft, ChevronRight, // IC-LORA HIDDEN: removed Sparkles
   Video, Camera, Image as ImageIcon, Library,
+  Shirt, UserRound, MapPin, Palette,
 } from 'lucide-react'
 import type { Asset, TimelineClip, Track, TextOverlayStyle } from '../../types/project'
 import { TEXT_PRESETS } from '../../types/project'
@@ -55,6 +56,7 @@ export interface ClipContextMenuProps {
   onCaptureFrameForVideo: (clip: TimelineClip) => void
   onCaptureFrameAsReference: (clip: TimelineClip) => void
   onCaptureFrameToReferences: (clip: TimelineClip) => void
+  onCaptureFrameQuickMode: (clip: TimelineClip, kind: 'wardrobe' | 'character' | 'location' | 'style') => void
   onCreateVideoFromAudio: (clip: TimelineClip) => void
 }
 
@@ -136,6 +138,7 @@ export function ClipContextMenu({
   onCaptureFrameForVideo,
   onCaptureFrameAsReference,
   onCaptureFrameToReferences,
+  onCaptureFrameQuickMode,
   onCreateVideoFromAudio,
 }: ClipContextMenuProps) {
   const close = () => setClipContextMenu(null)
@@ -255,6 +258,7 @@ export function ClipContextMenu({
           onCaptureFrameForVideo={onCaptureFrameForVideo}
           onCaptureFrameAsReference={onCaptureFrameAsReference}
           onCaptureFrameToReferences={onCaptureFrameToReferences}
+          onCaptureFrameQuickMode={onCaptureFrameQuickMode}
           onCreateVideoFromAudio={onCreateVideoFromAudio}
           close={close}
         />
@@ -289,6 +293,7 @@ function SingleClipMenu({
   onCaptureFrameForVideo,
   onCaptureFrameAsReference,
   onCaptureFrameToReferences,
+  onCaptureFrameQuickMode,
   onCreateVideoFromAudio,
   close,
 }: {
@@ -324,6 +329,7 @@ function SingleClipMenu({
   onCaptureFrameForVideo: (clip: TimelineClip) => void
   onCaptureFrameAsReference: (clip: TimelineClip) => void
   onCaptureFrameToReferences: (clip: TimelineClip) => void
+  onCaptureFrameQuickMode: (clip: TimelineClip, kind: 'wardrobe' | 'character' | 'location' | 'style') => void
   onCreateVideoFromAudio: (clip: TimelineClip) => void
   close: () => void
 }) {
@@ -561,6 +567,14 @@ function SingleClipMenu({
                   onClick={() => { onCaptureFrameAsReference(contextClip); close() }} />
                 <MenuItem icon={Library} iconClass="text-amber-400" label="Save to References Library"
                   onClick={() => { onCaptureFrameToReferences(contextClip); close() }} />
+                <MenuItem icon={Shirt} iconClass="text-amber-400" label="Wardrobe Sheet from Frame"
+                  onClick={() => { onCaptureFrameQuickMode(contextClip, 'wardrobe'); close() }} />
+                <MenuItem icon={UserRound} iconClass="text-amber-400" label="Character Sheet from Frame"
+                  onClick={() => { onCaptureFrameQuickMode(contextClip, 'character'); close() }} />
+                <MenuItem icon={MapPin} iconClass="text-amber-400" label="Location Sheet from Frame"
+                  onClick={() => { onCaptureFrameQuickMode(contextClip, 'location'); close() }} />
+                <MenuItem icon={Palette} iconClass="text-amber-400" label="Style Guide from Frame"
+                  onClick={() => { onCaptureFrameQuickMode(contextClip, 'style'); close() }} />
                 <MenuItem icon={Video} iconClass="text-blue-400" label="Generate Video in Gen Space"
                   onClick={() => { onCaptureFrameForVideo(contextClip); close() }} />
                 {isImage && (

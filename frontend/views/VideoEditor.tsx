@@ -1617,6 +1617,21 @@ export function VideoEditor() {
     setCurrentTab('gen-space')
   }, [extractCurrentFrame, persistFrame, setPendingReferenceImage, setCurrentTab])
 
+  // Frame → quick mode: grab the playhead frame, arm the chosen quick mode in Gen
+  // Space with the frame attached. The generation lands in this project's assets,
+  // so it's right there in the editor's asset panel to drag onto the timeline.
+  const handleCaptureFrameQuickMode = useCallback(async (
+    clip: TimelineClip,
+    kind: 'wardrobe' | 'character' | 'location' | 'style',
+  ) => {
+    const frameUrl = await extractCurrentFrame(clip)
+    if (!frameUrl) return
+    const persisted = await persistFrame(frameUrl)
+    if (!persisted) { setFrameActionMsg({ kind: 'error', text: 'Could not capture the frame.' }); return }
+    setPendingReferenceImage({ path: persisted, quickMode: kind })
+    setCurrentTab('gen-space')
+  }, [extractCurrentFrame, persistFrame, setPendingReferenceImage, setCurrentTab])
+
   // Capture the current frame and save it to the References library so it's a
   // reusable reference everywhere (ReferencePicker, @-mentions, future Shot Creator).
   const handleCaptureFrameToReferences = useCallback(async (clip: TimelineClip) => {
@@ -4282,6 +4297,7 @@ export function VideoEditor() {
             setShowICLoraPanel={_setShowICLoraPanel}
             onCaptureFrameForVideo={handleCaptureFrameForVideo}
             onCaptureFrameAsReference={handleCaptureFrameAsReference}
+            onCaptureFrameQuickMode={handleCaptureFrameQuickMode}
             onCaptureFrameToReferences={handleCaptureFrameToReferences}
             onCreateVideoFromAudio={handleCreateVideoFromAudio}
           />

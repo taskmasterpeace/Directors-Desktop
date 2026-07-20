@@ -431,6 +431,8 @@ function PromptBar({
   hasFalApiKey,
   onEditImageFile,
   onBatchClick,
+  activeQuickMode,
+  onQuickModeToggle,
 }: {
   mode: 'image' | 'video' | 'retake'
   onModeChange: (mode: 'image' | 'video' | 'retake') => void
@@ -457,6 +459,8 @@ function PromptBar({
   hasFalApiKey: boolean
   onBatchClick: () => void
   onEditImageFile: (fileUrl: string) => void
+  activeQuickMode: QuickModeKind | null
+  onQuickModeToggle: (kind: QuickModeKind | null) => void
   settings: {
     model: string
     duration: number
@@ -485,32 +489,33 @@ function PromptBar({
     onSettingsChange({ ...settings, imageModelParams: { ...imageModelParams, [key]: value } })
 
   /**
-   * One-tap quick modes: pick photo(s) → switch to image mode on the right model
-   * with the right aspect/params/refs → drop the Palette-verbatim prompt in the
-   * box, ready to Generate. (Wardrobe prepends the system mannequin so the ref
-   * order is [mannequin, outfit], matching Palette exactly.)
+   * Quick modes are TOGGLES (Palette Shot Creator behavior): click one on, attach
+   * photo(s) via the + button (or arrive from the editor with a frame), and the
+   * whole recipe — model, aspect, params, mannequin, verbatim prompt — is applied
+   * behind the scenes when you hit Generate. Nothing is asked up front.
    */
-  const runQuickMode = async (kind: QuickModeKind) => {
-    const qm = QUICK_MODES[kind]
+  const runQuickMode = (kind: QuickModeKind) => {
+    if (activeQuickMode === kind) {
+      onQuickModeToggle(null)
+      return
+    }
+    onModeChange('image')
+    onQuickModeToggle(kind)
+  }
+
+  /** Add reference photos for the active model / quick mode. */
+  const addReferencePhotos = async () => {
     try {
       const files = await window.electronAPI.showOpenFileDialog({
-        title: qm.pickerTitle,
+        title: 'Add reference photo(s)',
         filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp'] }],
-        properties: qm.maxPhotos > 1 ? ['openFile', 'multiSelections'] : ['openFile'],
+        properties: ['openFile', 'multiSelections'],
       })
       if (!files || files.length === 0) return
-      const photos = files.slice(0, qm.maxPhotos)
-      onModeChange('image')
-      void saveImageModel(qm.modelId)
-      onSettingsChange({
-        ...settings,
-        aspectRatio: qm.aspectRatio,
-        imageModelParams: { ...(qm.modelParams ?? {}) },
-        referenceImagePaths: [...(qm.prependReferenceUrls ?? []), ...photos],
-      })
-      onPromptChange(qm.prompt)
+      const existing = settings.referenceImagePaths ?? []
+      onSettingsChange({ ...settings, referenceImagePaths: [...existing, ...files] })
     } catch {
-      /* picker cancelled */
+      /* cancelled */
     }
   }
 
@@ -869,18 +874,35 @@ function PromptBar({
         {(Object.keys(QUICK_MODES) as QuickModeKind[]).map((kind) => {
           const qm = QUICK_MODES[kind]
           const Icon = QUICK_MODE_ICONS[kind]
+          const active = activeQuickMode === kind
           return (
             <button
               key={kind}
-              title={qm.hint}
-              onClick={() => void runQuickMode(kind)}
-              className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-zinc-300 bg-zinc-800/70 border border-zinc-700/60 hover:border-amber-500/50 hover:text-amber-300 transition-colors"
+              title={`${qm.hint} — click to toggle`}
+              onClick={() => runQuickMode(kind)}
+              className={`flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium border transition-colors ${
+                active
+                  ? 'bg-amber-500/20 border-amber-500/70 text-amber-300'
+                  : 'text-zinc-300 bg-zinc-800/70 border-zinc-700/60 hover:border-amber-500/50 hover:text-amber-300'
+              }`}
             >
               <Icon className="h-3 w-3" />
               {qm.label}
             </button>
           )
         })}
+        {mode === 'image' && (
+          <button
+            title="Add reference photo(s)"
+            onClick={() => void addReferencePhotos()}
+            className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-zinc-400 bg-zinc-800/40 border border-dashed border-zinc-700 hover:text-white hover:border-zinc-500 transition-colors"
+          >
+            + Photo
+          </button>
+        )}
+        {activeQuickMode && !settings.referenceImagePaths?.length && (
+          <span className="text-[10px] text-amber-400/90">Attach photo(s) — the rest is automatic</span>
+        )}
       </div>
 
       {mode === 'video' && (
@@ -1401,6 +1423,8 @@ export function GenSpace() {
   const confirm = useConfirm()
   const { shouldVideoGenerateWithLtxApi, forceApiGenerations, settings: appSettings, credits } = useAppSettings()
   const [mode, setMode] = useState<'image' | 'video' | 'retake'>('video')
+  // Palette-style quick-mode toggle: armed here, applied behind the scenes at Generate.
+  const [activeQuickMode, setActiveQuickMode] = useState<QuickModeKind | null>(null)
   const [prompt, setPrompt] = useState('')
   const [inputImage, setInputImage] = useState<string | null>(null)
   const [inputAudio, setInputAudio] = useState<string | null>(null)
@@ -1502,8 +1526,20 @@ export function GenSpace() {
   // reference image (omni-reference @Image), switching to video mode + model.
   useEffect(() => {
     if (!pendingReferenceImage) return
-    const { path } = pendingReferenceImage
+    const { path, quickMode } = pendingReferenceImage
     setPendingReferenceImage(null)
+    if (quickMode) {
+      // Editor sent a frame straight into a quick mode: arm it in image mode with
+      // the frame attached — the result lands in this project's assets.
+      setMode('image')
+      setActiveQuickMode(quickMode)
+      setSettings((prev) => {
+        const existing = prev.referenceImagePaths ?? []
+        if (existing.includes(path)) return prev
+        return { ...prev, referenceImagePaths: [...existing, path] }
+      })
+      return
+    }
     setMode('video')
     setSettings((prev) => {
       const existing = prev.referenceImagePaths ?? []
@@ -1786,6 +1822,18 @@ export function GenSpace() {
     setLastPrompt(prompt)
 
     if (mode === 'image') {
+      // Active quick mode: apply the whole Palette recipe behind the scenes —
+      // model, aspect, params, mannequin prepend, verbatim prompt. The user only
+      // toggled a button and attached photo(s).
+      const qm = activeQuickMode ? QUICK_MODES[activeQuickMode] : null
+      const userRefs = settings.referenceImagePaths ?? []
+      const quickPrompt = qm
+        ? (activeQuickMode === 'wardrobe'
+            ? qm.prompt // Palette ignores the typed prompt in wardrobe mode
+            : prompt.trim()
+              ? `${qm.prompt}\n\nADDITIONAL NOTES: ${prompt.trim()}`
+              : qm.prompt)
+        : prompt
       const imageSettings = {
         model: 'fast' as const,
         duration: 5,
@@ -1794,20 +1842,29 @@ export function GenSpace() {
         audio: false,
         cameraMotion: 'none',
         imageResolution: settings.imageResolution,
-        imageAspectRatio: coerceAspectRatio(appSettings.imageModel, settings.aspectRatio),
+        imageAspectRatio: qm
+          ? qm.aspectRatio
+          : coerceAspectRatio(appSettings.imageModel, settings.aspectRatio),
         imageSteps: 4,
         variations: settings.variations,
         strength: editStrength,
         // Reference images (hosted Palette models) + per-model settings
         // (gpt quality, Camera Angle azimuth/elevation/distance).
-        referenceImagePaths: settings.referenceImagePaths,
-        imageModelParams: settings.imageModelParams,
+        imageModel: qm?.modelId,
+        referenceImagePaths: qm
+          ? [...(qm.prependReferenceUrls ?? []), ...userRefs.slice(0, qm.maxPhotos)]
+          : settings.referenceImagePaths,
+        imageModelParams: qm ? { ...(qm.modelParams ?? {}) } : settings.imageModelParams,
+      }
+      if (qm && userRefs.length === 0) {
+        setLocalError(`${qm.label} needs at least one attached photo — use + Photo`)
+        return
       }
 
       if (editSourceImage) {
         editImage(prompt, editSourceImage.path, imageSettings, editStrength)
       } else {
-        generateImage(prompt, imageSettings)
+        generateImage(quickPrompt, imageSettings)
       }
     } else {
       // Generate video (t2v if no image/audio, i2v if image, a2v if audio)
@@ -2122,6 +2179,8 @@ export function GenSpace() {
         <PromptBar
           mode={mode}
           onModeChange={setMode}
+          activeQuickMode={activeQuickMode}
+          onQuickModeToggle={setActiveQuickMode}
           prompt={prompt}
           onPromptChange={setPrompt}
           onGenerate={handleGenerate}
