@@ -55,7 +55,8 @@ export function getBackendHealthStatus(): BackendHealthStatus | null {
   return latestBackendHealthStatus
 }
 
-function getBackendPath(): string {
+/** Where the Python backend lives: repo checkout in dev, resources/ in packaged builds. */
+export function getBackendPath(): string {
   if (isDev) {
     return path.join(getCurrentDir(), 'backend')
   }

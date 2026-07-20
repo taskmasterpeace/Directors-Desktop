@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Protocol
 
 
@@ -26,6 +27,7 @@ class PaletteImageClient(Protocol):
         aspect_ratio: str = "16:9",
         reference_image_urls: list[str] | None = None,
         params: dict[str, object] | None = None,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> bytes:
         """Generate one image via Director's Palette v2 (submit + poll) and return the raw bytes.
 
@@ -46,6 +48,7 @@ class PaletteImageClient(Protocol):
         lora_scale: float | None = None,
         aspect_ratio: str | None = None,
         output_format: str | None = None,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> bytes:
         """Orbit the camera around a subject (qwen multi-angle) and return the raw bytes."""
         ...

@@ -1,0 +1,20 @@
+{
+  // Typecheck-only view of the Electron main/preload/IPC code.
+  //
+  // Why this exists: `pnpm typecheck:ts` runs plain `tsc --noEmit`, which ignores
+  // project references — so tsconfig.node.json (composite, referenced from the
+  // root config) was never actually checked and type errors in electron/** shipped
+  // silently. Composite projects can't run with --noEmit, and tsconfig.node.json
+  // also declares rootDir "electron" while including the root-level vite.config.ts
+  // (a TS6059 conflict under plain -p). This config drops both constraints purely
+  // for checking; the real build is still done by vite/esbuild.
+  "extends": "./tsconfig.node.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "rootDir": ".",
+    "target": "ES2022",
+    "types": ["node"]
+  },
+  "include": ["electron/**/*.ts", "vite.config.ts"]
+}

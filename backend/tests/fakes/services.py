@@ -407,7 +407,10 @@ class FakePaletteImageClient:
         aspect_ratio: str = "16:9",
         reference_image_urls: list[str] | None = None,
         params: dict[str, object] | None = None,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> bytes:
+        if should_cancel is not None and should_cancel():
+            raise RuntimeError("Generation was cancelled")
         self.calls.append(
             {
                 "api_key": api_key,
@@ -416,6 +419,7 @@ class FakePaletteImageClient:
                 "aspect_ratio": aspect_ratio,
                 "reference_image_urls": reference_image_urls,
                 "params": params,
+                "should_cancel": should_cancel,
             }
         )
         return self.result
@@ -432,7 +436,10 @@ class FakePaletteImageClient:
         lora_scale: float | None = None,
         aspect_ratio: str | None = None,
         output_format: str | None = None,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> bytes:
+        if should_cancel is not None and should_cancel():
+            raise RuntimeError("Generation was cancelled")
         self.camera_calls.append(
             {
                 "api_key": api_key,

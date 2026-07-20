@@ -272,7 +272,12 @@ export function registerFileHandlers(): void {
   // hands the session back via the directorsdesktop://auth/callback deep link (see main.ts).
   ipcMain.handle('open-palette-auth', async () => {
     const { shell } = await import('electron')
-    const redirect = encodeURIComponent('directorsdesktop://auth/callback')
+    const { issueDeepLinkState } = await import('../palette-auth-state')
+    // The state nonce rides INSIDE the redirect URL — the /auth/desktop bridge
+    // preserves the redirect's query params verbatim, and handleDeepLink refuses
+    // any callback whose state doesn't match (session-fixation guard).
+    const state = issueDeepLinkState()
+    const redirect = encodeURIComponent(`directorsdesktop://auth/callback?state=${state}`)
     await shell.openExternal(`https://directorspal.com/auth/desktop?redirect=${redirect}`)
     return true
   })
@@ -295,7 +300,9 @@ export function registerFileHandlers(): void {
 
   ipcMain.handle('show-item-in-folder', async (_event, filePath: string) => {
     const { shell } = await import('electron')
-    shell.showItemInFolder(filePath)
+    // Same allow-list as every other file handler — don't reveal arbitrary paths.
+    const normalizedPath = validatePath(filePath, getAllowedRoots())
+    shell.showItemInFolder(normalizedPath)
   })
 
   ipcMain.handle('read-local-file', async (_event, filePath: string) => {
@@ -369,7 +376,9 @@ export function registerFileHandlers(): void {
   })
 
   ipcMain.handle('search-directory-for-files', async (_event, dir: string, filenames: string[]) => {
-    return searchDirectoryForFiles(dir, filenames)
+    // Allow-list the walk root — a renderer must not enumerate arbitrary directories.
+    const normalizedDir = validatePath(dir, getAllowedRoots())
+    return searchDirectoryForFiles(normalizedDir, filenames)
   })
 
   ipcMain.handle('copy-file', async (_event, src: string, dest: string) => {
@@ -389,7 +398,10 @@ export function registerFileHandlers(): void {
     const results: Record<string, boolean> = {}
     for (const p of filePaths) {
       try {
-        results[p] = fs.existsSync(p)
+        // Paths outside the allow-list report false rather than acting as an
+        // existence oracle for the whole filesystem.
+        const normalized = validatePath(p, getAllowedRoots())
+        results[p] = fs.existsSync(normalized)
       } catch {
         results[p] = false
       }
