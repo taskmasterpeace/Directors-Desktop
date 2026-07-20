@@ -248,6 +248,18 @@ class ApiJobExecutor:
         syncer = _ProgressSyncer(self._handler, job.id)
         syncer.start()
         try:
+            from services.recast_client import RECAST_MODELS
+
+            if job.model in RECAST_MODELS:
+                # Person replacement: not a text->video generation — route to
+                # the recast handler (upload footage + character, run swap).
+                return self._handler.recast.execute(
+                    job.model,
+                    job.params,
+                    should_cancel=lambda: (
+                        (self._handler.job_queue.get_job(job.id) or job).status == "cancelled"
+                    ),
+                )
             if job.type == "image":
                 return self._execute_image(job)
             elif job.type == "video":

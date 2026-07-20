@@ -56,6 +56,7 @@ from services.interfaces import (
 from services.model_scanner.model_scanner import ModelScanner
 from services.audio_analysis import AudioAnalyzer
 from services.video_assembler import VideoAssembler
+from services.recast_client import RecastClient
 from state.app_state_types import AppState, StartupPending, TextEncoderState
 
 
@@ -94,6 +95,7 @@ class AppHandler:
         model_scanner: ModelScanner,
         audio_analyzer: AudioAnalyzer,
         video_assembler: VideoAssembler,
+        recast_client: RecastClient,
     ) -> None:
         self.config = config
 
@@ -107,6 +109,7 @@ class AppHandler:
         self.ltx_api_client = ltx_api_client
         self.audio_analyzer = audio_analyzer
         self.video_assembler = video_assembler
+        self.recast_client = recast_client
         self.image_api_client = image_api_client
         self.video_api_client = video_api_client
         self.fal_video_client = fal_video_client
@@ -329,6 +332,14 @@ class AppHandler:
             slot_for_model=self.determine_slot,
         )
 
+        from handlers.recast_handler import RecastHandler
+        self.recast = RecastHandler(
+            state=self.state,
+            recast_client=recast_client,
+            upload_client=fal_upload_client,
+            outputs_dir=config.outputs_dir,
+        )
+
         self.prompts = PromptHandler(
             state=self.state,
             lock=self._lock,
@@ -382,7 +393,10 @@ class AppHandler:
         # jobs, broke cancel (wrong slot), and skipped credit deduction.
         if model.startswith("dp-"):
             return "api"
-        always_api_models = {"seedance-1.5-pro", "seedance-2.0", "seedance-2.0-fast", "nano-banana-2"}
+        always_api_models = {
+            "seedance-1.5-pro", "seedance-2.0", "seedance-2.0-fast", "nano-banana-2",
+            "wan-animate-replace", "scail-2-replace",
+        }
         if model in always_api_models:
             return "api"
         if self.config.force_api_generations:
@@ -420,6 +434,7 @@ class ServiceBundle:
     model_scanner: ModelScanner
     audio_analyzer: AudioAnalyzer
     video_assembler: VideoAssembler
+    recast_client: RecastClient
 
 
 def build_default_service_bundle(config: RuntimeConfig) -> ServiceBundle:
@@ -432,6 +447,7 @@ def build_default_service_bundle(config: RuntimeConfig) -> ServiceBundle:
     from services.fal_video_client.fal_video_client_impl import FalVideoClientImpl
     from services.upload_client.fal_upload_client_impl import FalUploadClientImpl
     from services.palette_image_client.palette_image_client_impl import PaletteImageClientImpl
+    from services.recast_client import FalRecastClientImpl
     from services.audio_analysis import AudioAnalyzerImpl
     from services.video_assembler import VideoAssemblerImpl
     from services.gpu_cleaner.torch_cleaner import TorchCleaner
@@ -488,6 +504,7 @@ def build_default_service_bundle(config: RuntimeConfig) -> ServiceBundle:
         model_scanner=ModelScannerImpl(),
         audio_analyzer=AudioAnalyzerImpl(),
         video_assembler=VideoAssemblerImpl(),
+        recast_client=FalRecastClientImpl(http=http),
     )
 
 
@@ -529,4 +546,5 @@ def build_initial_state(
         model_scanner=bundle.model_scanner,
         audio_analyzer=bundle.audio_analyzer,
         video_assembler=bundle.video_assembler,
+        recast_client=bundle.recast_client,
     )

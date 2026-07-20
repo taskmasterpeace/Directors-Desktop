@@ -53,6 +53,7 @@ export interface ClipContextMenuProps {
   onRetakeClip: (clip: TimelineClip) => void
   castEntries: CastEntry[]
   onGenerateWithCastMember: (entry: CastEntry) => void
+  onReplacePerson: (clip: TimelineClip) => void
   setIcLoraSourceClipId: (v: string | null) => void
   setShowICLoraPanel: (v: boolean) => void
   onCaptureFrameForVideo: (clip: TimelineClip) => void
@@ -137,6 +138,7 @@ export function ClipContextMenu({
   onRetakeClip,
   castEntries,
   onGenerateWithCastMember,
+  onReplacePerson,
   setIcLoraSourceClipId, // IC-LORA HIDDEN: still passed to SingleClipMenu
   setShowICLoraPanel, // IC-LORA HIDDEN: still passed to SingleClipMenu
   onCaptureFrameForVideo,
@@ -259,6 +261,7 @@ export function ClipContextMenu({
           onRetakeClip={onRetakeClip}
           castEntries={castEntries}
           onGenerateWithCastMember={onGenerateWithCastMember}
+          onReplacePerson={onReplacePerson}
           setIcLoraSourceClipId={setIcLoraSourceClipId}
           setShowICLoraPanel={setShowICLoraPanel}
           onCaptureFrameForVideo={onCaptureFrameForVideo}
@@ -295,7 +298,7 @@ function SingleClipMenu({
   duplicateClip, splitClipAtPlayhead, removeClip, updateClip,
   getLiveAsset, getMaxClipDuration,
   setAssetFilter, setSelectedBin, setTakesViewAssetId, setSelectedAssetIds,
-  setI2vClipId, setI2vPrompt, onRetakeClip, castEntries, onGenerateWithCastMember, setIcLoraSourceClipId: _setIcLoraSourceClipId, setShowICLoraPanel: _setShowICLoraPanel, // IC-LORA HIDDEN
+  setI2vClipId, setI2vPrompt, onRetakeClip, castEntries, onGenerateWithCastMember, onReplacePerson, setIcLoraSourceClipId: _setIcLoraSourceClipId, setShowICLoraPanel: _setShowICLoraPanel, // IC-LORA HIDDEN
   onCaptureFrameForVideo,
   onCaptureFrameAsReference,
   onCaptureFrameToReferences,
@@ -332,6 +335,7 @@ function SingleClipMenu({
   onRetakeClip: (clip: TimelineClip) => void
   castEntries: CastEntry[]
   onGenerateWithCastMember: (entry: CastEntry) => void
+  onReplacePerson: (clip: TimelineClip) => void
   setIcLoraSourceClipId: (v: string | null) => void
   setShowICLoraPanel: (v: boolean) => void
   onCaptureFrameForVideo: (clip: TimelineClip) => void
@@ -547,6 +551,8 @@ function SingleClipMenu({
             <>
               <MenuItem icon={Film} iconClass="text-blue-400" label="Retake Section"
                 onClick={() => { onRetakeClip(contextClip); close() }} />
+              <MenuItem icon={UserRound} iconClass="text-emerald-400" label="Replace Person..."
+                onClick={() => { onReplacePerson(contextClip); close() }} />
               {/* IC-LORA HIDDEN - IC-LoRA context menu item hidden because IC-LoRA is broken on server
               <MenuItem icon={Sparkles} iconClass="text-amber-400" label="IC-LoRA / Style Transfer"
                 onClick={() => { setIcLoraSourceClipId(contextClip.id); setShowICLoraPanel(true); close() }} />

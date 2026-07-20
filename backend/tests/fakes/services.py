@@ -1063,6 +1063,38 @@ class FakeTextEncoder:
         return None
 
 
+class FakeRecastClient:
+    def __init__(self, result: bytes = b"fake-recast-video") -> None:
+        self.replace_calls: list[dict[str, Any]] = []
+        self.raise_on_replace: Exception | None = None
+        self.result = result
+
+    def replace(
+        self,
+        *,
+        api_key: str,
+        model: str,
+        video_url: str,
+        image_url: str,
+        resolution: str,
+        prompt: str = "",
+        should_cancel=None,
+    ) -> bytes:
+        self.replace_calls.append(
+            {
+                "api_key": api_key,
+                "model": model,
+                "video_url": video_url,
+                "image_url": image_url,
+                "resolution": resolution,
+                "prompt": prompt,
+            }
+        )
+        if self.raise_on_replace is not None:
+            raise self.raise_on_replace
+        return self.result
+
+
 class FakeAudioAnalyzer:
     """Deterministic 40s / 120bpm analysis: intro (quiet) + chorus (loud)."""
 
@@ -1135,6 +1167,7 @@ class FakeServices:
     model_scanner: FakeModelScanner = field(default_factory=FakeModelScanner)
     audio_analyzer: FakeAudioAnalyzer = field(default_factory=FakeAudioAnalyzer)
     video_assembler: FakeVideoAssembler = field(default_factory=FakeVideoAssembler)
+    recast_client: FakeRecastClient = field(default_factory=FakeRecastClient)
 
     def __post_init__(self) -> None:
         FakeFastVideoPipeline.bind_singleton(self.fast_video_pipeline)

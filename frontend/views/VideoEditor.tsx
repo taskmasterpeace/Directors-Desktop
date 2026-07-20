@@ -49,6 +49,7 @@ import { TranscriptPanel } from '../components/TranscriptPanel'
 import { rippleDeleteSpan, sourceTimeToTimelineTime } from '../lib/transcript-ripple'
 import { StoryCastPanel } from './editor/StoryCastPanel'
 import { useAgentActions } from './editor/useAgentActions'
+import { ReplacePersonModal } from './editor/ReplacePersonModal'
 import { captionsFromWords } from '../lib/captions-from-transcript'
 import { generateFromPrompt } from '../lib/transcript-generate'
 import { copyToAssetFolder } from '../lib/asset-copy'
@@ -1870,6 +1871,87 @@ export function VideoEditor() {
     setPendingReferenceImage({ path: persisted, quickMode: kind })
     setCurrentTab('gen-space')
   }, [extractCurrentFrame, persistFrame, setPendingReferenceImage, setCurrentTab])
+
+  // Replace Person (Recast): swap the person in this clip's footage for a
+  // character image. Runs as a cloud queue job; the finished video comes back
+  // as a new TAKE on the clip's asset.
+  const [replacePersonClip, setReplacePersonClip] = useState<TimelineClip | null>(null)
+  const [recastJobs, setRecastJobs] = useState<{ jobId: string; assetId: string; clipId: string }[]>([])
+
+  const handleReplacePersonSubmit = useCallback(async (
+    clip: TimelineClip,
+    opts: { characterImagePath: string; model: string; resolution: string },
+  ) => {
+    const liveAsset = clip.assetId ? assets.find((a) => a.id === clip.assetId) : clip.asset
+    if (!liveAsset) throw new Error('This clip has no source asset')
+    const takeIndex = clip.takeIndex ?? liveAsset.activeTakeIndex
+    let videoPath = liveAsset.path
+    if (liveAsset.takes && liveAsset.takes.length > 0 && takeIndex !== undefined) {
+      const take = liveAsset.takes[Math.max(0, Math.min(takeIndex, liveAsset.takes.length - 1))]
+      if (take?.path) videoPath = take.path
+    }
+    if (!videoPath) throw new Error('Could not resolve the clip video file')
+    const base = await window.electronAPI.getBackendUrl()
+    const res = await fetch(`${base}/api/queue/submit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'video',
+        model: opts.model,
+        params: {
+          videoPath,
+          characterImagePath: opts.characterImagePath,
+          resolution: opts.resolution,
+        },
+      }),
+    })
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string }
+      throw new Error(body.error || `Submit failed (${res.status})`)
+    }
+    const data = (await res.json()) as { id: string }
+    setRecastJobs((prev) => [...prev, { jobId: data.id, assetId: liveAsset.id, clipId: clip.id }])
+    setFrameActionMsg({ kind: 'ok', text: 'Replacing person — the result lands as a new take on this clip.' })
+  }, [assets])
+
+  // Poll running recast jobs; on completion add the result as a take and
+  // point the clip at it.
+  useEffect(() => {
+    if (recastJobs.length === 0) return
+    const interval = setInterval(async () => {
+      try {
+        const base = await window.electronAPI.getBackendUrl()
+        const res = await fetch(`${base}/api/queue/status`)
+        if (!res.ok) return
+        const data = (await res.json()) as { jobs: { id: string; status: string; result_paths: string[]; error?: string | null }[] }
+        for (const tracked of recastJobs) {
+          const job = data.jobs.find((j) => j.id === tracked.jobId)
+          if (!job || job.status === 'queued' || job.status === 'running') continue
+          setRecastJobs((prev) => prev.filter((t) => t.jobId !== tracked.jobId))
+          if (job.status === 'complete' && job.result_paths[0] && currentProjectId) {
+            const resultPath = job.result_paths[0]
+            const normalized = resultPath.replace(/\\/g, '/')
+            const origUrl = normalized.startsWith('/') ? `file://${normalized}` : `file:///${normalized}`
+            const { path: finalPath, url: finalUrl } = await copyToAssetFolder(
+              resultPath, origUrl, currentProject?.assetSavePath,
+            )
+            const asset = assets.find((a) => a.id === tracked.assetId)
+            const newTakeIndex = asset?.takes ? asset.takes.length : 1
+            addTakeToAsset(currentProjectId, tracked.assetId, {
+              url: finalUrl, path: finalPath, createdAt: Date.now(),
+            })
+            setClips((prev) => prev.map((c) => (c.id === tracked.clipId ? { ...c, takeIndex: newTakeIndex } : c)))
+            setFrameActionMsg({ kind: 'ok', text: 'Person replaced — new take active on the clip (flip takes to compare).' })
+          } else if (job.status !== 'complete') {
+            setFrameActionMsg({ kind: 'error', text: `Replace person failed: ${job.error || job.status}` })
+          }
+        }
+      } catch {
+        /* transient */
+      }
+    }, 2000)
+    return () => clearInterval(interval)
+  }, [recastJobs, currentProjectId, currentProject?.assetSavePath, assets, addTakeToAsset, setClips])
 
   // Cast member -> Gen Space: arm the next generation with the linked library
   // character's reference image attached (the "Generate with cast member" flow).
@@ -4642,6 +4724,7 @@ export function VideoEditor() {
             onRetakeClip={handleRetakeClip}
             castEntries={currentProject?.cast ?? []}
             onGenerateWithCastMember={handleGenerateWithCastMember}
+            onReplacePerson={setReplacePersonClip}
             setIcLoraSourceClipId={_setIcLoraSourceClipId}
             setShowICLoraPanel={_setShowICLoraPanel}
             onCaptureFrameForVideo={handleCaptureFrameForVideo}
@@ -4684,6 +4767,13 @@ export function VideoEditor() {
       />
       
       {/* Project Settings Modal */}
+      {replacePersonClip && (
+        <ReplacePersonModal
+          videoLabel={(replacePersonClip.asset?.prompt || replacePersonClip.importedName || 'clip').slice(0, 40)}
+          onClose={() => setReplacePersonClip(null)}
+          onSubmit={(opts) => handleReplacePersonSubmit(replacePersonClip, opts)}
+        />
+      )}
       {showProjectSettings && currentProject && (() => {
         const projectAssetPath = currentProject.assetSavePath || ''
         return (

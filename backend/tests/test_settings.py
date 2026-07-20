@@ -216,6 +216,7 @@ class TestSettingsPersistence:
             model_scanner=fake_services.model_scanner,
             audio_analyzer=fake_services.audio_analyzer,
             video_assembler=fake_services.video_assembler,
+            recast_client=fake_services.recast_client,
         )
         return build_initial_state(test_state.config, default_app_settings.model_copy(deep=True), service_bundle=bundle)
 

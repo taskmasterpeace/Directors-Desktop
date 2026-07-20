@@ -94,6 +94,7 @@ def test_state(tmp_path: Path, fake_services: FakeServices):
         model_scanner=fake_services.model_scanner,
         audio_analyzer=fake_services.audio_analyzer,
         video_assembler=fake_services.video_assembler,
+        recast_client=fake_services.recast_client,
     )
 
     handler = build_initial_state(
