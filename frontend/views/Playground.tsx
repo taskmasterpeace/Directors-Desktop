@@ -7,6 +7,8 @@ import { VideoPlayer } from '../components/VideoPlayer'
 import { ImageResult } from '../components/ImageResult'
 import { FrameSlot } from '../components/FrameSlot'
 import { SettingsPanel, type GenerationSettings } from '../components/SettingsPanel'
+import { QuickModeToggles, applyQuickMode } from '../components/QuickModeToggles'
+import type { QuickModeKind } from '../lib/shot-creator/quick-modes'
 import { ModeTabs, type GenerationMode } from '../components/ModeTabs'
 import { LtxLogo } from '../components/LtxLogo'
 import { ModelStatusDropdown } from '../components/ModelStatusDropdown'
@@ -198,6 +200,24 @@ export function Playground() {
     }
   }
 
+  // Armed quick mode (Wardrobe/Character/Location/Style) — applied silently at Generate.
+  const [activeQuickMode, setActiveQuickMode] = useState<QuickModeKind | null>(null)
+
+  const addQuickModePhotos = async () => {
+    try {
+      const files = await window.electronAPI.showOpenFileDialog({
+        title: 'Add reference photo(s)',
+        filters: [{ name: 'Images', extensions: ['jpg', 'jpeg', 'png', 'webp'] }],
+        properties: ['openFile', 'multiSelections'],
+      })
+      if (!files || files.length === 0) return
+      setSettings((prev) => ({
+        ...prev,
+        referenceImagePaths: [...(prev.referenceImagePaths ?? []), ...files],
+      }))
+    } catch { /* cancelled */ }
+  }
+
   const handleGenerate = () => {
     if (mode === 'retake') {
       if (!retakeInput.videoPath || retakeInput.duration < 2) return
@@ -212,6 +232,19 @@ export function Playground() {
     }
 
     if (mode === 'text-to-image') {
+      const photos = settings.referenceImagePaths ?? []
+      if (activeQuickMode) {
+        if (photos.length === 0) return // toggle row shows the attach hint
+        const applied = applyQuickMode(activeQuickMode, prompt, photos)
+        generateImage(applied.prompt, {
+          ...settings,
+          imageModel: applied.imageModel,
+          imageAspectRatio: applied.imageAspectRatio,
+          imageModelParams: applied.imageModelParams,
+          referenceImagePaths: applied.referenceImagePaths,
+        })
+        return
+      }
       if (!prompt.trim()) return
       generateImage(prompt, settings)
     } else {
@@ -298,7 +331,9 @@ export function Playground() {
   const canGenerate = processStatus === 'alive' && !isBusy && (
     isRetakeMode
       ? retakeInput.ready && !!retakeInput.videoPath
-      : !!prompt.trim()
+      : mode === 'text-to-image' && activeQuickMode
+        ? (settings.referenceImagePaths?.length ?? 0) > 0 // the recipe brings its own prompt
+        : !!prompt.trim()
   )
 
   // Compute estimated credit cost for current generation
@@ -441,9 +476,17 @@ export function Playground() {
               )}
             </div>
 
-            {/* Recipe quick-insert */}
-            <div className="flex">
+            {/* Recipe quick-insert + one-tap quick modes (same row as Gen Space) */}
+            <div className="flex items-center gap-2 flex-wrap">
               <RecipePicker onInsert={(text) => setPrompt(insertAtCaret(promptRef.current, prompt, text))} />
+              {mode === 'text-to-image' && (
+                <QuickModeToggles
+                  active={activeQuickMode}
+                  onToggle={setActiveQuickMode}
+                  hasPhotos={(settings.referenceImagePaths?.length ?? 0) > 0}
+                  onAddPhotos={() => void addQuickModePhotos()}
+                />
+              )}
             </div>
 
             {/* Settings */}
