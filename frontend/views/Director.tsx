@@ -1,0 +1,428 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ArrowLeft, Clapperboard, FolderOpen, Image as ImageIcon, Music, Play, RotateCcw, Square, X } from 'lucide-react'
+import { useProjects } from '../contexts/ProjectContext'
+import { LtxLogo } from '../components/LtxLogo'
+import { logger } from '../lib/logger'
+import { toImgSrc } from '../lib/path-to-img-src'
+
+/**
+ * Director — turn a song into a finished music video.
+ *
+ * Pick a song + one line of concept; the backend listens (beats, tempo,
+ * sections), plans beat-snapped shots, renders each through the queue
+ * (Seedance), trims every clip to its exact cut and lays the song under the
+ * picture. Crash-safe: an interrupted build resumes where it stopped.
+ */
+
+interface DirectorShot {
+  index: number
+  start: number
+  end: number
+  sectionLabel: string
+  shotType: string
+  prompt: string
+  generateSeconds: number
+  status: 'pending' | 'submitted' | 'complete' | 'error'
+  error: string | null
+  resultPath: string | null
+}
+
+interface DirectorRun {
+  id: string
+  phase: 'analyzing' | 'generating' | 'assembling' | 'complete' | 'error' | 'cancelled'
+  error: string | null
+  audioPath: string
+  concept: string
+  model: string
+  resolution: string
+  createdAt: number
+  outputPath: string | null
+  tempoBpm: number | null
+  songSeconds: number | null
+  sectionCount: number | null
+  shots: DirectorShot[]
+}
+
+const MODELS = [
+  { id: 'seedance-2.0', label: 'Seedance 2.0 (best quality)' },
+  { id: 'seedance-2.0-fast', label: 'Seedance 2.0 Fast (cheaper, quicker)' },
+]
+const RESOLUTIONS = ['480p', '720p', '1080p']
+
+const PHASE_STEPS: { key: DirectorRun['phase'] | 'done'; label: string }[] = [
+  { key: 'analyzing', label: 'Listen' },
+  { key: 'generating', label: 'Generate' },
+  { key: 'assembling', label: 'Assemble' },
+  { key: 'complete', label: 'Done' },
+]
+
+const SHOT_COLOR: Record<DirectorShot['status'], string> = {
+  pending: 'bg-zinc-700',
+  submitted: 'bg-amber-500 animate-pulse',
+  complete: 'bg-emerald-500',
+  error: 'bg-red-500',
+}
+
+async function backendBase(): Promise<string> {
+  return await window.electronAPI.getBackendUrl()
+}
+
+export function Director() {
+  const { goHome } = useProjects()
+  const [audioPath, setAudioPath] = useState<string | null>(null)
+  const [concept, setConcept] = useState('')
+  const [model, setModel] = useState(MODELS[0].id)
+  const [resolution, setResolution] = useState('720p')
+  const [referencePaths, setReferencePaths] = useState<string[]>([])
+  const [run, setRun] = useState<DirectorRun | null>(null)
+  const [starting, setStarting] = useState(false)
+  const [startError, setStartError] = useState<string | null>(null)
+  const runIdRef = useRef<string | null>(null)
+
+  // Adopt the latest run on mount so a restarted app shows the in-flight build.
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const base = await backendBase()
+        const res = await fetch(`${base}/api/director/status`)
+        if (!res.ok) return
+        const data = (await res.json()) as { run: DirectorRun | null }
+        if (data.run) {
+          setRun(data.run)
+          runIdRef.current = data.run.id
+        }
+      } catch {
+        /* backend warming up */
+      }
+    })()
+  }, [])
+
+  // Poll while a run is active.
+  useEffect(() => {
+    const active = run && !['complete', 'error', 'cancelled'].includes(run.phase)
+    if (!active) return
+    const interval = setInterval(async () => {
+      try {
+        const base = await backendBase()
+        const res = await fetch(`${base}/api/director/status?runId=${runIdRef.current}`)
+        if (!res.ok) return
+        const data = (await res.json()) as { run: DirectorRun | null }
+        if (data.run && data.run.id === runIdRef.current) setRun(data.run)
+      } catch {
+        /* transient */
+      }
+    }, 1500)
+    return () => clearInterval(interval)
+  }, [run])
+
+  const pickSong = useCallback(async () => {
+    const files = await window.electronAPI.showOpenFileDialog({
+      title: 'Pick the song',
+      filters: [{ name: 'Audio', extensions: ['mp3', 'wav', 'flac', 'm4a', 'aac', 'ogg'] }],
+      properties: ['openFile'],
+    })
+    if (files && files[0]) setAudioPath(files[0])
+  }, [])
+
+  const pickReferences = useCallback(async () => {
+    const files = await window.electronAPI.showOpenFileDialog({
+      title: 'Reference images (character / style)',
+      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'webp'] }],
+      properties: ['openFile', 'multiSelections'],
+    })
+    if (files && files.length) setReferencePaths((prev) => [...prev, ...files].slice(0, 4))
+  }, [])
+
+  const start = useCallback(async () => {
+    if (!audioPath || !concept.trim() || starting) return
+    setStarting(true)
+    setStartError(null)
+    try {
+      const base = await backendBase()
+      const res = await fetch(`${base}/api/director/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          audioPath,
+          concept: concept.trim(),
+          model,
+          resolution,
+          referenceImagePaths: referencePaths,
+        }),
+      })
+      const data = (await res.json()) as { run?: DirectorRun; error?: string }
+      if (!res.ok || !data.run) throw new Error(data.error || `Start failed (${res.status})`)
+      runIdRef.current = data.run.id
+      setRun(data.run)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Could not start'
+      setStartError(msg)
+      logger.error(`Director start failed: ${msg}`)
+    } finally {
+      setStarting(false)
+    }
+  }, [audioPath, concept, model, resolution, referencePaths, starting])
+
+  const post = useCallback(async (endpoint: 'cancel' | 'resume') => {
+    if (!runIdRef.current) return
+    try {
+      const base = await backendBase()
+      const res = await fetch(`${base}/api/director/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runId: runIdRef.current }),
+      })
+      const data = (await res.json()) as { run: DirectorRun | null }
+      if (data.run) setRun(data.run)
+    } catch (e) {
+      logger.error(`Director ${endpoint} failed: ${e}`)
+    }
+  }, [])
+
+  const isActive = run != null && !['complete', 'error', 'cancelled'].includes(run.phase)
+  const shotsDone = run?.shots.filter((s) => s.status === 'complete').length ?? 0
+  const phaseIndex = run ? PHASE_STEPS.findIndex((p) => p.key === run.phase) : -1
+
+  return (
+    <div className="h-screen flex flex-col bg-zinc-950 text-white">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-5 py-3 border-b border-zinc-800/70">
+        <button onClick={goHome} className="p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-400 hover:text-white transition-colors">
+          <ArrowLeft className="h-4 w-4" />
+        </button>
+        <LtxLogo className="h-5" />
+        <div className="flex items-center gap-2">
+          <Clapperboard className="h-4 w-4 text-amber-400" />
+          <h1 className="text-sm font-semibold tracking-tight">Director</h1>
+          <span className="text-[11px] text-zinc-500">song in → music video out</span>
+        </div>
+      </div>
+
+      <div className="flex-1 flex overflow-hidden">
+        {/* ── Setup column ── */}
+        <div className="w-[340px] shrink-0 border-r border-zinc-800/70 p-4 space-y-4 overflow-y-auto">
+          <div>
+            <label className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Song</label>
+            <button
+              onClick={pickSong}
+              disabled={isActive}
+              className="mt-1.5 w-full flex items-center gap-2 rounded-lg border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 px-3 py-2.5 text-sm text-left transition-colors disabled:opacity-50"
+            >
+              <Music className="h-4 w-4 text-amber-400 shrink-0" />
+              <span className="truncate text-zinc-300">
+                {audioPath ? audioPath.split(/[\\/]/).pop() : 'Choose an audio file…'}
+              </span>
+            </button>
+          </div>
+
+          <div>
+            <label className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Concept</label>
+            <textarea
+              value={concept}
+              onChange={(e) => setConcept(e.target.value)}
+              disabled={isActive}
+              placeholder="One line about the video's world — e.g. 'neon-soaked rooftop chase at midnight, chrome and rain'"
+              className="mt-1.5 w-full h-24 rounded-lg border border-zinc-700 bg-zinc-900 p-2.5 text-sm text-zinc-200 resize-y disabled:opacity-50"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Model</label>
+              <select
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                disabled={isActive}
+                className="mt-1.5 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-2 text-xs text-zinc-200 disabled:opacity-50"
+              >
+                {MODELS.map((m) => (
+                  <option key={m.id} value={m.id}>{m.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Resolution</label>
+              <select
+                value={resolution}
+                onChange={(e) => setResolution(e.target.value)}
+                disabled={isActive}
+                className="mt-1.5 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-2 text-xs text-zinc-200 disabled:opacity-50"
+              >
+                {RESOLUTIONS.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between">
+              <label className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Reference images</label>
+              <button
+                onClick={pickReferences}
+                disabled={isActive || referencePaths.length >= 4}
+                className="text-[11px] text-zinc-300 hover:text-white px-2 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 transition-colors disabled:opacity-40"
+              >
+                <ImageIcon className="h-3 w-3 inline mr-1" />Add
+              </button>
+            </div>
+            <p className="text-[10px] text-zinc-600 mt-1">Optional — your artist / style refs ride every shot.</p>
+            {referencePaths.length > 0 && (
+              <div className="mt-2 flex gap-2 flex-wrap">
+                {referencePaths.map((p, i) => (
+                  <div key={i} className="relative group">
+                    <img src={toImgSrc(p)} alt="" className="h-14 w-14 object-cover rounded-md border border-zinc-700" />
+                    <button
+                      onClick={() => setReferencePaths((prev) => prev.filter((_, j) => j !== i))}
+                      className="absolute -top-1.5 -right-1.5 h-4 w-4 rounded-full bg-zinc-800 border border-zinc-600 text-zinc-300 hover:text-white hidden group-hover:flex items-center justify-center"
+                    >
+                      <X className="h-2.5 w-2.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button
+            onClick={start}
+            disabled={!audioPath || !concept.trim() || starting || isActive}
+            className="w-full flex items-center justify-center gap-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-zinc-950 font-semibold py-2.5 text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Play className="h-4 w-4" />
+            {starting ? 'Starting…' : 'Make the video'}
+          </button>
+          {startError && <p className="text-xs text-red-400">{startError}</p>}
+          <p className="text-[10px] text-zinc-600">
+            Each shot renders on your connected provider (fal) — a 3-minute song is roughly 25-40 shots.
+          </p>
+        </div>
+
+        {/* ── Run column ── */}
+        <div className="flex-1 p-6 overflow-y-auto">
+          {!run ? (
+            <div className="h-full flex flex-col items-center justify-center text-center">
+              <div className="h-16 w-16 rounded-full bg-amber-500/10 flex items-center justify-center mb-4">
+                <Clapperboard className="h-8 w-8 text-amber-400" />
+              </div>
+              <p className="text-sm text-zinc-400 max-w-sm">
+                Pick a song and a concept. Director listens for the beat and structure, plans the cut,
+                renders every shot, and delivers a finished video synced to the music.
+              </p>
+            </div>
+          ) : (
+            <div className="max-w-3xl mx-auto space-y-6">
+              {/* Phase stepper */}
+              <div className="flex items-center gap-2">
+                {PHASE_STEPS.map((step, i) => {
+                  const reached = phaseIndex >= i || run.phase === 'complete'
+                  const current = run.phase === step.key
+                  return (
+                    <div key={step.key} className="flex items-center gap-2">
+                      <div
+                        className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
+                          current
+                            ? 'bg-amber-500 text-zinc-950 border-amber-400'
+                            : reached
+                              ? 'bg-zinc-800 text-zinc-200 border-zinc-700'
+                              : 'bg-zinc-900 text-zinc-600 border-zinc-800'
+                        }`}
+                      >
+                        {step.label}
+                      </div>
+                      {i < PHASE_STEPS.length - 1 && <div className="w-6 h-px bg-zinc-700" />}
+                    </div>
+                  )
+                })}
+                <div className="ml-auto flex items-center gap-2">
+                  {isActive && (
+                    <button
+                      onClick={() => post('cancel')}
+                      className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-white px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors"
+                    >
+                      <Square className="h-3 w-3" /> Cancel
+                    </button>
+                  )}
+                  {(run.phase === 'error' || run.phase === 'cancelled') && (
+                    <button
+                      onClick={() => post('resume')}
+                      className="flex items-center gap-1.5 text-xs text-zinc-950 font-medium px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 transition-colors"
+                    >
+                      <RotateCcw className="h-3 w-3" /> Resume
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Analysis chips */}
+              {run.tempoBpm != null && (
+                <div className="flex gap-2 flex-wrap text-[11px]">
+                  <span className="px-2 py-1 rounded-md bg-zinc-800 text-zinc-300">{Math.round(run.tempoBpm)} BPM</span>
+                  {run.songSeconds != null && (
+                    <span className="px-2 py-1 rounded-md bg-zinc-800 text-zinc-300">
+                      {Math.floor(run.songSeconds / 60)}:{String(Math.round(run.songSeconds % 60)).padStart(2, '0')}
+                    </span>
+                  )}
+                  {run.sectionCount != null && (
+                    <span className="px-2 py-1 rounded-md bg-zinc-800 text-zinc-300">{run.sectionCount} sections</span>
+                  )}
+                  <span className="px-2 py-1 rounded-md bg-zinc-800 text-zinc-300">{run.shots.length} shots</span>
+                </div>
+              )}
+
+              {/* Error banner */}
+              {run.phase === 'error' && run.error && (
+                <div className="rounded-lg border border-red-900/60 bg-red-950/40 p-3 text-xs text-red-300">
+                  {run.error}
+                </div>
+              )}
+
+              {/* Shot progress */}
+              {run.shots.length > 0 && run.phase !== 'complete' && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs text-zinc-400">
+                      Shots: {shotsDone}/{run.shots.length} rendered
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {run.shots.map((s) => (
+                      <div
+                        key={s.index}
+                        title={`#${s.index + 1} · ${s.sectionLabel} · ${s.shotType} · ${s.status}${s.error ? ` — ${s.error}` : ''}\n${s.prompt}`}
+                        className={`h-5 rounded-sm ${SHOT_COLOR[s.status]} transition-colors`}
+                        style={{ width: `${Math.max(14, Math.min(56, (s.end - s.start) * 6))}px` }}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Result */}
+              {run.phase === 'complete' && run.outputPath && (
+                <div className="space-y-3">
+                  <video
+                    src={toImgSrc(run.outputPath)}
+                    controls
+                    className="w-full rounded-xl border border-zinc-800 bg-black"
+                  />
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => run.outputPath && window.electronAPI.showItemInFolder(run.outputPath)}
+                      className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-white px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors"
+                    >
+                      <FolderOpen className="h-3 w-3" /> Show in folder
+                    </button>
+                    <span className="text-[11px] text-zinc-500">Also in your Gallery.</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export default Director

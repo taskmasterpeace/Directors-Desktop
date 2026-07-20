@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, Folder, FolderOpen, MoreVertical, Trash2, Pencil, Sparkles, Image, UserCircle, ImageIcon, NotebookText, Braces, BookOpen, LogOut, LogIn, Key, Scissors } from 'lucide-react'
+import { Plus, Folder, FolderOpen, MoreVertical, Trash2, Pencil, Sparkles, Image, UserCircle, ImageIcon, NotebookText, Braces, BookOpen, LogOut, LogIn, Key, Scissors, Clapperboard } from 'lucide-react'
 import { useProjects } from '../contexts/ProjectContext'
 import { useAppSettings } from '../contexts/AppSettingsContext'
 import { LtxLogo } from '../components/LtxLogo'
@@ -114,7 +114,7 @@ function ProjectCard({ project, onOpen, onDelete, onRename, onSetAssetFolder }: 
 }
 
 export function Home() {
-  const { projects, createProject, deleteProject, renameProject, updateProject, openProject, importPaletteMv, openPlayground, openGallery, openCharacters, openReferences, openRecipes, openWildcards, openPromptLibrary, openClipTool } = useProjects()
+  const { projects, createProject, deleteProject, renameProject, updateProject, openProject, importPaletteMv, openPlayground, openGallery, openCharacters, openReferences, openRecipes, openWildcards, openPromptLibrary, openClipTool, openDirector } = useProjects()
 
   const [importingMv, setImportingMv] = useState(false)
   const [importMvError, setImportMvError] = useState<string | null>(null)
@@ -416,6 +416,13 @@ export function Home() {
             >
               <Scissors className="h-4 w-4" />
               Clip Tool
+            </button>
+            <button
+              onClick={openDirector}
+              className="w-full px-3 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white text-left text-sm flex items-center gap-2 transition-colors"
+            >
+              <Clapperboard className="h-4 w-4" />
+              Director
             </button>
           </div>
         </nav>

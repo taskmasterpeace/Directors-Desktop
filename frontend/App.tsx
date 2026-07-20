@@ -18,6 +18,7 @@ import { Recipes } from './views/Recipes'
 import { Wildcards } from './views/Wildcards'
 import { PromptLibrary } from './views/PromptLibrary'
 import ClipTool from './views/ClipTool'
+import Director from './views/Director'
 import { LaunchGate } from './components/FirstRunSetup'
 import { PythonSetup } from './components/PythonSetup'
 import { SettingsModal, type SettingsTabId } from './components/SettingsModal'
@@ -450,6 +451,8 @@ function AppContent() {
         return <PromptLibrary />
       case 'clip-tool':
         return <ClipTool />
+      case 'director':
+        return <Director />
       default:
         return <Home />
     }

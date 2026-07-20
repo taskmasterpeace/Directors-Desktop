@@ -54,6 +54,7 @@ interface ProjectContextType {
   openWildcards: () => void
   openPromptLibrary: () => void
   openClipTool: () => void
+  openDirector: () => void
   
   // Cross-view communication (editor → gen space)
   genSpaceEditImageUrl: string | null
@@ -633,6 +634,10 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     setCurrentView('clip-tool')
   }, [])
 
+  const openDirector = useCallback(() => {
+    setCurrentView('director')
+  }, [])
+
   // Memoize so consumers only re-render when a value they read actually changes,
   // not on every ProjectProvider render. Setters and useCallback'd handlers are
   // stable; only the state values below drive updates.
@@ -675,6 +680,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     openWildcards,
     openPromptLibrary,
     openClipTool,
+    openDirector,
     genSpaceEditImageUrl,
     setGenSpaceEditImageUrl,
     genSpaceEditMode,
@@ -699,7 +705,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     renameTimeline, duplicateTimeline, setActiveTimeline, updateTimeline,
     getActiveTimeline, openProject, importPaletteMv, goHome, openPlayground,
     openGallery, openCharacters, openStyles, openReferences, openRecipes,
-    openWildcards, openPromptLibrary, openClipTool,
+    openWildcards, openPromptLibrary, openClipTool, openDirector,
     genSpaceEditImageUrl, genSpaceEditMode, genSpaceAudioUrl,
     genSpaceRetakeSource, pendingRetakeUpdate, pendingClipReference, pendingAnimateImage,
     pendingReferenceImage,
