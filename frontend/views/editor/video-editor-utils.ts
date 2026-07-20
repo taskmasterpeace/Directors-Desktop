@@ -66,9 +66,9 @@ export const MAX_UNDO_HISTORY = 50
 
 /** Undo action types */
 export type UndoAction =
-  | { type: 'clips'; clips: TimelineClip[] }
+  | { type: 'clips'; clips: TimelineClip[]; markers?: import('../../types/project').TimelineMarker[] }
   | { type: 'assets'; assets: import('../../types/project').Asset[] }
-  | { type: 'tracks'; tracks: import('../../types/project').Track[]; clips: TimelineClip[]; subtitles: import('../../types/project').SubtitleClip[] }
+  | { type: 'tracks'; tracks: import('../../types/project').Track[]; clips: TimelineClip[]; subtitles: import('../../types/project').SubtitleClip[]; markers?: import('../../types/project').TimelineMarker[] }
 
 /** Tolerance in seconds for detecting adjacent clips (cut points) */
 export const CUT_POINT_TOLERANCE = 0.05

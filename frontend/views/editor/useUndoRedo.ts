@@ -1,5 +1,5 @@
 import { useRef, useCallback } from 'react'
-import type { Asset, TimelineClip, Track, SubtitleClip } from '../../types/project'
+import type { Asset, TimelineClip, TimelineMarker, Track, SubtitleClip } from '../../types/project'
 import { MAX_UNDO_HISTORY, type UndoAction } from './video-editor-utils'
 
 interface UseUndoRedoParams {
@@ -9,6 +9,8 @@ interface UseUndoRedoParams {
   setTracks: React.Dispatch<React.SetStateAction<Track[]>>
   subtitles: SubtitleClip[]
   setSubtitles: React.Dispatch<React.SetStateAction<SubtitleClip[]>>
+  markers: TimelineMarker[]
+  setMarkers: React.Dispatch<React.SetStateAction<TimelineMarker[]>>
   assets: Asset[]
   currentProjectId: string | null
   deleteAsset: (projectId: string, assetId: string) => void
@@ -26,6 +28,8 @@ export function useUndoRedo({
   setTracks,
   subtitles,
   setSubtitles,
+  markers,
+  setMarkers,
   assets,
   currentProjectId,
   deleteAsset,
@@ -42,9 +46,9 @@ export function useUndoRedo({
 
   const pushUndo = useCallback((currentClips?: TimelineClip[]) => {
     const snapshot = currentClips || clips
-    undoStackRef.current = [...undoStackRef.current.slice(-(MAX_UNDO_HISTORY - 1)), { type: 'clips', clips: snapshot.map(c => ({ ...c })) }]
+    undoStackRef.current = [...undoStackRef.current.slice(-(MAX_UNDO_HISTORY - 1)), { type: 'clips', clips: snapshot.map(c => ({ ...c })), markers: markers.map(m => ({ ...m })) }]
     redoStackRef.current = []
-  }, [clips])
+  }, [clips, markers])
 
   const pushAssetUndo = useCallback(() => {
     undoStackRef.current = [...undoStackRef.current.slice(-(MAX_UNDO_HISTORY - 1)), { type: 'assets', assets: assets.map(a => ({ ...a })) }]
@@ -57,17 +61,19 @@ export function useUndoRedo({
       tracks: tracks.map(t => ({ ...t })),
       clips: clips.map(c => ({ ...c })),
       subtitles: subtitles.map(s => ({ ...s })),
+      markers: markers.map(m => ({ ...m })),
     }]
     redoStackRef.current = []
-  }, [tracks, clips, subtitles])
+  }, [tracks, clips, subtitles, markers])
 
   const handleUndo = useCallback(() => {
     if (undoStackRef.current.length === 0) return
     const action = undoStackRef.current.pop()!
     if (action.type === 'clips') {
-      redoStackRef.current.push({ type: 'clips', clips: clips.map(c => ({ ...c })) })
+      redoStackRef.current.push({ type: 'clips', clips: clips.map(c => ({ ...c })), markers: markers.map(m => ({ ...m })) })
       skipHistoryRef.current = true
       setClips(action.clips)
+      if (action.markers) setMarkers(action.markers)
       skipHistoryRef.current = false
     } else if (action.type === 'assets' && currentProjectId) {
       redoStackRef.current.push({ type: 'assets', assets: assets.map(a => ({ ...a })) })
@@ -87,22 +93,25 @@ export function useUndoRedo({
         tracks: tracks.map(t => ({ ...t })),
         clips: clips.map(c => ({ ...c })),
         subtitles: subtitles.map(s => ({ ...s })),
+        markers: markers.map(m => ({ ...m })),
       })
       skipHistoryRef.current = true
       setTracks(action.tracks)
       setClips(action.clips)
       setSubtitles(action.subtitles)
+      if (action.markers) setMarkers(action.markers)
       skipHistoryRef.current = false
     }
-  }, [clips, tracks, subtitles, assets, currentProjectId, deleteAsset, addAsset, updateAsset, setClips, setTracks, setSubtitles])
+  }, [clips, tracks, subtitles, markers, assets, currentProjectId, deleteAsset, addAsset, updateAsset, setClips, setTracks, setSubtitles, setMarkers])
 
   const handleRedo = useCallback(() => {
     if (redoStackRef.current.length === 0) return
     const action = redoStackRef.current.pop()!
     if (action.type === 'clips') {
-      undoStackRef.current.push({ type: 'clips', clips: clips.map(c => ({ ...c })) })
+      undoStackRef.current.push({ type: 'clips', clips: clips.map(c => ({ ...c })), markers: markers.map(m => ({ ...m })) })
       skipHistoryRef.current = true
       setClips(action.clips)
+      if (action.markers) setMarkers(action.markers)
       skipHistoryRef.current = false
     } else if (action.type === 'assets' && currentProjectId) {
       undoStackRef.current.push({ type: 'assets', assets: assets.map(a => ({ ...a })) })
@@ -122,14 +131,16 @@ export function useUndoRedo({
         tracks: tracks.map(t => ({ ...t })),
         clips: clips.map(c => ({ ...c })),
         subtitles: subtitles.map(s => ({ ...s })),
+        markers: markers.map(m => ({ ...m })),
       })
       skipHistoryRef.current = true
       setTracks(action.tracks)
       setClips(action.clips)
       setSubtitles(action.subtitles)
+      if (action.markers) setMarkers(action.markers)
       skipHistoryRef.current = false
     }
-  }, [clips, tracks, subtitles, assets, currentProjectId, deleteAsset, addAsset, updateAsset, setClips, setTracks, setSubtitles])
+  }, [clips, tracks, subtitles, markers, assets, currentProjectId, deleteAsset, addAsset, updateAsset, setClips, setTracks, setSubtitles, setMarkers])
 
   const handleCopy = useCallback(() => {
     if (selectedClipIds.size === 0) return

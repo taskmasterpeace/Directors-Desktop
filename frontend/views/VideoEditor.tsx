@@ -48,6 +48,7 @@ import { ClipPropertiesPanel } from './editor/ClipPropertiesPanel'
 import { TranscriptPanel } from '../components/TranscriptPanel'
 import { rippleDeleteSpan, sourceTimeToTimelineTime } from '../lib/transcript-ripple'
 import { StoryCastPanel } from './editor/StoryCastPanel'
+import { useAgentActions } from './editor/useAgentActions'
 import { captionsFromWords } from '../lib/captions-from-transcript'
 import { generateFromPrompt } from '../lib/transcript-generate'
 import { migrateImageModelId } from '../lib/image-models'
@@ -165,6 +166,7 @@ export function VideoEditor() {
     blue: 'bg-blue-400', zinc: 'bg-zinc-400',
   }
   const addMarkerAtPlayhead = useCallback(() => {
+    pushUndoRef.current()
     const id = `mk_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`
     setMarkers((prev) => [
       ...prev,
@@ -182,6 +184,7 @@ export function VideoEditor() {
     setMarkers((prev) => prev.map((m) => (m.id === id ? { ...m, ...patch } : m)))
   }, [])
   const deleteMarker = useCallback((id: string) => {
+    pushUndoRef.current()
     setMarkers((prev) => prev.filter((m) => m.id !== id))
     setMarkerEditor(null)
   }, [])
@@ -496,6 +499,7 @@ export function VideoEditor() {
     handleCopy, handlePaste, handleCut,
   } = useUndoRedo({
     clips, setClips, tracks, setTracks, subtitles, setSubtitles,
+    markers, setMarkers,
     assets, currentProjectId,
     deleteAsset, addAsset, updateAsset,
     selectedClipIds, setSelectedClipIds, currentTime,
@@ -723,9 +727,9 @@ export function VideoEditor() {
   // Transcript -> captions: turn word timestamps into real subtitle cues on a
   // subtitle track. Same engine the agent's captions_from_transcript action
   // uses, so human button and AI action produce identical results.
-  const handleMakeCaptions = useCallback((clip: TimelineClip) => {
+  const handleMakeCaptions = useCallback((clip: TimelineClip): boolean => {
     const words = transcriptCache[clip.id] ?? persistedTranscriptForRef.current?.(clip)
-    if (!words || words.length === 0) return
+    if (!words || words.length === 0) return false
     const speed = clip.speed || 1
     const srcStart = clip.trimStart
     const srcEnd = clip.trimStart + clip.duration * speed
@@ -737,7 +741,7 @@ export function VideoEditor() {
         end: sourceTimeToTimelineTime(Math.min(w.end, srcEnd), clip),
       }))
     const cues = captionsFromWords(mapped)
-    if (cues.length === 0) return
+    if (cues.length === 0) return false
     let subIdx = tracks.findIndex((t) => t.type === 'subtitle')
     if (subIdx === -1) {
       const newTrack: Track = {
@@ -768,6 +772,7 @@ export function VideoEditor() {
       ...newSubs,
     ])
     setFrameActionMsg({ kind: 'ok', text: `Added ${newSubs.length} caption${newSubs.length === 1 ? '' : 's'} from the transcript.` })
+    return true
   }, [transcriptCache, tracks, setClips, setSubtitles, setTracks])
 
   /** Persisted transcript for a clip's asset — hydrates the cache-less case. */
@@ -778,6 +783,13 @@ export function VideoEditor() {
   }, [assets])
   const persistedTranscriptForRef = useRef<typeof persistedTranscriptFor | null>(null)
   persistedTranscriptForRef.current = persistedTranscriptFor
+
+  // Agent bridge (Phase 6): poll queued agent actions, apply through one undo
+  // step, report applied/rejected. Mounted for the life of the editor.
+  useAgentActions({
+    clips, tracks, markers, setClips, setMarkers, pushUndo,
+    makeCaptions: handleMakeCaptions,
+  })
 
   // Story-aware generate chain: prompt → image → (for video) video-from-image. Results land
   // in the gallery via the queue executor; the user can drag them onto the timeline.
