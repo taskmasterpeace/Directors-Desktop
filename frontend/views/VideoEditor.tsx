@@ -660,7 +660,30 @@ export function VideoEditor() {
   const [transcriptGenPhase, setTranscriptGenPhase] = useState<string | null>(null)
   const handleTranscriptWords = useCallback((clipId: string, words: TranscriptWord[]) => {
     setTranscriptCache((prev) => ({ ...prev, [clipId]: words }))
-  }, [])
+    // Persist to the clip's ASSET so the transcript survives reloads (and clips
+    // cut from the same media share it) instead of re-paying for transcription.
+    const clip = clips.find((c) => c.id === clipId)
+    const assetId = clip?.assetId ?? clip?.asset?.id
+    if (assetId && currentProjectId) {
+      const existing = assets.find((a) => a.id === assetId)?.transcript
+      updateAsset(currentProjectId, assetId, {
+        transcript: {
+          words,
+          source: existing?.source ?? 'stt',
+          scriptText: existing?.scriptText,
+          coverage: existing?.coverage,
+          createdAt: Date.now(),
+        },
+      })
+    }
+  }, [clips, assets, currentProjectId, updateAsset])
+
+  /** Persisted transcript for a clip's asset — hydrates the cache-less case. */
+  const persistedTranscriptFor = useCallback((clip: TimelineClip): TranscriptWord[] | undefined => {
+    const assetId = clip.assetId ?? clip.asset?.id
+    if (!assetId) return undefined
+    return assets.find((a) => a.id === assetId)?.transcript?.words
+  }, [assets])
 
   // Story-aware generate chain: prompt → image → (for video) video-from-image. Results land
   // in the gallery via the queue executor; the user can drag them onto the timeline.
@@ -4126,7 +4149,7 @@ export function VideoEditor() {
             <TranscriptPanel
               clip={selectedClip}
               audioPath={selectedClip.asset.path}
-              words={transcriptCache[selectedClip.id]}
+              words={transcriptCache[selectedClip.id] ?? persistedTranscriptFor(selectedClip)}
               currentTime={currentTime}
               onSeek={(t) => setCurrentTime(Math.max(0, t))}
               onDeleteSpan={handleDeleteTranscriptSpan}

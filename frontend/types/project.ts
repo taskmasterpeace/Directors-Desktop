@@ -28,6 +28,29 @@ export interface AssetTake {
   createdAt: number
 }
 
+/** One transcribed word in SOURCE-media seconds (survives trim/split/speed). */
+export interface TranscriptWordData {
+  text: string
+  start: number
+  end: number
+}
+
+/**
+ * Persisted transcript, keyed to the ASSET so every clip cut from the same
+ * media shares it. Previously this lived only in editor memory — every reload
+ * lost alignment/word edits and re-paid for cloud transcription.
+ */
+export interface TranscriptData {
+  words: TranscriptWordData[]
+  /** 'aligned' = the user's script of truth has been applied over STT. */
+  source: 'stt' | 'aligned'
+  /** The user's script, verbatim, when aligned. */
+  scriptText?: string
+  /** Alignment coverage 0..1 when aligned. */
+  coverage?: number
+  createdAt: number
+}
+
 export interface Asset {
   id: string
   type: 'image' | 'video' | 'audio' | 'adjustment'
@@ -45,6 +68,7 @@ export interface Asset {
   takes?: AssetTake[] // All takes (index 0 = original). If undefined, the asset itself is the only take.
   activeTakeIndex?: number // Which take is currently active (default = 0 / latest)
   colorLabel?: string // Color label for organization (e.g. 'slate', 'blue', 'green', 'yellow', 'red', 'rose', 'orange', 'mango')
+  transcript?: TranscriptData
 }
 
 export interface Track {

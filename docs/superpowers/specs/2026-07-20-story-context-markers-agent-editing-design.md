@@ -196,3 +196,28 @@ initiative; its "who-said-what" parsing may inform the cast pre-fill later).
 Testing: phases 1–4 get vitest unit coverage (grouping, mapping, extraction);
 phases 5–6 get backend pytest (routes, queue, auth) + a scripted end-to-end
 where a fake agent reads the model and round-trips an action.
+
+## Addendum — Dramatis reconnaissance (2026-07-20)
+
+Robert's Dramatis app (D:/git/dramatis) was mined for reusable tech. Findings
+that refine this spec:
+
+- **Port the deterministic speaker-attribution cascade** (`src/compile.mjs:105-173`,
+  ~70 self-contained lines): hint > said-tag > single-cast-name > paragraph-initial
+  actor > two-names-one-just-spoke > A/B alternation > action-beat > protagonist
+  fallback, with scene-reset turn tracking. This becomes the Phase-3 cast pre-fill
+  for PROSE story docs (the `NAME:` line scan covers formatted scripts).
+- **Adopt `cite: [startOffset, endOffset]`** on extracted lines — anchor every
+  attributed line back into the StoryDoc text, Dramatis-style.
+- **LLM-verify pattern** for later: deterministic draft first, LLM verification in
+  batches, override only at confidence ≥ 0.7, below that → review queue. Fits
+  Claude-Code-drives perfectly (the agent IS the verifier).
+- **Normalization lesson (bug they paid for):** the aligner must receive the SAME
+  normalized text as the other side — em-dashes/curly quotes/ellipses through one
+  `speakable()`-style normalizer, or alignment silently drifts. Apply to
+  `transcript-align.ts` inputs in Phase 1/3.
+- **Golden-file attribution tests** (their `test/attribution.test.mjs` pattern):
+  snapshot `{lineId → speaker}` maps per fixture script so heuristic tweaks show
+  their blast radius instantly.
+- Dramatis has NO transcript↔script fuzzy aligner (it force-aligns text it
+  generated) — our `transcript-align.ts` remains the unique piece; keep it.
