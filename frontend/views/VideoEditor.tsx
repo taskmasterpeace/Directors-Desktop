@@ -47,6 +47,7 @@ import { TakeContextMenu } from './editor/TakeContextMenu'
 import { ClipPropertiesPanel } from './editor/ClipPropertiesPanel'
 import { TranscriptPanel } from '../components/TranscriptPanel'
 import { rippleDeleteSpan, sourceTimeToTimelineTime } from '../lib/transcript-ripple'
+import { StoryCastPanel } from './editor/StoryCastPanel'
 import { captionsFromWords } from '../lib/captions-from-transcript'
 import { generateFromPrompt } from '../lib/transcript-generate'
 import { migrateImageModelId } from '../lib/image-models'
@@ -4542,14 +4543,14 @@ export function VideoEditor() {
         const projectAssetPath = currentProject.assetSavePath || ''
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setShowProjectSettings(false)}>
-            <div className="bg-zinc-900 rounded-2xl border border-zinc-700/50 shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+            <div className="bg-zinc-900 rounded-2xl border border-zinc-700/50 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
                 <h2 className="text-lg font-bold text-white">Project Settings</h2>
                 <button onClick={() => setShowProjectSettings(false)} className="p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-zinc-800 transition-colors">
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              <div className="p-6 space-y-5">
+              <div className="p-6 space-y-5 overflow-y-auto">
                 <div>
                   <label className="text-xs text-zinc-500 uppercase tracking-wider font-semibold mb-1.5 block">Project Name</label>
                   <p className="text-sm text-white">{currentProject.name}</p>
@@ -4588,6 +4589,12 @@ export function VideoEditor() {
                     </Button>
                   </div>
                   <p className="text-[10px] text-zinc-600 mt-1">Where generated video and image assets will be saved for this project</p>
+                </div>
+                <div className="border-t border-zinc-800 pt-5">
+                  <StoryCastPanel
+                    project={currentProject}
+                    onUpdate={(patch) => { if (currentProjectId) updateProject(currentProjectId, patch) }}
+                  />
                 </div>
               </div>
             </div>
