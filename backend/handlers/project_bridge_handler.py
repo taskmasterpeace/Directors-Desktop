@@ -67,8 +67,10 @@ class ProjectBridgeHandler:
             self._snapshot = None
 
     def publish(self, project: dict[str, object]) -> float:
-        published_at = time.time()
         with self._lock:
+            # Timestamp inside the lock: overlapping publishes commit in lock
+            # order, so publishedAt never moves backwards.
+            published_at = time.time()
             self._snapshot = project
             self._published_at = published_at
             try:
@@ -178,8 +180,18 @@ class ProjectBridgeHandler:
                     "reason": None,
                     "createdAt": now,
                 })
-            if len(self._actions) > MAX_ACTIONS_KEPT:
-                self._actions = self._actions[-MAX_ACTIONS_KEPT:]
+            excess = len(self._actions) - MAX_ACTIONS_KEPT
+            if excess > 0:
+                # Evict oldest FINISHED records only — a queued/delivered action
+                # (e.g. a generate_and_place still rendering) must survive so
+                # its late report and status stay addressable.
+                kept: list[dict[str, object]] = []
+                for record in self._actions:
+                    if excess > 0 and record.get("status") in ("applied", "rejected"):
+                        excess -= 1
+                        continue
+                    kept.append(record)
+                self._actions = kept
         return ids
 
     def pending_actions(self) -> list[dict[str, object]]:

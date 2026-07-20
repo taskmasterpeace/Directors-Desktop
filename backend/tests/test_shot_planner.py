@@ -86,7 +86,9 @@ def test_prompts_carry_concept_and_section_flavor():
 
 
 def test_shot_cap_preserves_coverage():
-    # A pathological 40-minute song still tiles fully under the cap.
+    # A pathological 40-minute song still respects the cap; coverage is
+    # physically limited to cap * MAX_SHOT there, and truncation is explicit
+    # (every shot's window fits its generation).
     analysis = AudioAnalysis(
         duration=2400.0,
         tempo_bpm=170.0,
@@ -96,6 +98,49 @@ def test_shot_cap_preserves_coverage():
     )
     shots = plan_shots(analysis, "marathon")
     assert len(shots) <= MAX_TOTAL_SHOTS
+    for s in shots:
+        assert s.end - s.start <= s.generate_seconds + 1e-6
+
+
+def test_ordinary_loud_song_is_fully_covered_under_the_cap():
+    # Review-found: a routine 4-minute banger (energy ~0.9 everywhere) used to
+    # burn all 60 shots by ~177s and silently drop the final quarter.
+    beat = 60.0 / 128
+    duration = 240.0
+    beats = [round(i * beat, 4) for i in range(int(duration / beat))]
+    analysis = AudioAnalysis(
+        duration=duration,
+        tempo_bpm=128.0,
+        beats=beats,
+        downbeats=beats[::4],
+        sections=[
+            AudioSection(start=i * 30.0, end=(i + 1) * 30.0, label="chorus", energy=0.9)
+            for i in range(8)
+        ],
+    )
+    shots = plan_shots(analysis, "banger")
+    assert len(shots) <= MAX_TOTAL_SHOTS
+    assert abs(shots[-1].end - duration) < 0.01, "the whole song must be covered"
+    for a, b in zip(shots, shots[1:]):
+        assert abs(a.end - b.start) < 0.01
+
+
+def test_sections_with_holes_are_made_contiguous():
+    # Review-found: analyzer span-drops could emit sections with a gap between
+    # them; the plan must never contain that hole (it becomes A/V desync).
+    analysis = AudioAnalysis(
+        duration=30.0,
+        tempo_bpm=120.0,
+        beats=[i * 0.5 for i in range(60)],
+        sections=[
+            AudioSection(start=0.0, end=20.0, label="verse", energy=0.5),
+            AudioSection(start=20.5, end=30.0, label="chorus", energy=0.9),  # 0.5s hole
+        ],
+    )
+    shots = plan_shots(analysis, "no holes")
+    for a, b in zip(shots, shots[1:]):
+        assert abs(a.end - b.start) < 0.01, f"hole between {a.index} and {b.index}"
+    assert abs(shots[-1].end - 30.0) < 0.01
 
 
 def test_lyrics_reach_performance_shot_prompts():

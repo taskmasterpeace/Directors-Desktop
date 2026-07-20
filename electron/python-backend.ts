@@ -383,7 +383,9 @@ export async function startPythonBackend(): Promise<void> {
           if (healthyExistingBackend) {
             backendOwnership = 'adopted'
             publishBackendHealthStatus({ status: 'alive' })
-            writeAgentBridgeFile()
+            // No bridge file here: the exit handler already nulled url/token,
+            // and the takeover replaces this backend anyway — the managed
+            // replacement's ready line writes the real file.
             settleResolve()
             startOwnershipTakeover()
             return
@@ -473,6 +475,9 @@ function killProcessTree(pid: number): void {
 }
 
 export function stopPythonBackend(): void {
+  // Synchronous cleanup: on app quit the ChildProcess 'exit' callback can lose
+  // the race against process teardown, stranding a stale discovery file.
+  removeAgentBridgeFile()
   if (pythonProcess) {
     isIntentionalShutdown = true
     logger.info('Stopping Python backend...')

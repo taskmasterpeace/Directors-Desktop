@@ -26,13 +26,13 @@ Backend --> Local models + GPU | External APIs (when API-backed)
 
 While the app is running, agents can see and edit the open project through the backend. Spec: `docs/superpowers/specs/2026-07-20-story-context-markers-agent-editing-design.md`.
 
-1. **Discover**: read `agent-bridge.json` in the app's userData dir (Windows: `%APPDATA%\Director's Desktop\agent-bridge.json`) → `{ url, token, pid, startedAt }`. The file exists only while the backend is alive; verify `pid` is running if unsure.
+1. **Discover**: read `agent-bridge.json` in the app's userData dir (Windows: `%LOCALAPPDATA%\LTXDesktop\agent-bridge.json` — set by `electron/app-paths.ts`, NOT the Electron default) → `{ url, token, pid, startedAt }`. The file exists only while the backend is alive; verify `pid` is running if unsure.
 2. **Authenticate**: send `Authorization: Bearer <token>` on every request.
 3. **Read** (mirror of the renderer's autosaved state, ~1s fresh; never edit these responses expecting write-back):
    - `GET /api/project/current` — the full project (assets incl. `transcript`, timelines incl. `markers`, `storyDocs`, `cast`)
    - `GET /api/project/transcript` — the stitched live transcript of the current cut in timeline seconds
    - `GET /api/project/story` — story docs + cast verbatim
-4. **Edit** via the bounded action queue — `POST /api/project/actions` with `{ "actions": [...] }`, kinds: `move_clip`, `trim_clip`, `delete_clip`, `add_marker`, `update_marker`, `delete_marker`, `captions_from_transcript`, `generate_and_place`. The renderer applies each through the undo stack (user can Ctrl+Z) and reports per-action `applied`/`rejected(reason)` — poll `GET /api/project/actions/status`. Actions never delete assets from the bin. If the editor isn't open, actions stay `queued`/`delivered` — don't assume application without seeing `applied`.
+4. **Edit** via the bounded action queue — `POST /api/project/actions` with `{ "actions": [...] }`, kinds: `move_clip`, `trim_clip`, `delete_clip`, `add_marker`, `update_marker`, `delete_marker`, `captions_from_transcript`, `generate_and_place`. The renderer applies each through the undo stack (user can Ctrl+Z) and reports per-action `applied`/`rejected(reason)` — poll `GET /api/project/actions/status`. Actions never delete assets from the bin. `trim_clip`'s `trimStart`/`trimEnd` params are the ABSOLUTE source-media window in seconds (in-point/out-point) — NOT the clip's stored `trimEnd` field, which counts seconds cut off the end. `move_clip`/`delete_clip` carry linked A/V clips along, like the mouse. If the editor isn't open, actions stay `queued`/`delivered` — don't assume application without seeing `applied`.
 
 ## Common Commands
 

@@ -7,9 +7,13 @@ import type { MarkerColor, TimelineClip, TimelineMarker, Track } from '../../typ
  *
  * Polls the backend's action queue (1s while the editor is mounted), validates
  * each bounded action against live editor state, applies the batch through ONE
- * undo step, and reports per-action applied/rejected(reason) back. The
- * renderer stays the source of truth: nothing here writes state the user
- * couldn't have produced with the mouse, and Ctrl+Z reverts a whole batch.
+ * undo step, and reports per-action applied/rejected(reason) back.
+ *
+ * Commit discipline: validation runs against this render's state, but commits
+ * are FUNCTIONAL, id-targeted operations replayed onto whatever React holds at
+ * flush time — so a user edit landing in the same second is never clobbered by
+ * a stale wholesale array replacement. Linked A/V clips move and delete
+ * together, matching what the mouse would do.
  */
 
 type ActionRecord = Record<string, unknown>
@@ -25,6 +29,9 @@ interface ActionResult {
   reason?: string
 }
 
+type ClipOp = (clips: TimelineClip[]) => TimelineClip[]
+type MarkerOp = (markers: TimelineMarker[]) => TimelineMarker[]
+
 const MARKER_COLOR_VALUES: MarkerColor[] = ['amber', 'red', 'green', 'blue', 'zinc']
 
 const num = (v: unknown): number | undefined =>
@@ -39,7 +46,9 @@ export function useAgentActions({
   setClips,
   setMarkers,
   pushUndo,
+  pushTrackUndo,
   makeCaptions,
+  getAssetDuration,
   imageModel,
   placeGenerated,
 }: {
@@ -49,8 +58,12 @@ export function useAgentActions({
   setClips: React.Dispatch<React.SetStateAction<TimelineClip[]>>
   setMarkers: React.Dispatch<React.SetStateAction<TimelineMarker[]>>
   pushUndo: () => void
-  /** Phase 4 captions engine; returns false when the clip has no transcript words. */
-  makeCaptions: (clip: TimelineClip) => boolean
+  /** Full tracks+clips+subtitles+markers snapshot — used when a batch touches captions. */
+  pushTrackUndo: () => void
+  /** Phase 4 captions engine (batch form — at most ONE subtitle track is created). */
+  makeCaptions: (targets: TimelineClip[]) => boolean
+  /** Source-media length for a clip's asset, when known (clamps trims). */
+  getAssetDuration: (clip: TimelineClip) => number | undefined
   /** Default image model id for the image stage of generate chains. */
   imageModel: string
   /** Import a finished generation into the project and drop a clip at `at`. */
@@ -66,6 +79,9 @@ export function useAgentActions({
   placeGeneratedRef.current = placeGenerated
   const imageModelRef = useRef(imageModel)
   imageModelRef.current = imageModel
+  // False once the editor unmounts: a generation finishing after that must
+  // NOT claim 'applied' — its state setters would be silent no-ops.
+  const mountedRef = useRef(true)
 
   const reportResults = async (results: ActionResult[]) => {
     if (results.length === 0) return
@@ -103,6 +119,12 @@ export function useAgentActions({
           videoModel: mediaType === 'video' && model ? model : 'seedance-2.0',
           referenceImagePaths: refs,
         })
+        if (!mountedRef.current) {
+          await reportRef.current([
+            { id, status: 'rejected', reason: 'editor closed during generation — the render is saved in the Gallery' },
+          ])
+          return
+        }
         const placed = await placeGeneratedRef.current(result, { trackIndex, startTime }, prompt)
         await reportRef.current([
           placed
@@ -119,10 +141,12 @@ export function useAgentActions({
 
   applyRef.current = (pending: PendingAction[]): ActionResult[] => {
     const results: ActionResult[] = []
+    // Validation view: chained so later actions in the batch see earlier ones.
     let nextClips = clips
     let nextMarkers = markers
-    let clipsMutated = false
-    let markersMutated = false
+    // Commit ops: id-targeted, replayed functionally at flush time.
+    const clipOps: ClipOp[] = []
+    const markerOps: MarkerOp[] = []
     const captionRuns: { actionId: string; clip: TimelineClip }[] = []
 
     for (const { id, action } of pending) {
@@ -142,34 +166,77 @@ export function useAgentActions({
           }
           if (tracks[trackIndex].type === 'subtitle') { reject('cannot move a clip onto a subtitle track'); break }
           if (startTime === undefined || startTime < 0) { reject(`invalid startTime: ${action.startTime}`); break }
-          nextClips = nextClips.map((c) => (c.id === clipId ? { ...c, trackIndex, startTime } : c))
-          clipsMutated = true
+          const op: ClipOp = (cs) => {
+            const target = cs.find((c) => c.id === clipId)
+            if (!target) return cs
+            // Linked A/V clips ride along in time (own tracks), like a drag.
+            const delta = startTime - target.startTime
+            const linked = new Set(target.linkedClipIds ?? [])
+            return cs.map((c) =>
+              c.id === clipId
+                ? { ...c, trackIndex, startTime }
+                : linked.has(c.id)
+                  ? { ...c, startTime: Math.max(0, c.startTime + delta) }
+                  : c,
+            )
+          }
+          clipOps.push(op)
+          nextClips = op(nextClips)
           applied()
           break
         }
         case 'trim_clip': {
+          // Params are the ABSOLUTE source-media window [trimStart, trimEnd)
+          // in seconds — NOT the clip's stored `trimEnd` field (which counts
+          // seconds cut off the end). Documented in CLAUDE.md.
           const clipId = str(action.clipId)
           const clip = nextClips.find((c) => c.id === clipId)
           if (!clip) { reject(`unknown clipId: ${clipId}`); break }
           const speed = clip.speed || 1
           const oldEnd = clip.trimStart + clip.duration * speed
-          const trimStart = num(action.trimStart) ?? clip.trimStart
-          const trimEnd = num(action.trimEnd) ?? oldEnd
-          if (trimStart < 0 || trimEnd <= trimStart) {
-            reject(`invalid trim window: [${trimStart}, ${trimEnd}]`); break
+          const mediaDuration = getAssetDuration(clip)
+          let sourceStart = num(action.trimStart) ?? clip.trimStart
+          let sourceEnd = num(action.trimEnd) ?? oldEnd
+          if (mediaDuration !== undefined) {
+            sourceStart = Math.min(sourceStart, mediaDuration)
+            sourceEnd = Math.min(sourceEnd, mediaDuration)
           }
-          nextClips = nextClips.map((c) =>
-            c.id === clipId ? { ...c, trimStart, duration: (trimEnd - trimStart) / speed } : c,
-          )
-          clipsMutated = true
+          if (sourceStart < 0 || sourceEnd <= sourceStart) {
+            reject(`invalid source window: [${sourceStart}, ${sourceEnd}]`); break
+          }
+          const op: ClipOp = (cs) =>
+            cs.map((c) =>
+              c.id === clipId
+                ? {
+                    ...c,
+                    trimStart: sourceStart,
+                    duration: (sourceEnd - sourceStart) / speed,
+                    // Keep the stored tail-trim field consistent when the
+                    // media length is known (it feeds manual trim math).
+                    ...(mediaDuration !== undefined
+                      ? { trimEnd: Math.max(0, mediaDuration - sourceEnd) }
+                      : {}),
+                  }
+                : c,
+            )
+          clipOps.push(op)
+          nextClips = op(nextClips)
           applied()
           break
         }
         case 'delete_clip': {
           const clipId = str(action.clipId)
-          if (!nextClips.some((c) => c.id === clipId)) { reject(`unknown clipId: ${clipId}`); break }
-          nextClips = nextClips.filter((c) => c.id !== clipId)
-          clipsMutated = true
+          const target = nextClips.find((c) => c.id === clipId)
+          if (!target) { reject(`unknown clipId: ${clipId}`); break }
+          const op: ClipOp = (cs) => {
+            const t = cs.find((c) => c.id === clipId)
+            if (!t) return cs
+            // The mouse deletes linked A/V together — so does the agent.
+            const doomed = new Set([clipId, ...(t.linkedClipIds ?? [])])
+            return cs.filter((c) => !doomed.has(c.id))
+          }
+          clipOps.push(op)
+          nextClips = op(nextClips)
           applied()
           break
         }
@@ -193,8 +260,9 @@ export function useAgentActions({
             author: 'agent',
             createdAt: Date.now(),
           }
-          nextMarkers = [...nextMarkers, created]
-          markersMutated = true
+          const op: MarkerOp = (ms) => [...ms, created]
+          markerOps.push(op)
+          nextMarkers = op(nextMarkers)
           applied()
           break
         }
@@ -203,8 +271,7 @@ export function useAgentActions({
           const target = nextMarkers.find((m) => m.id === markerId)
           if (!target) { reject(`unknown markerId: ${markerId}`); break }
           const patch = (action.patch ?? {}) as ActionRecord
-          const updated: TimelineMarker = {
-            ...target,
+          const fields: Partial<TimelineMarker> = {
             ...(num(patch.time) !== undefined ? { time: num(patch.time)! } : {}),
             ...(num(patch.duration) !== undefined ? { duration: num(patch.duration) } : {}),
             ...(str(patch.title) ? { title: str(patch.title)! } : {}),
@@ -213,16 +280,18 @@ export function useAgentActions({
               ? { color: patch.color as MarkerColor }
               : {}),
           }
-          nextMarkers = nextMarkers.map((m) => (m.id === markerId ? updated : m))
-          markersMutated = true
+          const op: MarkerOp = (ms) => ms.map((m) => (m.id === markerId ? { ...m, ...fields } : m))
+          markerOps.push(op)
+          nextMarkers = op(nextMarkers)
           applied()
           break
         }
         case 'delete_marker': {
           const markerId = str(action.markerId)
           if (!nextMarkers.some((m) => m.id === markerId)) { reject(`unknown markerId: ${markerId}`); break }
-          nextMarkers = nextMarkers.filter((m) => m.id !== markerId)
-          markersMutated = true
+          const op: MarkerOp = (ms) => ms.filter((m) => m.id !== markerId)
+          markerOps.push(op)
+          nextMarkers = op(nextMarkers)
           applied()
           break
         }
@@ -263,24 +332,33 @@ export function useAgentActions({
       }
     }
 
-    const willMutate = clipsMutated || markersMutated || captionRuns.length > 0
+    const willMutate = clipOps.length > 0 || markerOps.length > 0 || captionRuns.length > 0
     if (willMutate) {
-      pushUndo() // one snapshot — the whole agent batch is a single Ctrl+Z
-      if (clipsMutated) setClips(nextClips)
-      if (markersMutated) setMarkers(nextMarkers)
-      // A captions action succeeds if ANY of its clips yielded cues (a cut can
-      // legitimately contain clips with no speech).
-      const captionOutcomes = new Map<string, boolean>()
+      // One snapshot = one Ctrl+Z for the whole batch. Captions can create a
+      // subtitle track and shift every trackIndex, so those batches need the
+      // full tracks+clips+subtitles+markers snapshot.
+      if (captionRuns.length > 0) pushTrackUndo()
+      else pushUndo()
+      if (clipOps.length > 0) setClips((prev) => clipOps.reduce((acc, op) => op(acc), prev))
+      if (markerOps.length > 0) setMarkers((prev) => markerOps.reduce((acc, op) => op(acc), prev))
+
+      // One makeCaptions call PER ACTION (deduped clips): at most one subtitle
+      // track is ever created, and an action succeeds if any of its clips
+      // yielded cues (a cut can legitimately contain clips with no speech).
+      const byAction = new Map<string, TimelineClip[]>()
       for (const { actionId, clip } of captionRuns) {
-        const ok = makeCaptions(clip)
-        captionOutcomes.set(actionId, (captionOutcomes.get(actionId) ?? false) || ok)
+        const list = byAction.get(actionId) ?? []
+        if (!list.some((c) => c.id === clip.id)) list.push(clip)
+        byAction.set(actionId, list)
       }
-      for (const [actionId, anySucceeded] of captionOutcomes) {
-        if (anySucceeded) continue
-        const entry = results.find((r) => r.id === actionId)
-        if (entry) {
-          entry.status = 'rejected'
-          entry.reason = 'no transcript words in the targeted clip(s)'
+      for (const [actionId, targets] of byAction) {
+        const ok = makeCaptions(targets)
+        if (!ok) {
+          const entry = results.find((r) => r.id === actionId)
+          if (entry) {
+            entry.status = 'rejected'
+            entry.reason = 'no transcript words in the targeted clip(s)'
+          }
         }
       }
     }
@@ -288,6 +366,7 @@ export function useAgentActions({
   }
 
   useEffect(() => {
+    mountedRef.current = true
     let cancelled = false
     let inFlight = false
     const tick = async () => {
@@ -317,6 +396,7 @@ export function useAgentActions({
     const interval = setInterval(tick, 1000)
     return () => {
       cancelled = true
+      mountedRef.current = false
       clearInterval(interval)
     }
   }, [])

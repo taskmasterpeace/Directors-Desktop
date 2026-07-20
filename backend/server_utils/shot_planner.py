@@ -159,47 +159,97 @@ def plan_shots(
         sec_end = max(sec_start, min(section.end, analysis.duration))
         if sec_end - sec_start >= 0.75:
             usable.append(AudioSection(start=sec_start, end=sec_end, label=section.label, energy=section.energy))
-    if not usable:
-        usable = [AudioSection(start=0.0, end=analysis.duration, label="verse", energy=0.5)]
-    sections = usable
+    # Force contiguity from 0: any hole between sections (imperfect
+    # segmentation) would become missing picture and permanent A/V drift
+    # after assembly. Each section starts where the previous ended.
+    contiguous: list[AudioSection] = []
+    cursor_edge = 0.0
+    for section in usable:
+        end = max(cursor_edge, min(section.end, analysis.duration))
+        if end - cursor_edge < 0.05:
+            continue
+        contiguous.append(
+            AudioSection(start=cursor_edge, end=end, label=section.label, energy=section.energy)
+        )
+        cursor_edge = end
+    if not contiguous:
+        contiguous = [AudioSection(start=0.0, end=analysis.duration, label="verse", energy=0.5)]
+    sections = contiguous
+
+    # Cap-aware pacing: with at most MAX_TOTAL_SHOTS shots, average shot length
+    # must be at least duration/budget or the tail of the song goes uncovered
+    # (energy-0.9 four-minute songs used to lose their final quarter). The
+    # budget discounts per-section count rounding (up to half a shot each) and
+    # the floor never exceeds what one generation can hold.
+    budget = max(MAX_TOTAL_SHOTS - (len(sections) + 1) // 2, MAX_TOTAL_SHOTS // 2)
+    min_shot = max(min_shot, min(analysis.duration / budget, float(GEN_MAX_SECONDS)))
 
     # Global cut list: section-by-section, energy-scaled lengths, beat-snapped.
-    shots: list[PlannedShot] = []
-    for section in sections:
-        sec_start = section.start
-        sec_end = section.end
-        target = max(min_shot, min(max_shot, _target_shot_seconds(section.energy)))
-        count = max(1, round((sec_end - sec_start) / target))
-        step = (sec_end - sec_start) / count
-        position = 0
-        cursor = sec_start
-        while cursor < sec_end - 0.25:
-            raw_end = min(sec_end, cursor + step)
-            end = snap_to_grid(raw_end, grid, snap_tol)
-            if end <= cursor + min_shot / 2:
-                end = raw_end  # snap collapsed the shot — keep the raw cut
-            end = min(end, sec_end)
-            if sec_end - end < min_shot / 2:
-                end = sec_end  # absorb the tail sliver into this shot
-            shot_type = _shot_type(section.label, position)
-            shots.append(
-                PlannedShot(
-                    index=len(shots),
-                    start=cursor,
-                    end=end,
-                    section_label=section.label,
-                    shot_type=shot_type,
-                    prompt=build_prompt(
-                        concept, section.label, shot_type, section.energy,
-                        lyric_line=lyric_line_for_span(lyrics, cursor, end),
-                    ),
-                    generate_seconds=max(GEN_MIN_SECONDS, min(GEN_MAX_SECONDS, math.ceil(end - cursor))),
+    def _tile(floor: float) -> list[PlannedShot]:
+        tiled: list[PlannedShot] = []
+        for section in sections:
+            sec_start = section.start
+            sec_end = section.end
+            target = max(floor, min(max_shot, _target_shot_seconds(section.energy)))
+            count = max(1, round((sec_end - sec_start) / target))
+            step = (sec_end - sec_start) / count
+            position = 0
+            cursor = sec_start
+            while cursor < sec_end - 0.25:
+                raw_end = min(sec_end, cursor + step)
+                end = snap_to_grid(raw_end, grid, snap_tol)
+                if end <= cursor + floor / 2:
+                    end = raw_end  # snap collapsed the shot — keep the raw cut
+                end = min(end, sec_end)
+                if sec_end - end < floor / 2:
+                    end = sec_end  # absorb the tail sliver into this shot
+                # One generation holds at most GEN_MAX seconds — never plan a
+                # window the model can't fill (it would freeze-frame the excess).
+                end = min(end, cursor + GEN_MAX_SECONDS)
+                shot_type = _shot_type(section.label, position)
+                tiled.append(
+                    PlannedShot(
+                        index=len(tiled),
+                        start=cursor,
+                        end=end,
+                        section_label=section.label,
+                        shot_type=shot_type,
+                        prompt=build_prompt(
+                            concept, section.label, shot_type, section.energy,
+                            lyric_line=lyric_line_for_span(lyrics, cursor, end),
+                        ),
+                        generate_seconds=max(GEN_MIN_SECONDS, min(GEN_MAX_SECONDS, math.ceil(end - cursor))),
+                    )
                 )
-            )
-            cursor = end
-            position += 1
-        if len(shots) >= MAX_TOTAL_SHOTS:
-            break
+                cursor = end
+                position += 1
+            if len(tiled) >= MAX_TOTAL_SHOTS:
+                break
+        return tiled
+
+    # Beat-snapping pulls cuts to the grid line below, shrinking shots past the
+    # pacing floor — a single pass can hit the cap short of the song's end.
+    # Escalate the floor until the tiling fits (or the physical GEN_MAX limit).
+    def _needs_longer_shots(tiled: list[PlannedShot]) -> bool:
+        if not tiled:
+            return False
+        # Capped and short of the song's end — coverage lost outright.
+        if len(tiled) >= MAX_TOTAL_SHOTS and tiled[-1].end < analysis.duration - 0.25:
+            return True
+        # Over the cap with an overflow span no single generation can hold —
+        # the merge fallback would silently truncate coverage.
+        if len(tiled) > MAX_TOTAL_SHOTS:
+            overflow_span = tiled[-1].end - tiled[MAX_TOTAL_SHOTS - 1].start
+            if overflow_span > GEN_MAX_SECONDS + 1e-6:
+                return True
+        return False
+
+    shots = _tile(min_shot)
+    attempts = 0
+    while attempts < 4 and min_shot < GEN_MAX_SECONDS and _needs_longer_shots(shots):
+        min_shot = min(min_shot * 1.35, float(GEN_MAX_SECONDS))
+        shots = _tile(min_shot)
+        attempts += 1
 
     # Tail fill: dropped sliver sections (or a cap break) can leave the song's
     # ending uncovered — a video that stops while the song plays on. Tile the
@@ -225,6 +275,27 @@ def plan_shots(
             )
         )
         tail_position += 1
+
+    # At the cap with song left over: extend the final shot to its physical
+    # limit; anything beyond cap * GEN_MAX truncates EXPLICITLY (the video
+    # ends early) rather than freezing frames.
+    if (
+        shots
+        and len(shots) >= MAX_TOTAL_SHOTS
+        and shots[-1].end < analysis.duration - 0.25
+    ):
+        last = shots[-1]
+        new_end = min(analysis.duration, last.start + GEN_MAX_SECONDS)
+        if new_end > last.end:
+            shots[-1] = PlannedShot(
+                index=last.index,
+                start=last.start,
+                end=new_end,
+                section_label=last.section_label,
+                shot_type=last.shot_type,
+                prompt=last.prompt,
+                generate_seconds=max(GEN_MIN_SECONDS, min(GEN_MAX_SECONDS, math.ceil(new_end - last.start))),
+            )
 
     # Sub-threshold residue (<0.25s): stretch the final shot over it.
     if shots and 0.001 < analysis.duration - shots[-1].end <= 0.25:

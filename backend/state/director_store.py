@@ -143,20 +143,36 @@ class DirectorStore:
             raw = json.loads(self._path.read_text(encoding="utf-8"))
             if not isinstance(raw, list):
                 return
+            from dataclasses import fields as dataclass_fields
+
+            run_fields = {f.name for f in dataclass_fields(DirectorRun)}
+            shot_fields = {f.name for f in dataclass_fields(DirectorShot)}
             runs: list[DirectorRun] = []
             for item in cast(list[object], raw):
                 if not isinstance(item, dict):
                     continue
-                record = cast(dict[str, object], item)
-                shots_raw = record.pop("shots", [])
-                shots: list[DirectorShot] = []
-                if isinstance(shots_raw, list):
-                    for shot_obj in cast(list[object], shots_raw):
-                        if isinstance(shot_obj, dict):
-                            shots.append(DirectorShot(**cast(dict[str, object], shot_obj)))  # type: ignore[arg-type]
-                run = DirectorRun(**cast(dict[str, object], record))  # type: ignore[arg-type]
-                run.shots = shots
-                runs.append(run)
+                # Per-record isolation: one bad/foreign-schema record must not
+                # wipe the crash-resume history. Unknown keys (newer app
+                # versions) are dropped instead of raising TypeError.
+                try:
+                    record = cast(dict[str, object], item)
+                    shots_raw = record.pop("shots", [])
+                    shots: list[DirectorShot] = []
+                    if isinstance(shots_raw, list):
+                        for shot_obj in cast(list[object], shots_raw):
+                            if isinstance(shot_obj, dict):
+                                shot_record = {
+                                    k: v
+                                    for k, v in cast(dict[str, object], shot_obj).items()
+                                    if k in shot_fields
+                                }
+                                shots.append(DirectorShot(**shot_record))  # type: ignore[arg-type]
+                    run_record = {k: v for k, v in record.items() if k in run_fields}
+                    run = DirectorRun(**run_record)  # type: ignore[arg-type]
+                    run.shots = shots
+                    runs.append(run)
+                except (TypeError, ValueError):
+                    continue
             self._runs = runs
         except (OSError, json.JSONDecodeError, TypeError, UnicodeDecodeError):
             self._runs = []

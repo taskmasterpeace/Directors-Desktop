@@ -94,9 +94,21 @@ class DirectorHandler:
         if run.phase in ("error", "cancelled"):
             # Re-enter at the phase implied by progress so far.
             run.error = None
-            run.phase = "generating" if run.analysis is not None else "analyzing"
+            run.phase = "generating" if (run.analysis is not None and run.shots) else "analyzing"
             for shot in run.shots:
-                if shot.status in ("submitted", "error") and shot.result_path is None:
+                if shot.result_path is not None:
+                    continue
+                # A submitted shot's job may still be live (or even done) —
+                # resetting it blindly would submit a SECOND paid job.
+                if shot.status == "submitted" and shot.job_id:
+                    job = self._job_queue.get_job(shot.job_id)
+                    if job is not None and job.status in ("queued", "running"):
+                        continue  # still rendering — leave it alone
+                    if job is not None and job.status == "complete" and job.result_paths:
+                        shot.status = "complete"
+                        shot.result_path = job.result_paths[0]
+                        continue
+                if shot.status in ("submitted", "error"):
                     shot.status = "pending"
                     shot.job_id = None
                     shot.error = None
@@ -186,6 +198,10 @@ class DirectorHandler:
     def _step_generate(self, run: DirectorRun) -> None:
         changed = False
         for shot in run.shots:
+            # A cancel can land while this loop is submitting — stop paying
+            # for new shots the moment the flag is up.
+            if self._is_cancelled(run.id):
+                break
             if shot.status == "pending":
                 params: dict[str, object] = {
                     "prompt": shot.prompt,
@@ -202,8 +218,10 @@ class DirectorHandler:
                     slot="api",
                     tags=["director", run.id],
                 )
-                shot.status = "submitted"
+                # job_id before status: cancel() scans by status and must never
+                # observe "submitted" with the job_id still unset.
                 shot.job_id = job.id
+                shot.status = "submitted"
                 changed = True
             elif shot.status == "submitted" and shot.job_id:
                 job = self._job_queue.get_job(shot.job_id)
@@ -230,6 +248,16 @@ class DirectorHandler:
                         shot.error = "job completed with no output"
                     changed = True
 
+        # Closing sweep: if a cancel raced this pass, cancel everything this
+        # run has in flight and finish as cancelled (no later tick will run).
+        if self._is_cancelled(run.id):
+            for shot in run.shots:
+                if shot.job_id and shot.status == "submitted":
+                    self._job_queue.cancel_job(shot.job_id)
+            run.phase = "cancelled"
+            self._store.save()
+            return
+
         if any(s.status == "error" for s in run.shots):
             failed = [s.index for s in run.shots if s.status == "error"]
             run.phase = "error"
@@ -238,7 +266,7 @@ class DirectorHandler:
                 "and resume — completed shots are kept."
             )
             changed = True
-        elif all(s.status == "complete" for s in run.shots):
+        elif run.shots and all(s.status == "complete" for s in run.shots):
             run.phase = "assembling"
             changed = True
         if changed:
@@ -252,7 +280,9 @@ class DirectorHandler:
         output = self._outputs_dir / f"director_{run.id}.mp4"
         self._assembler.assemble(shots=shots, audio_path=run.audio_path, output_path=str(output))
         run.output_path = str(output)
-        run.phase = "complete"
+        # If the user cancelled while ffmpeg ran, the acknowledged "cancelled"
+        # must not be overwritten by "complete" (the file still exists).
+        run.phase = "cancelled" if self._is_cancelled(run.id) else "complete"
         self._store.save()
 
     # ── background driving ───────────────────────────────────────────────

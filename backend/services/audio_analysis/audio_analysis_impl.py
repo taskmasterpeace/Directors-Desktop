@@ -88,9 +88,12 @@ class AudioAnalyzerImpl:
                 # Beat-synchronous features segment far more musically.
                 feats = librosa.util.sync(feats, bf)
                 # agglomerative() returns k boundary indices into the feature
-                # sequence (beat indices here), the first always 0.
+                # sequence (beat-sync columns here), the first always 0.
+                # Column j spans padded frames fix_frames(bf,0,N)[j]..[j+1],
+                # i.e. column j >= 1 STARTS at bf[j-1] — mapping to bf[j]
+                # would land every section one beat late.
                 bound_beats = librosa.segment.agglomerative(feats, k)
-                bound_frames = bf[np.clip(bound_beats[1:], 0, bf.size - 1)]
+                bound_frames = bf[np.clip(bound_beats[1:] - 1, 0, bf.size - 1)]
             else:
                 bounds = librosa.segment.agglomerative(feats, k)
                 bound_frames = bounds[1:]
@@ -100,9 +103,19 @@ class AudioAnalyzerImpl:
             step = duration / k
             bounds_times = [step * i for i in range(1, k)]
 
-        edges = [0.0] + [t for t in bounds_times if 0.5 < t < duration - 0.5] + [duration]
-        edges = sorted(set(edges))
-        spans = [(edges[i], edges[i + 1]) for i in range(len(edges) - 1) if edges[i + 1] - edges[i] > 1.0]
+        edges = sorted(set([0.0] + [t for t in bounds_times if 0.5 < t < duration - 0.5] + [duration]))
+        # Sections must be CONTIGUOUS and cover [0, duration]: dropping a short
+        # span while keeping both its edges would leave a hole that downstream
+        # turns into permanent audio/video desync. Instead, drop interior EDGES
+        # that would create a span under 1s (merging it into the previous span).
+        kept = [edges[0]]
+        for edge in edges[1:-1]:
+            if edge - kept[-1] > 1.0:
+                kept.append(edge)
+        if edges[-1] - kept[-1] <= 1.0 and len(kept) > 1:
+            kept.pop()  # final span would be a sliver — merge into the previous
+        kept.append(edges[-1])
+        spans = [(kept[i], kept[i + 1]) for i in range(len(kept) - 1)]
         if not spans:
             spans = [(0.0, duration)]
 

@@ -728,22 +728,50 @@ export function VideoEditor() {
   // Transcript -> captions: turn word timestamps into real subtitle cues on a
   // subtitle track. Same engine the agent's captions_from_transcript action
   // uses, so human button and AI action produce identical results.
-  const handleMakeCaptions = useCallback((clip: TimelineClip): boolean => {
-    const words = transcriptCache[clip.id] ?? persistedTranscriptForRef.current?.(clip)
-    if (!words || words.length === 0) return false
-    const speed = clip.speed || 1
-    const srcStart = clip.trimStart
-    const srcEnd = clip.trimStart + clip.duration * speed
-    const mapped = words
-      .filter((w) => w.end > srcStart && w.start < srcEnd)
-      .map((w) => ({
-        text: w.text,
-        start: sourceTimeToTimelineTime(Math.max(w.start, srcStart), clip),
-        end: sourceTimeToTimelineTime(Math.min(w.end, srcEnd), clip),
-      }))
-    const cues = captionsFromWords(mapped)
-    if (cues.length === 0) return false
+  //
+  // Batch form: multiple synchronous invocations in one tick all read the
+  // same stale `tracks` closure, so track creation is guarded by a ref —
+  // at most ONE subtitle track is ever created no matter how many calls land
+  // before React re-renders (this used to stack a track per captioned clip).
+  const subtitleTrackPendingRef = useRef(false)
+  useEffect(() => {
+    if (tracks.some((t) => t.type === 'subtitle')) subtitleTrackPendingRef.current = false
+  }, [tracks])
+  const handleMakeCaptions = useCallback((targets: TimelineClip[]): boolean => {
+    interface CaptionRun { newSubs: SubtitleClip[]; windowStart: number; windowEnd: number }
+    const runs: CaptionRun[] = []
+    const stamp = Date.now()
+    for (const clip of targets) {
+      const words = transcriptCache[clip.id] ?? persistedTranscriptForRef.current?.(clip)
+      if (!words || words.length === 0) continue
+      const speed = clip.speed || 1
+      const srcStart = clip.trimStart
+      const srcEnd = clip.trimStart + clip.duration * speed
+      const mapped = words
+        .filter((w) => w.end > srcStart && w.start < srcEnd)
+        .map((w) => ({
+          text: w.text,
+          start: sourceTimeToTimelineTime(Math.max(w.start, srcStart), clip),
+          end: sourceTimeToTimelineTime(Math.min(w.end, srcEnd), clip),
+        }))
+      const cues = captionsFromWords(mapped)
+      if (cues.length === 0) continue
+      runs.push({
+        newSubs: cues.map((c, i) => ({
+          id: `sub-${stamp}-${clip.id}-${i}-${Math.random().toString(36).slice(2, 7)}`,
+          text: c.text,
+          startTime: c.start,
+          endTime: c.end,
+          trackIndex: 0, // patched to the real subtitle track index below
+        })),
+        windowStart: clip.startTime,
+        windowEnd: clip.startTime + clip.duration,
+      })
+    }
+    if (runs.length === 0) return false
+
     let subIdx = tracks.findIndex((t) => t.type === 'subtitle')
+    if (subIdx === -1 && subtitleTrackPendingRef.current) subIdx = 0 // created earlier this tick
     if (subIdx === -1) {
       const newTrack: Track = {
         id: `track-sub-${Date.now()}`,
@@ -755,24 +783,23 @@ export function VideoEditor() {
       setClips((prev) => prev.map((c) => ({ ...c, trackIndex: c.trackIndex + 1 })))
       setSubtitles((prev) => prev.map((sub) => ({ ...sub, trackIndex: sub.trackIndex + 1 })))
       setTracks((prev) => [newTrack, ...prev])
+      subtitleTrackPendingRef.current = true
       subIdx = 0
     }
-    const clipStart = clip.startTime
-    const clipEnd = clip.startTime + clip.duration
-    const stamp = Date.now()
-    const newSubs: SubtitleClip[] = cues.map((c, i) => ({
-      id: `sub-${stamp}-${i}-${Math.random().toString(36).slice(2, 7)}`,
-      text: c.text,
-      startTime: c.start,
-      endTime: c.end,
-      trackIndex: subIdx,
-    }))
-    // Re-clicking refreshes: replace existing cues under this clip's window on that track.
-    setSubtitles((prev) => [
-      ...prev.filter((sub) => sub.trackIndex !== subIdx || sub.endTime <= clipStart || sub.startTime >= clipEnd),
-      ...newSubs,
-    ])
-    setFrameActionMsg({ kind: 'ok', text: `Added ${newSubs.length} caption${newSubs.length === 1 ? '' : 's'} from the transcript.` })
+    const trackIdx = subIdx
+    // Replace existing cues under each captioned clip's window, then add all
+    // new cues — one functional pass so batched runs compose.
+    setSubtitles((prev) => {
+      let kept = prev
+      for (const run of runs) {
+        kept = kept.filter(
+          (sub) => sub.trackIndex !== trackIdx || sub.endTime <= run.windowStart || sub.startTime >= run.windowEnd,
+        )
+      }
+      return [...kept, ...runs.flatMap((r) => r.newSubs.map((sub) => ({ ...sub, trackIndex: trackIdx })))]
+    })
+    const total = runs.reduce((n, r) => n + r.newSubs.length, 0)
+    setFrameActionMsg({ kind: 'ok', text: `Added ${total} caption${total === 1 ? '' : 's'} from the transcript.` })
     return true
   }, [transcriptCache, tracks, setClips, setSubtitles, setTracks])
 
@@ -788,6 +815,8 @@ export function VideoEditor() {
   // Agent bridge Phase 7: import a finished generation into the project bin and
   // drop it on the timeline at the requested spot, with an agent marker noting
   // what landed. addClipToTimeline pushes its own undo step.
+  const tracksForPlacementRef = useRef<Track[]>([])
+  tracksForPlacementRef.current = tracks
   const placeGenerated = useCallback(async (
     result: { imagePath: string; videoPath?: string },
     at: { trackIndex: number; startTime: number },
@@ -824,7 +853,20 @@ export function VideoEditor() {
         takes: [{ url: finalUrl, path: finalPath, createdAt: Date.now() }],
         activeTakeIndex: 0,
       })
-      addClipToTimeline(asset, at.trackIndex, at.startTime)
+      // Revalidate at PLACEMENT time: tracks may have shifted (e.g. a captions
+      // action prepended a subtitle track) during the minutes of generation.
+      const liveTracks = tracksForPlacementRef.current
+      let targetIdx = at.trackIndex
+      if (
+        targetIdx < 0 ||
+        targetIdx >= liveTracks.length ||
+        liveTracks[targetIdx].type === 'subtitle' ||
+        liveTracks[targetIdx].locked
+      ) {
+        targetIdx = liveTracks.findIndex((t) => t.type !== 'subtitle' && !t.locked)
+      }
+      if (targetIdx === -1) return false
+      addClipToTimeline(asset, targetIdx, at.startTime)
       setMarkers((prev) => [
         ...prev,
         {
@@ -844,9 +886,16 @@ export function VideoEditor() {
 
   // Agent bridge (Phase 6): poll queued agent actions, apply through one undo
   // step, report applied/rejected. Mounted for the life of the editor.
+  const getAssetDurationForClip = useCallback((clip: TimelineClip): number | undefined => {
+    const assetId = clip.assetId ?? clip.asset?.id
+    const asset = assetId ? assets.find((a) => a.id === assetId) : clip.asset
+    return asset?.duration ?? clip.asset?.duration ?? undefined
+  }, [assets])
+
   useAgentActions({
-    clips, tracks, markers, setClips, setMarkers, pushUndo,
+    clips, tracks, markers, setClips, setMarkers, pushUndo, pushTrackUndo,
     makeCaptions: handleMakeCaptions,
+    getAssetDuration: getAssetDurationForClip,
     imageModel: migrateImageModelId(appSettings.imageModel),
     placeGenerated,
   })
@@ -4430,7 +4479,7 @@ export function VideoEditor() {
               onWordsLoaded={handleTranscriptWords}
               onWordsChange={handleTranscriptWords}
               onGenerate={handleTranscriptGenerate}
-              onMakeCaptions={() => handleMakeCaptions(selectedClip)}
+              onMakeCaptions={() => { pushTrackUndo(); handleMakeCaptions([selectedClip]) }}
               isBusy={transcriptGenPhase !== null}
             />
             {transcriptGenPhase && (
