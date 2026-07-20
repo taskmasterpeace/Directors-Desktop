@@ -85,7 +85,13 @@ def _shot_type(section_label: str, position_in_section: int) -> str:
     return "performance" if position_in_section % 2 == 1 else "broll"
 
 
-def build_prompt(concept: str, section_label: str, shot_type: str, energy: float) -> str:
+def build_prompt(
+    concept: str,
+    section_label: str,
+    shot_type: str,
+    energy: float,
+    lyric_line: str = "",
+) -> str:
     parts = [_TYPE_DESC.get(shot_type, _TYPE_DESC["broll"])]
     concept = concept.strip()
     if concept:
@@ -95,7 +101,34 @@ def build_prompt(concept: str, section_label: str, shot_type: str, energy: float
         parts.append("kinetic motion, high intensity")
     elif energy <= 0.33:
         parts.append("calm, lingering camera")
-    return ", ".join(parts)
+    prompt = ", ".join(parts)
+    # Only performance shots mouth the words — burned-in lyric text on b-roll
+    # reads as an artifact, and establishing shots have no performer close up.
+    if lyric_line and shot_type == "performance":
+        prompt += f'. They sing the words "{lyric_line}" in sync with the music'
+    return prompt
+
+
+def lyric_line_for_span(
+    lyrics: list[dict[str, object]] | None, start: float, end: float, max_words: int = 12
+) -> str:
+    """The words sung inside [start, end), joined and capped for a prompt."""
+    if not lyrics:
+        return ""
+    words: list[str] = []
+    for w in lyrics:
+        w_start = w.get("start")
+        w_end = w.get("end")
+        text = w.get("text")
+        if not isinstance(w_start, (int, float)) or not isinstance(w_end, (int, float)):
+            continue
+        if not isinstance(text, str):
+            continue
+        if w_end > start and w_start < end:
+            words.append(text.strip())
+        if len(words) >= max_words:
+            break
+    return " ".join(w for w in words if w)
 
 
 def plan_shots(
@@ -104,6 +137,7 @@ def plan_shots(
     *,
     min_shot: float = MIN_SHOT_SECONDS,
     max_shot: float = MAX_SHOT_SECONDS,
+    lyrics: list[dict[str, object]] | None = None,
 ) -> list[PlannedShot]:
     """Tile the whole song with beat-aligned shots. Deterministic."""
     if analysis.duration <= 0:
@@ -148,7 +182,10 @@ def plan_shots(
                     end=end,
                     section_label=section.label,
                     shot_type=shot_type,
-                    prompt=build_prompt(concept, section.label, shot_type, section.energy),
+                    prompt=build_prompt(
+                        concept, section.label, shot_type, section.energy,
+                        lyric_line=lyric_line_for_span(lyrics, cursor, end),
+                    ),
                     generate_seconds=max(GEN_MIN_SECONDS, min(GEN_MAX_SECONDS, math.ceil(end - cursor))),
                 )
             )

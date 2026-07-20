@@ -59,6 +59,7 @@ class DirectorRun:
     shots: list[DirectorShot] = field(default_factory=lambda: list[DirectorShot]())
     output_path: str | None = None
     reference_image_paths: list[str] = field(default_factory=lambda: list[str]())
+    lyrics: list[dict[str, object]] | None = None
 
     @property
     def is_terminal(self) -> bool:

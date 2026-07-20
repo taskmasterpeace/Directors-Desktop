@@ -16,7 +16,7 @@ import threading
 import time
 from dataclasses import asdict
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from _routes._errors import HTTPError
 from server_utils.shot_planner import plan_shots
@@ -40,12 +40,16 @@ class DirectorHandler:
         audio_analyzer: AudioAnalyzer,
         video_assembler: VideoAssembler,
         outputs_dir: Path,
+        transcribe_fn: Callable[[str], list[dict[str, object]]] | None = None,
+        fal_key_check: Callable[[], bool] | None = None,
     ) -> None:
         self._store = store
         self._job_queue = job_queue
         self._analyzer = audio_analyzer
         self._assembler = video_assembler
         self._outputs_dir = outputs_dir
+        self._transcribe_fn = transcribe_fn
+        self._fal_key_check = fal_key_check
         self._threads: dict[str, threading.Thread] = {}
         self._cancel_flags: set[str] = set()
         self._lock = threading.Lock()
@@ -66,6 +70,12 @@ class DirectorHandler:
             raise HTTPError(400, f"Song file not found: {audio_path}")
         if not concept.strip():
             raise HTTPError(400, "A concept is required — one line about the video's world.")
+        if model.startswith("seedance") and self._fal_key_check is not None and not self._fal_key_check():
+            raise HTTPError(
+                400,
+                "FAL_API_KEY_REQUIRED: Seedance renders on fal. Add your fal API key in "
+                "Settings before starting a Director run.",
+            )
         run = self._store.create_run(
             audio_path=audio_path,
             concept=concept.strip(),
@@ -146,7 +156,14 @@ class DirectorHandler:
     def _step_analyze(self, run: DirectorRun) -> None:
         analysis = self._analyzer.analyze(run.audio_path)
         run.analysis = asdict(analysis)
-        planned = plan_shots(analysis, run.concept)
+        # Lyrics are an enhancement: transcription failure (no key, network)
+        # never blocks the build — prompts just go without the sung words.
+        if self._transcribe_fn is not None:
+            try:
+                run.lyrics = self._transcribe_fn(run.audio_path)
+            except Exception:
+                run.lyrics = None
+        planned = plan_shots(analysis, run.concept, lyrics=run.lyrics)
         if not planned:
             raise RuntimeError("Could not plan any shots from this song")
         from state.director_store import DirectorShot

@@ -98,6 +98,28 @@ def test_shot_cap_preserves_coverage():
     assert len(shots) <= MAX_TOTAL_SHOTS
 
 
+def test_lyrics_reach_performance_shot_prompts():
+    from server_utils.shot_planner import lyric_line_for_span
+
+    lyrics = [
+        {"text": "midnight", "start": 20.0, "end": 20.4},
+        {"text": "run", "start": 20.4, "end": 20.9},
+        {"text": "far away", "start": 90.0, "end": 90.5},
+    ]
+    assert lyric_line_for_span(lyrics, 19.0, 22.0) == "midnight run"
+    assert lyric_line_for_span(lyrics, 0.0, 5.0) == ""
+    assert lyric_line_for_span(None, 0.0, 5.0) == ""
+
+    shots = plan_shots(_analysis(), "city night", lyrics=lyrics)
+    perf_with_words = [
+        s for s in shots
+        if s.shot_type == "performance" and s.end > 20.0 and s.start < 20.9
+    ]
+    assert all('sing the words' in s.prompt for s in perf_with_words)
+    # Non-performance shots never carry sung lines.
+    assert all('sing the words' not in s.prompt for s in shots if s.shot_type != "performance")
+
+
 def test_empty_sections_fall_back_to_single_span():
     analysis = AudioAnalysis(duration=30.0, tempo_bpm=100.0, beats=[i * 0.6 for i in range(50)])
     shots = plan_shots(analysis, "fallback")

@@ -310,12 +310,22 @@ class AppHandler:
 
         from handlers.director_handler import DirectorHandler
         from state.director_store import DirectorStore
+        def _director_transcribe(audio_path: str) -> list[dict[str, object]]:
+            from api_types import TranscribeRequest
+
+            response = self.transcription.transcribe(TranscribeRequest(audioPath=audio_path))
+            return [
+                {"text": w.text, "start": w.start, "end": w.end} for w in response.words
+            ]
+
         self.director = DirectorHandler(
             store=DirectorStore(config.settings_file.parent / "director_runs.json"),
             job_queue=self.job_queue,
             audio_analyzer=audio_analyzer,
             video_assembler=video_assembler,
             outputs_dir=config.outputs_dir,
+            transcribe_fn=_director_transcribe,
+            fal_key_check=lambda: bool(self.state.app_settings.fal_api_key.strip()),
         )
 
         self.prompts = PromptHandler(

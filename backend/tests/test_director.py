@@ -13,6 +13,7 @@ def _make_song(tmp_path: Path) -> str:
 
 
 def _start(handler, tmp_path: Path):
+    handler.state.app_settings.fal_api_key = "test-fal-key"
     return handler.director.start(
         audio_path=_make_song(tmp_path),
         concept="neon-lit rooftop at night",
@@ -127,6 +128,7 @@ def test_start_validates_inputs(test_state, tmp_path: Path):
     except HTTPError as e:
         assert e.status_code == 400
 
+    handler.state.app_settings.fal_api_key = "test-fal-key"
     try:
         handler.director.start(
             audio_path=_make_song(tmp_path),
@@ -138,6 +140,25 @@ def test_start_validates_inputs(test_state, tmp_path: Path):
         raise AssertionError("expected HTTPError")
     except HTTPError as e:
         assert e.status_code == 400
+
+
+def test_start_requires_fal_key_for_seedance(test_state, tmp_path: Path):
+    from _routes._errors import HTTPError
+
+    handler = test_state
+    handler.state.app_settings.fal_api_key = ""
+    try:
+        handler.director.start(
+            audio_path=_make_song(tmp_path),
+            concept="x",
+            model="seedance-2.0",
+            resolution="720p",
+            run_thread=False,
+        )
+        raise AssertionError("expected HTTPError")
+    except HTTPError as e:
+        assert e.status_code == 400
+        assert "FAL_API_KEY_REQUIRED" in str(e.detail)
 
 
 def test_store_persists_and_reloads(tmp_path: Path):
@@ -160,6 +181,7 @@ def test_store_persists_and_reloads(tmp_path: Path):
 
 def test_routes_surface(client, test_state, tmp_path: Path):
     handler = test_state
+    handler.state.app_settings.fal_api_key = "test-fal-key"
     song = _make_song(tmp_path)
     resp = client.post(
         "/api/director/start",
