@@ -120,6 +120,39 @@ def test_lyrics_reach_performance_shot_prompts():
     assert all('sing the words' not in s.prompt for s in shots if s.shot_type != "performance")
 
 
+def test_tiny_trailing_sections_never_leave_a_tail_gap():
+    # Fuzz-found: trailing sections under 0.75s used to be skipped outright,
+    # ending the video before the song. The tail fill must cover to the end.
+    analysis = AudioAnalysis(
+        duration=30.0,
+        tempo_bpm=120.0,
+        beats=[i * 0.5 for i in range(60)],
+        downbeats=[i * 2.0 for i in range(15)],
+        sections=[
+            AudioSection(start=0.0, end=28.9, label="verse", energy=0.5),
+            AudioSection(start=28.9, end=29.5, label="outro", energy=0.1),  # sliver
+            AudioSection(start=29.5, end=30.0, label="outro", energy=0.1),  # sliver
+        ],
+    )
+    shots = plan_shots(analysis, "cover the ending")
+    assert abs(shots[-1].end - 30.0) < 0.01
+    for s in shots:
+        # A shot never promises more coverage than its generation holds.
+        assert s.end - s.start <= s.generate_seconds + 1e-6
+
+
+def test_all_sliver_sections_fall_back_to_full_span():
+    analysis = AudioAnalysis(
+        duration=3.0,
+        tempo_bpm=120.0,
+        beats=[i * 0.5 for i in range(6)],
+        sections=[AudioSection(start=i * 0.5, end=(i + 1) * 0.5, label="verse", energy=0.5) for i in range(6)],
+    )
+    shots = plan_shots(analysis, "tiny sections")
+    assert shots
+    assert abs(shots[-1].end - 3.0) < 0.01
+
+
 def test_empty_sections_fall_back_to_single_span():
     analysis = AudioAnalysis(duration=30.0, tempo_bpm=100.0, beats=[i * 0.6 for i in range(50)])
     shots = plan_shots(analysis, "fallback")

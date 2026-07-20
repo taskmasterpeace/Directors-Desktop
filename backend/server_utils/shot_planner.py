@@ -148,19 +148,26 @@ def plan_shots(
         beat_gap = max(g2 - g1 for g1, g2 in zip(grid, grid[1:]))
     snap_tol = min(1.5, beat_gap / 2 + 0.01)
 
-    sections = analysis.sections or []
-    if not sections:
-        from services.audio_analysis import AudioSection
+    from services.audio_analysis import AudioSection
 
-        sections = [AudioSection(start=0.0, end=analysis.duration, label="verse", energy=0.5)]
+    # Sanitize sections: clamp to the song, drop unusable slivers. If nothing
+    # usable survives (degenerate segmentation), treat the whole song as one
+    # span — the planner must always cover the full runtime.
+    usable: list[AudioSection] = []
+    for section in analysis.sections or []:
+        sec_start = max(0.0, min(section.start, analysis.duration))
+        sec_end = max(sec_start, min(section.end, analysis.duration))
+        if sec_end - sec_start >= 0.75:
+            usable.append(AudioSection(start=sec_start, end=sec_end, label=section.label, energy=section.energy))
+    if not usable:
+        usable = [AudioSection(start=0.0, end=analysis.duration, label="verse", energy=0.5)]
+    sections = usable
 
     # Global cut list: section-by-section, energy-scaled lengths, beat-snapped.
     shots: list[PlannedShot] = []
     for section in sections:
-        sec_start = max(0.0, min(section.start, analysis.duration))
-        sec_end = max(sec_start, min(section.end, analysis.duration))
-        if sec_end - sec_start < 0.75:
-            continue
+        sec_start = section.start
+        sec_end = section.end
         target = max(min_shot, min(max_shot, _target_shot_seconds(section.energy)))
         count = max(1, round((sec_end - sec_start) / target))
         step = (sec_end - sec_start) / count
@@ -194,19 +201,63 @@ def plan_shots(
         if len(shots) >= MAX_TOTAL_SHOTS:
             break
 
-    # Hard cap: merge overflow into the final shot rather than dropping coverage.
-    if len(shots) > MAX_TOTAL_SHOTS:
-        head = shots[: MAX_TOTAL_SHOTS - 1]
-        tail = shots[MAX_TOTAL_SHOTS - 1 :]
-        last = tail[-1]
-        merged = PlannedShot(
-            index=len(head),
-            start=tail[0].start,
-            end=last.end,
+    # Tail fill: dropped sliver sections (or a cap break) can leave the song's
+    # ending uncovered — a video that stops while the song plays on. Tile the
+    # remainder with plain shots until covered or the cap is hit.
+    tail_section = sections[-1]
+    tail_position = 1  # never 'establishing' mid-song
+    while shots and shots[-1].end < analysis.duration - 0.25 and len(shots) < MAX_TOTAL_SHOTS:
+        start = shots[-1].end
+        end = min(analysis.duration, start + max_shot)
+        shot_type = _shot_type(tail_section.label, tail_position)
+        shots.append(
+            PlannedShot(
+                index=len(shots),
+                start=start,
+                end=end,
+                section_label=tail_section.label,
+                shot_type=shot_type,
+                prompt=build_prompt(
+                    concept, tail_section.label, shot_type, tail_section.energy,
+                    lyric_line=lyric_line_for_span(lyrics, start, end),
+                ),
+                generate_seconds=max(GEN_MIN_SECONDS, min(GEN_MAX_SECONDS, math.ceil(end - start))),
+            )
+        )
+        tail_position += 1
+
+    # Sub-threshold residue (<0.25s): stretch the final shot over it.
+    if shots and 0.001 < analysis.duration - shots[-1].end <= 0.25:
+        last = shots[-1]
+        shots[-1] = PlannedShot(
+            index=last.index,
+            start=last.start,
+            end=analysis.duration,
             section_label=last.section_label,
             shot_type=last.shot_type,
             prompt=last.prompt,
-            generate_seconds=max(GEN_MIN_SECONDS, min(GEN_MAX_SECONDS, math.ceil(last.end - tail[0].start))),
+            generate_seconds=max(
+                GEN_MIN_SECONDS, min(GEN_MAX_SECONDS, math.ceil(analysis.duration - last.start))
+            ),
+        )
+
+    # Hard cap: merge overflow into one final shot — but never promise more
+    # coverage than one generation can physically hold (GEN_MAX). Beyond that
+    # the plan truncates EXPLICITLY (video ends early) instead of freezing.
+    if len(shots) > MAX_TOTAL_SHOTS:
+        head = shots[: MAX_TOTAL_SHOTS - 1]
+        tail = shots[MAX_TOTAL_SHOTS - 1 :]
+        merged_start = tail[0].start
+        merged_end = min(tail[-1].end, merged_start + GEN_MAX_SECONDS)
+        last = tail[-1]
+        merged = PlannedShot(
+            index=len(head),
+            start=merged_start,
+            end=merged_end,
+            section_label=last.section_label,
+            shot_type=last.shot_type,
+            prompt=last.prompt,
+            generate_seconds=max(GEN_MIN_SECONDS, min(GEN_MAX_SECONDS, math.ceil(merged_end - merged_start))),
         )
         shots = head + [merged]
     return shots
