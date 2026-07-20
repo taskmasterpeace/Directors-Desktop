@@ -180,6 +180,140 @@ def test_shot_phase_and_progress_are_surfaced(test_state, tmp_path: Path):
     assert first.progress == 42
 
 
+def _complete_keyframe_jobs(handler, tmp_path: Path) -> int:
+    done = 0
+    for job in handler.job_queue.all_jobs():
+        if job.status == "queued" and "keyframe" in job.tags:
+            frame = tmp_path / f"kf_{job.id}.png"
+            frame.write_bytes(b"png")
+            handler.job_queue.update_job(job.id, status="complete", result_paths=[str(frame)])
+            done += 1
+    return done
+
+
+def test_storyboard_auto_mode_keyframes_then_videos(test_state, tmp_path: Path):
+    handler = test_state
+    handler.state.app_settings.fal_api_key = "test-fal-key"
+    run = handler.director.start(
+        audio_path=_make_song(tmp_path),
+        concept="chrome desert caravan",
+        model="seedance-2.0",
+        resolution="720p",
+        treatment="A drifter finds a buried radio. The radio leads her to a hidden city. She frees the city's music.",
+        artist_name="NOVA",
+        storyboard=True,
+        approval="auto",
+        run_thread=False,
+    )
+    handler.director.step(run.id)  # analyze + plan
+    assert run.phase == "storyboarding"
+    # Vision inputs reached the prompts.
+    assert any("NOVA" in s.prompt for s in run.shots if s.shot_type == "performance")
+    assert any("Story beat:" in s.prompt for s in run.shots)
+
+    handler.director.step(run.id)  # submit keyframe image jobs
+    image_jobs = [j for j in handler.job_queue.all_jobs() if "keyframe" in j.tags]
+    assert len(image_jobs) == len(run.shots)
+    assert all(j.type == "image" and j.model == "dp-nano-banana-2" for j in image_jobs)
+
+    _complete_keyframe_jobs(handler, tmp_path)
+    handler.director.step(run.id)  # collect keyframes -> auto rolls to generating
+    assert run.phase == "generating"
+    assert all(s.keyframe_path for s in run.shots)
+
+    handler.director.step(run.id)  # submit video jobs seeded by keyframes
+    video_jobs = [j for j in handler.job_queue.all_jobs() if j.type == "video" and "director" in j.tags]
+    assert video_jobs
+    for job in video_jobs:
+        assert str(job.params.get("imagePath", "")).endswith(".png")
+
+    _complete_director_jobs(handler, tmp_path)
+    handler.director.step(run.id)
+    handler.director.step(run.id)
+    assert run.phase == "complete"
+
+
+def test_storyboard_approval_pauses_and_regenerates(test_state, tmp_path: Path):
+    handler = test_state
+    handler.state.app_settings.fal_api_key = "test-fal-key"
+    run = handler.director.start(
+        audio_path=_make_song(tmp_path),
+        concept="noir rooftop",
+        model="seedance-2.0",
+        resolution="720p",
+        storyboard=True,
+        approval="approve",
+        run_thread=False,
+    )
+    handler.director.step(run.id)
+    handler.director.step(run.id)  # submit keyframes
+    _complete_keyframe_jobs(handler, tmp_path)
+    handler.director.step(run.id)
+    assert run.phase == "awaiting_approval"
+
+    # Regenerate one frame: back to storyboarding, only that shot resubmits.
+    redo_index = run.shots[1].index
+    old_path = run.shots[1].keyframe_path
+    handler.director.approve_storyboard(run.id, regenerate=[redo_index], run_thread=False)
+    assert run.phase == "storyboarding"
+    assert run.shots[1].keyframe_path is None
+    handler.director.step(run.id)
+    resubmitted = [j for j in handler.job_queue.all_jobs() if "keyframe" in j.tags and j.status == "queued"]
+    assert len(resubmitted) == 1
+    _complete_keyframe_jobs(handler, tmp_path)
+    handler.director.step(run.id)
+    assert run.phase == "awaiting_approval"
+    assert run.shots[1].keyframe_path is not None and run.shots[1].keyframe_path != old_path
+
+    # Approve: rolls into generating.
+    handler.director.approve_storyboard(run.id, run_thread=False)
+    assert run.phase == "generating"
+
+
+def test_approve_route_surface(client, test_state, tmp_path: Path):
+    handler = test_state
+    handler.state.app_settings.fal_api_key = "test-fal-key"
+    song = _make_song(tmp_path)
+    resp = client.post(
+        "/api/director/start",
+        json={
+            "audioPath": song,
+            "concept": "x",
+            "storyboard": True,
+            "approval": "approve",
+            "treatment": "One. Two.",
+            "artistName": "NOVA",
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()["run"]
+    assert body["storyboard"] is True and body["approval"] == "approve"
+    run_id = body["id"]
+    # Approving before awaiting_approval is a clean 409, not silent nonsense.
+    denied = client.post("/api/director/storyboard/approve", json={"runId": run_id})
+    assert denied.status_code == 409
+    client.post("/api/director/cancel", json={"runId": run_id})
+
+
+def test_director_style_flavors_every_prompt(test_state, client, tmp_path: Path):
+    handler = test_state
+    handler.state.app_settings.fal_api_key = "test-fal-key"
+    styles = client.get("/api/director/styles").json()["styles"]
+    assert len(styles) == 5 and any(st["id"] == "hype-millions" for st in styles)
+
+    run = handler.director.start(
+        audio_path=_make_song(tmp_path),
+        concept="rooftop",
+        model="seedance-2.0",
+        resolution="720p",
+        director_style="hype-millions",
+        run_thread=False,
+    )
+    handler.director.step(run.id)
+    assert run.shots
+    assert all("fisheye" in s.prompt for s in run.shots)
+
+
 def test_start_requires_fal_key_for_seedance(test_state, tmp_path: Path):
     from _routes._errors import HTTPError
 

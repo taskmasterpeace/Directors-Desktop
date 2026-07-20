@@ -898,10 +898,21 @@ class DirectorStartRequest(BaseModel):
     model: str = "seedance-2.0"
     resolution: str = "720p"
     referenceImagePaths: list[str] = []
+    treatment: str = ""
+    artistName: str = ""
+    storyboard: bool = False
+    approval: str = "auto"
+    imageModel: str = "dp-nano-banana-2"
+    directorStyle: str = ""
 
 
 class DirectorTargetRequest(BaseModel):
     runId: str
+
+
+class DirectorApproveRequest(BaseModel):
+    runId: str
+    regenerate: list[int] = []
 
 
 class DirectorShotPayload(BaseModel):
@@ -917,6 +928,7 @@ class DirectorShotPayload(BaseModel):
     resultPath: str | None
     phase: str = ""
     progress: int = 0
+    keyframePath: str | None = None
 
 
 class DirectorSectionPayload(BaseModel):
@@ -939,6 +951,11 @@ class DirectorRunPayload(BaseModel):
     songSeconds: float | None
     sectionCount: int | None
     sections: list[DirectorSectionPayload] | None
+    storyboard: bool = False
+    approval: str = "auto"
+    treatment: str = ""
+    artistName: str = ""
+    directorStyle: str = ""
     shots: list[DirectorShotPayload]
 
 
@@ -948,3 +965,13 @@ class DirectorRunResponse(BaseModel):
 
 class DirectorRunsResponse(BaseModel):
     runs: list[DirectorRunPayload]
+
+
+class DirectorStylePayload(BaseModel):
+    id: str
+    name: str
+    description: str
+
+
+class DirectorStylesResponse(BaseModel):
+    styles: list[DirectorStylePayload]

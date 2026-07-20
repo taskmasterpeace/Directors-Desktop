@@ -66,6 +66,12 @@ class DirectorHandler:
         model: str,
         resolution: str,
         reference_image_paths: list[str] | None = None,
+        treatment: str = "",
+        artist_name: str = "",
+        storyboard: bool = False,
+        approval: str = "auto",
+        image_model: str = "dp-nano-banana-2",
+        director_style: str = "",
         run_thread: bool = True,
     ) -> DirectorRun:
         if not Path(audio_path).is_file():
@@ -84,6 +90,12 @@ class DirectorHandler:
             model=model,
             resolution=resolution,
             reference_image_paths=reference_image_paths,
+            treatment=treatment.strip(),
+            artist_name=artist_name.strip(),
+            storyboard=storyboard,
+            approval="approve" if approval == "approve" else "auto",
+            image_model=image_model,
+            director_style=director_style,
         )
         if run_thread:
             self._launch_thread(run.id)
@@ -96,8 +108,22 @@ class DirectorHandler:
         if run.phase in ("error", "cancelled"):
             # Re-enter at the phase implied by progress so far.
             run.error = None
-            run.phase = "generating" if (run.analysis is not None and run.shots) else "analyzing"
+            if run.analysis is None or not run.shots:
+                run.phase = "analyzing"
+            elif run.storyboard and any(shot.keyframe_path is None for shot in run.shots):
+                run.phase = "storyboarding"
+            else:
+                run.phase = "generating"
             for shot in run.shots:
+                # Stuck keyframe jobs: same queue-aware rules as video jobs.
+                if shot.keyframe_path is None and shot.image_job_id:
+                    image_job = self._job_queue.get_job(shot.image_job_id)
+                    if image_job is not None and image_job.status in ("queued", "running"):
+                        pass  # still rendering
+                    elif image_job is not None and image_job.status == "complete" and image_job.result_paths:
+                        shot.keyframe_path = image_job.result_paths[0]
+                    else:
+                        shot.image_job_id = None
                 if shot.result_path is not None:
                     continue
                 # A submitted shot's job may still be live (or even done) —
@@ -128,9 +154,32 @@ class DirectorHandler:
         for shot in run.shots:
             if shot.job_id and shot.status == "submitted":
                 self._job_queue.cancel_job(shot.job_id)
+            if shot.image_job_id and shot.keyframe_path is None:
+                self._job_queue.cancel_job(shot.image_job_id)
         if not run.is_terminal:
             run.phase = "cancelled"
             self._store.save()
+        return run
+
+    def approve_storyboard(
+        self, run_id: str, *, regenerate: list[int] | None = None, run_thread: bool = True
+    ) -> DirectorRun:
+        """From awaiting_approval: regenerate the named keyframes, or proceed."""
+        run = self._require_run(run_id)
+        if run.phase != "awaiting_approval":
+            raise HTTPError(409, f"Run is not awaiting approval (phase: {run.phase})")
+        redo = set(regenerate or [])
+        if redo:
+            for shot in run.shots:
+                if shot.index in redo:
+                    shot.keyframe_path = None
+                    shot.image_job_id = None
+            run.phase = "storyboarding"
+        else:
+            run.phase = "generating"
+        self._store.save()
+        if run_thread:
+            self._launch_thread(run.id)
         return run
 
     def status(self, run_id: str | None = None) -> DirectorRun | None:
@@ -155,6 +204,8 @@ class DirectorHandler:
         try:
             if run.phase == "analyzing":
                 self._step_analyze(run)
+            elif run.phase == "storyboarding":
+                self._step_storyboard(run)
             elif run.phase == "generating":
                 self._step_generate(run)
             elif run.phase == "assembling":
@@ -177,7 +228,17 @@ class DirectorHandler:
                 run.lyrics = self._transcribe_fn(run.audio_path)
             except Exception:
                 run.lyrics = None
-        planned = plan_shots(analysis, run.concept, lyrics=run.lyrics)
+        from server_utils.director_styles import get_director_style
+
+        style = get_director_style(run.director_style)
+        planned = plan_shots(
+            analysis,
+            run.concept,
+            lyrics=run.lyrics,
+            treatment=run.treatment,
+            artist_name=run.artist_name,
+            director_style=style.style if style else "",
+        )
         if not planned:
             raise RuntimeError("Could not plan any shots from this song")
         from state.director_store import DirectorShot
@@ -194,8 +255,75 @@ class DirectorHandler:
             )
             for p in planned
         ]
-        run.phase = "generating"
+        run.phase = "storyboarding" if run.storyboard else "generating"
         self._store.save()
+
+    def _step_storyboard(self, run: DirectorRun) -> None:
+        """Keyframe image per shot (Palette points via dp- models), then either
+        pause for the user's approval or roll straight into video generation."""
+        changed = False
+        for shot in run.shots:
+            if self._is_cancelled(run.id):
+                break
+            if shot.keyframe_path is None and shot.image_job_id is None:
+                from server_utils.director_styles import get_director_style as _style
+
+                style_note = _style(run.director_style)
+                keyframe_suffix = (
+                    f" {style_note.keyframe_note}." if style_note else ""
+                )
+                image_params: dict[str, object] = {
+                    "prompt": (
+                        f"{shot.prompt}. Cinematic film still, 16:9, true body proportions."
+                        f"{keyframe_suffix}"
+                    ),
+                    "numImages": 1,
+                }
+                if run.reference_image_paths:
+                    image_params["referenceImagePaths"] = list(run.reference_image_paths)
+                image_job = self._job_queue.submit(
+                    job_type="image",
+                    model=run.image_model,
+                    params=image_params,
+                    slot=self._slot_for_model(run.image_model) if self._slot_for_model else "api",
+                    tags=["director", run.id, "keyframe"],
+                )
+                shot.image_job_id = image_job.id
+                changed = True
+            elif shot.keyframe_path is None and shot.image_job_id:
+                image_job = self._job_queue.get_job(shot.image_job_id)
+                if image_job is None or image_job.status in ("error", "cancelled"):
+                    reason = (image_job.error if image_job else None) or "keyframe job disappeared"
+                    if shot.image_retries < _MAX_SHOT_RETRIES:
+                        shot.image_retries += 1
+                        shot.image_job_id = None
+                    else:
+                        shot.error = reason
+                        run.phase = "error"
+                        run.error = (
+                            f"Keyframe for shot {shot.index} failed after retry: {reason}. "
+                            "Fix the cause (Palette key/credits) and resume."
+                        )
+                        self._store.save()
+                        return
+                    changed = True
+                elif image_job.status == "complete" and image_job.result_paths:
+                    shot.keyframe_path = image_job.result_paths[0]
+                    changed = True
+
+        if self._is_cancelled(run.id):
+            for shot in run.shots:
+                if shot.image_job_id and shot.keyframe_path is None:
+                    self._job_queue.cancel_job(shot.image_job_id)
+            run.phase = "cancelled"
+            self._store.save()
+            return
+
+        if all(shot.keyframe_path is not None for shot in run.shots):
+            run.phase = "awaiting_approval" if run.approval == "approve" else "generating"
+            changed = True
+        if changed:
+            self._store.save()
 
     def _step_generate(self, run: DirectorRun) -> None:
         changed = False
@@ -212,6 +340,10 @@ class DirectorHandler:
                     "resolution": run.resolution,
                     "audio": "false",
                 }
+                if shot.keyframe_path:
+                    # Storyboard mode: the approved keyframe seeds the video
+                    # (i2v on cloud; image conditioning on local A2V).
+                    params["imagePath"] = shot.keyframe_path
                 if slot == "gpu":
                     # Local LTX A2V: condition each shot on ITS slice of the
                     # song — this is the real lip-sync path, rendered free on
@@ -219,7 +351,7 @@ class DirectorHandler:
                     params["audioPath"] = run.audio_path
                     params["audioStartTime"] = round(shot.start, 3)
                     params["audioMaxDuration"] = round(max(0.5, shot.end - shot.start), 3)
-                elif run.reference_image_paths:
+                elif run.reference_image_paths and not shot.keyframe_path:
                     params["referenceImagePaths"] = list(run.reference_image_paths)
                 job = self._job_queue.submit(
                     job_type="video",
@@ -323,7 +455,9 @@ class DirectorHandler:
             run = self._store.get_run(run_id)
             if run is None or run.is_terminal:
                 return
-            if run.phase == "generating":
+            if run.phase == "awaiting_approval":
+                return  # human's turn — approve_storyboard relaunches the thread
+            if run.phase in ("generating", "storyboarding"):
                 time.sleep(_STEP_INTERVAL_SECONDS)
 
     def _is_cancelled(self, run_id: str) -> bool:

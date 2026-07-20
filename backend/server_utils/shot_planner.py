@@ -15,6 +15,7 @@ Timing model:
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass
 
 from services.audio_analysis import AudioAnalysis
@@ -24,6 +25,8 @@ MAX_SHOT_SECONDS = 8.0
 GEN_MIN_SECONDS = 4
 GEN_MAX_SECONDS = 15
 MAX_TOTAL_SHOTS = 60
+
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
 
 _SECTION_FLAVOR = {
     "intro": "opening mood, slow reveal",
@@ -35,9 +38,10 @@ _SECTION_FLAVOR = {
 
 _TYPE_DESC = {
     "establishing": "Wide establishing shot",
-    "performance": "Medium shot of the artist performing to camera, moving with the music",
+    "performance": "Medium shot of {artist} performing to camera, moving with the music, framed from the waist up so the face stays large",
     "broll": "Cinematic b-roll detail shot",
 }
+_DEFAULT_ARTIST = "the artist"
 
 
 @dataclass(frozen=True)
@@ -91,8 +95,14 @@ def build_prompt(
     shot_type: str,
     energy: float,
     lyric_line: str = "",
+    artist_name: str = "",
+    story_beat: str = "",
+    director_style: str = "",
 ) -> str:
-    parts = [_TYPE_DESC.get(shot_type, _TYPE_DESC["broll"])]
+    desc = _TYPE_DESC.get(shot_type, _TYPE_DESC["broll"]).replace(
+        "{artist}", artist_name.strip() or _DEFAULT_ARTIST
+    )
+    parts = [desc]
     concept = concept.strip()
     if concept:
         parts.append(concept)
@@ -101,12 +111,35 @@ def build_prompt(
         parts.append("kinetic motion, high intensity")
     elif energy <= 0.33:
         parts.append("calm, lingering camera")
+    if director_style:
+        parts.append(director_style)
     prompt = ", ".join(parts)
-    # Only performance shots mouth the words — burned-in lyric text on b-roll
-    # reads as an artifact, and establishing shots have no performer close up.
+    # Narrative shots (establishing/b-roll) carry the story; the performer
+    # carries the words. This is how a video tells a story ACROSS the song
+    # instead of being 40 disconnected performance clips.
+    if story_beat and shot_type != "performance":
+        prompt += f". Story beat: {story_beat}"
     if lyric_line and shot_type == "performance":
         prompt += f'. They sing the words "{lyric_line}" in sync with the music'
     return prompt
+
+
+def distribute_treatment(section_count: int, chorus_flags: list[bool], treatment: str) -> list[str]:
+    """Spread the treatment's sentences across NON-chorus sections, in order.
+
+    Chorus sections get "" (they are the performance hook); narrative sections
+    receive the story's sentences evenly so the arc progresses start->finish.
+    """
+    sentences = [t.strip() for t in _SENTENCE_SPLIT.split(treatment.strip()) if t.strip()]
+    beats: list[str] = [""] * section_count
+    narrative = [i for i in range(section_count) if not (i < len(chorus_flags) and chorus_flags[i])]
+    if not sentences or not narrative:
+        return beats
+    for slot_pos, section_idx in enumerate(narrative):
+        # Even mapping: narrative section k of N reads sentence floor(k*S/N) —
+        # early sections get the setup, late sections get the payoff.
+        beats[section_idx] = sentences[min(len(sentences) - 1, slot_pos * len(sentences) // len(narrative))]
+    return beats
 
 
 def lyric_line_for_span(
@@ -138,6 +171,9 @@ def plan_shots(
     min_shot: float = MIN_SHOT_SECONDS,
     max_shot: float = MAX_SHOT_SECONDS,
     lyrics: list[dict[str, object]] | None = None,
+    treatment: str = "",
+    artist_name: str = "",
+    director_style: str = "",
 ) -> list[PlannedShot]:
     """Tile the whole song with beat-aligned shots. Deterministic."""
     if analysis.duration <= 0:
@@ -175,6 +211,9 @@ def plan_shots(
     if not contiguous:
         contiguous = [AudioSection(start=0.0, end=analysis.duration, label="verse", energy=0.5)]
     sections = contiguous
+    story_beats = distribute_treatment(
+        len(sections), [sec.label == "chorus" for sec in sections], treatment
+    )
 
     # Cap-aware pacing: with at most MAX_TOTAL_SHOTS shots, average shot length
     # must be at least duration/budget or the tail of the song goes uncovered
@@ -217,6 +256,9 @@ def plan_shots(
                         prompt=build_prompt(
                             concept, section.label, shot_type, section.energy,
                             lyric_line=lyric_line_for_span(lyrics, cursor, end),
+                            artist_name=artist_name,
+                            story_beat=story_beats[sections.index(section)],
+                            director_style=director_style,
                         ),
                         generate_seconds=max(GEN_MIN_SECONDS, min(GEN_MAX_SECONDS, math.ceil(end - cursor))),
                     )
@@ -270,6 +312,9 @@ def plan_shots(
                 prompt=build_prompt(
                     concept, tail_section.label, shot_type, tail_section.energy,
                     lyric_line=lyric_line_for_span(lyrics, start, end),
+                    artist_name=artist_name,
+                    story_beat=story_beats[-1] if story_beats else "",
+                    director_style=director_style,
                 ),
                 generate_seconds=max(GEN_MIN_SECONDS, min(GEN_MAX_SECONDS, math.ceil(end - start))),
             )

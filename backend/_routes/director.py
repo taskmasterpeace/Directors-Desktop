@@ -7,6 +7,9 @@ from typing import cast
 from fastapi import APIRouter, Depends
 
 from api_types import (
+    DirectorApproveRequest,
+    DirectorStylePayload,
+    DirectorStylesResponse,
     DirectorRunPayload,
     DirectorRunResponse,
     DirectorRunsResponse,
@@ -57,6 +60,11 @@ def _to_payload(run: DirectorRun) -> DirectorRunPayload:
         songSeconds=float(duration) if isinstance(duration, (int, float)) else None,
         sectionCount=len(sections_payload) if sections_payload is not None else None,
         sections=sections_payload,
+        storyboard=run.storyboard,
+        approval=run.approval,
+        treatment=run.treatment,
+        artistName=run.artist_name,
+        directorStyle=run.director_style,
         shots=[
             DirectorShotPayload(
                 index=s.index,
@@ -71,6 +79,7 @@ def _to_payload(run: DirectorRun) -> DirectorRunPayload:
                 resultPath=s.result_path,
                 phase=s.phase,
                 progress=s.progress,
+                keyframePath=s.keyframe_path,
             )
             for s in run.shots
         ],
@@ -88,6 +97,12 @@ def route_start_director_run(
         model=request.model,
         resolution=request.resolution,
         reference_image_paths=request.referenceImagePaths or None,
+        treatment=request.treatment,
+        artist_name=request.artistName,
+        storyboard=request.storyboard,
+        approval=request.approval,
+        image_model=request.imageModel,
+        director_style=request.directorStyle,
     )
     return DirectorRunResponse(run=_to_payload(run))
 
@@ -114,6 +129,27 @@ def route_cancel_director_run(
     handler: AppHandler = Depends(get_state_service),
 ) -> DirectorRunResponse:
     return DirectorRunResponse(run=_to_payload(handler.director.cancel(request.runId)))
+
+
+@router.get("/styles", response_model=DirectorStylesResponse)
+def route_director_styles() -> DirectorStylesResponse:
+    from server_utils.director_styles import DIRECTOR_STYLES
+
+    return DirectorStylesResponse(
+        styles=[
+            DirectorStylePayload(id=s.id, name=s.name, description=s.description)
+            for s in DIRECTOR_STYLES.values()
+        ]
+    )
+
+
+@router.post("/storyboard/approve", response_model=DirectorRunResponse)
+def route_approve_storyboard(
+    request: DirectorApproveRequest,
+    handler: AppHandler = Depends(get_state_service),
+) -> DirectorRunResponse:
+    run = handler.director.approve_storyboard(request.runId, regenerate=request.regenerate)
+    return DirectorRunResponse(run=_to_payload(run))
 
 
 @router.post("/resume", response_model=DirectorRunResponse)

@@ -18,7 +18,14 @@ from pathlib import Path
 from typing import Literal, cast
 
 DirectorPhase = Literal[
-    "analyzing", "generating", "assembling", "complete", "error", "cancelled"
+    "analyzing",
+    "storyboarding",
+    "awaiting_approval",
+    "generating",
+    "assembling",
+    "complete",
+    "error",
+    "cancelled",
 ]
 
 _TERMINAL: tuple[DirectorPhase, ...] = ("complete", "error", "cancelled")
@@ -43,6 +50,10 @@ class DirectorShot:
     # (loading_model / inference / decoding ... + percent).
     phase: str = ""
     progress: int = 0
+    # Storyboard-first mode: the approved keyframe image that seeds the video.
+    image_job_id: str | None = None
+    keyframe_path: str | None = None
+    image_retries: int = 0
 
     @property
     def duration(self) -> float:
@@ -64,6 +75,15 @@ class DirectorRun:
     output_path: str | None = None
     reference_image_paths: list[str] = field(default_factory=lambda: list[str]())
     lyrics: list[dict[str, object]] | None = None
+    # Vision inputs: the story told across the video + who performs it.
+    treatment: str = ""
+    artist_name: str = ""
+    # Storyboard-first mode: generate a keyframe image per shot (Palette
+    # points), optionally pause for approval, then animate each keyframe.
+    storyboard: bool = False
+    approval: Literal["auto", "approve"] = "auto"
+    image_model: str = "dp-nano-banana-2"
+    director_style: str = ""
 
     @property
     def is_terminal(self) -> bool:
@@ -85,6 +105,12 @@ class DirectorStore:
         model: str,
         resolution: str,
         reference_image_paths: list[str] | None = None,
+        treatment: str = "",
+        artist_name: str = "",
+        storyboard: bool = False,
+        approval: Literal["auto", "approve"] = "auto",
+        image_model: str = "dp-nano-banana-2",
+        director_style: str = "",
     ) -> DirectorRun:
         run = DirectorRun(
             id=f"dir_{uuid.uuid4().hex[:10]}",
@@ -94,6 +120,12 @@ class DirectorStore:
             resolution=resolution,
             created_at=time.time(),
             reference_image_paths=reference_image_paths or [],
+            treatment=treatment,
+            artist_name=artist_name,
+            storyboard=storyboard,
+            approval=approval,
+            image_model=image_model,
+            director_style=director_style,
         )
         with self._lock:
             self._runs.append(run)
