@@ -53,7 +53,7 @@ export function QuickModeToggles({
         onClick={onAddPhotos}
         className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-zinc-400 bg-zinc-800/40 border border-dashed border-zinc-700 hover:text-white hover:border-zinc-500 transition-colors"
       >
-        + Photo
+        + Reference image
       </button>
       {active && !hasPhotos && (
         <span className="text-[10px] text-amber-400/90">Attach photo(s) — the rest is automatic</span>

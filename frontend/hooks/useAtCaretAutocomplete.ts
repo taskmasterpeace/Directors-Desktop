@@ -28,8 +28,11 @@ export function useAtCaretAutocomplete(opts: {
   textareaRef: RefObject<HTMLTextAreaElement>
   onChange: (next: string) => void
   options: AtOption[]
+  /** Fired after a mention is inserted — hosts use it to auto-attach the
+   *  option's image as a reference (Runway/Palette behavior). */
+  onAccept?: (option: AtOption) => void
 }) {
-  const { textareaRef, onChange, options } = opts
+  const { textareaRef, onChange, options, onAccept } = opts
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
@@ -73,6 +76,7 @@ export function useAtCaretAutocomplete(opts: {
       const slug = option.label.replace(/\s+/g, '')
       const next = `${el.value.slice(0, tokenStart)}@${slug} ${el.value.slice(caret)}`
       onChange(next)
+      onAccept?.(option)
       setOpen(false)
       const pos = tokenStart + slug.length + 2 // past "@slug "
       requestAnimationFrame(() => {
@@ -80,7 +84,7 @@ export function useAtCaretAutocomplete(opts: {
         el.setSelectionRange(pos, pos)
       })
     },
-    [textareaRef, tokenStart, onChange],
+    [textareaRef, tokenStart, onChange, onAccept],
   )
 
   const onKeyDown = useCallback(

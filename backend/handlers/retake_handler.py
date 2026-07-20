@@ -129,7 +129,12 @@ class RetakeHandler(StateHandlerBase):
         if start_time >= end_time:
             raise HTTPError(400, "start_time must be less than end_time")
 
-        self._validate_video_metadata(str(video_file))
+        # The LTX pipeline needs 8k+1 frames and /32 dimensions. Users should
+        # never see that arithmetic — conform a temp copy automatically instead
+        # of rejecting the video ("got 367 frames, use 361" is not an answer).
+        conformed = self._conform_video_for_retake(video_file)
+        cleanup_conformed = conformed != video_file
+        video_file = conformed
 
         try:
             self._text.prepare_text_encoding(prompt, enhance_prompt=False)
@@ -181,6 +186,8 @@ class RetakeHandler(StateHandlerBase):
             raise HTTPError(500, f"Generation error: {exc}") from exc
         finally:
             self._text.clear_api_embeddings()
+            if cleanup_conformed:
+                video_file.unlink(missing_ok=True)
 
     @staticmethod
     def _resolve_retake_mode(mode: str) -> tuple[bool, bool]:
@@ -199,18 +206,55 @@ class RetakeHandler(StateHandlerBase):
         return int(time.time()) % 2147483647
 
     @staticmethod
-    def _validate_video_metadata(video_path: str) -> None:
+    def _conform_video_for_retake(video_file: Path) -> Path:
+        """Return a path whose video satisfies the pipeline's constraints.
+
+        LTX needs (frames - 1) % 8 == 0 and /32 dimensions. Arbitrary user
+        clips almost never do, so instead of rejecting with modular arithmetic
+        we write a conformed TEMP COPY (frame-exact cut + center crop to /32)
+        and retake from that. The original file is never touched. Returns the
+        original path unchanged when it already conforms.
+        """
+        import subprocess
+        import tempfile
+
         from ltx_core.types import SpatioTemporalScaleFactors
         from ltx_pipelines.utils.media_io import get_videostream_metadata
 
-        fps, num_frames, width, height = get_videostream_metadata(video_path)
+        fps, num_frames, width, height = get_videostream_metadata(str(video_file))
         del fps
         scale = SpatioTemporalScaleFactors.default()
-        if (num_frames - 1) % scale.time != 0:
-            snapped = ((num_frames - 1) // scale.time) * scale.time + 1
-            raise HTTPError(
-                400,
-                f"Video frame count must satisfy 8k+1 (e.g. 97, 193). Got {num_frames}; use a video with {snapped} frames.",
-            )
-        if width % 32 != 0 or height % 32 != 0:
-            raise HTTPError(400, f"Video width and height must be multiples of 32. Got {width}x{height}.")
+        frames_ok = (num_frames - 1) % scale.time == 0
+        dims_ok = width % 32 == 0 and height % 32 == 0
+        if frames_ok and dims_ok:
+            return video_file
+
+        snapped = ((num_frames - 1) // scale.time) * scale.time + 1
+        if snapped < 2:
+            raise HTTPError(400, "Video is too short to retake.")
+
+        import imageio_ffmpeg
+
+        fd, tmp_name = tempfile.mkstemp(suffix=".mp4", dir=str(video_file.parent))
+        import os as _os
+
+        _os.close(fd)
+        tmp = Path(tmp_name)
+        args = [
+            imageio_ffmpeg.get_ffmpeg_exe(),
+            "-y",
+            "-i", str(video_file),
+            # Frame-exact cut to 8k+1 frames.
+            "-frames:v", str(snapped),
+            # Center-crop to /32 dimensions (crop, not scale — no distortion).
+            "-vf", "crop=trunc(iw/32)*32:trunc(ih/32)*32",
+            "-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "192k",
+            str(tmp),
+        ]
+        result = subprocess.run(args, capture_output=True, timeout=180, check=False)
+        if result.returncode != 0 or not tmp.exists() or tmp.stat().st_size == 0:
+            tmp.unlink(missing_ok=True)
+            tail = result.stderr.decode(errors="replace")[-300:]
+            raise HTTPError(500, f"Could not prepare the video for retake: {tail}")
+        return tmp

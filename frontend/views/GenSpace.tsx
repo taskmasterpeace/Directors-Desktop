@@ -523,6 +523,15 @@ function PromptBar({
     textareaRef: promptRef,
     onChange: onPromptChange,
     options: mentionOptions,
+    // Runway/Palette behavior: picking @name doesn't just type text — in image
+    // mode it attaches that character/reference's image as a reference too, so
+    // the likeness actually reaches the model.
+    onAccept: (option) => {
+      if (mode !== 'image' || !option.thumbnail) return
+      const existing = settings.referenceImagePaths ?? []
+      if (existing.includes(option.thumbnail)) return
+      onSettingsChange({ ...settings, referenceImagePaths: [...existing, option.thumbnail] })
+    },
   })
   const [isDragOver, setIsDragOver] = useState(false)
   const [isAudioDragOver, setIsAudioDragOver] = useState(false)
@@ -891,7 +900,7 @@ function PromptBar({
             onClick={() => void addReferencePhotos()}
             className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] text-zinc-400 bg-zinc-800/40 border border-dashed border-zinc-700 hover:text-white hover:border-zinc-500 transition-colors"
           >
-            + Photo
+            + Reference image
           </button>
         )}
         {activeQuickMode && !settings.referenceImagePaths?.length && !editSourceImage && (
@@ -1859,7 +1868,7 @@ export function GenSpace() {
         imageModelParams: qm ? { ...(qm.modelParams ?? {}) } : settings.imageModelParams,
       }
       if (qm && userRefs.length === 0) {
-        setLocalError(`${qm.label} needs at least one attached photo — use + Photo or drop an image`)
+        setLocalError(`${qm.label} needs at least one reference image — use + Reference image or drop one in`)
         return
       }
 
