@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowLeft, Clapperboard, FolderOpen, Image as ImageIcon, Music, Play, RotateCcw, Square, X } from 'lucide-react'
+import { ArrowLeft, Clapperboard, Film, FolderOpen, Image as ImageIcon, Music, Play, RotateCcw, Square, X } from 'lucide-react'
 import { useProjects } from '../contexts/ProjectContext'
+import { directorRunToTimeline } from '../lib/director-import'
 import { LtxLogo } from '../components/LtxLogo'
 import { logger } from '../lib/logger'
 import { toImgSrc } from '../lib/path-to-img-src'
@@ -40,6 +41,7 @@ interface DirectorRun {
   tempoBpm: number | null
   songSeconds: number | null
   sectionCount: number | null
+  sections: { start: number; end: number; label: string }[] | null
   shots: DirectorShot[]
 }
 
@@ -68,7 +70,7 @@ async function backendBase(): Promise<string> {
 }
 
 export function Director() {
-  const { goHome } = useProjects()
+  const { goHome, createProject, getActiveTimeline, updateTimeline, openProject, setCurrentTab } = useProjects()
   const [audioPath, setAudioPath] = useState<string | null>(null)
   const [concept, setConcept] = useState('')
   const [model, setModel] = useState(MODELS[0].id)
@@ -178,6 +180,26 @@ export function Director() {
       logger.error(`Director ${endpoint} failed: ${e}`)
     }
   }, [])
+
+  // Rebuild the run as an editable project: shots at their beat positions on
+  // V1 (muted), the song on A1, sections as range markers. Works for partial
+  // runs too — whatever rendered gets placed.
+  const openInEditor = useCallback(() => {
+    if (!run) return
+    const timeline = directorRunToTimeline(run)
+    const songName = run.audioPath.split(/[\\/]/).pop() || 'song'
+    const project = createProject(`Director — ${songName.replace(/\.[^.]+$/, '')}`)
+    const active = getActiveTimeline(project.id)
+    if (active) {
+      updateTimeline(project.id, active.id, {
+        clips: timeline.clips,
+        tracks: timeline.tracks,
+        markers: timeline.markers,
+      })
+    }
+    openProject(project.id)
+    setCurrentTab('video-editor')
+  }, [run, createProject, getActiveTimeline, updateTimeline, openProject, setCurrentTab])
 
   const isActive = run != null && !['complete', 'error', 'cancelled'].includes(run.phase)
   const shotsDone = run?.shots.filter((s) => s.status === 'complete').length ?? 0
@@ -377,6 +399,17 @@ export function Director() {
                 </div>
               )}
 
+              {/* Partial salvage: rendered shots are still an editable cut. */}
+              {(run.phase === 'error' || run.phase === 'cancelled') && shotsDone > 0 && (
+                <button
+                  onClick={openInEditor}
+                  className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-white px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors"
+                  title="Place the shots that DID render on a timeline"
+                >
+                  <Film className="h-3 w-3" /> Open partial cut in editor ({shotsDone} shots)
+                </button>
+              )}
+
               {/* Shot progress */}
               {run.shots.length > 0 && run.phase !== 'complete' && (
                 <div>
@@ -407,6 +440,13 @@ export function Director() {
                     className="w-full rounded-xl border border-zinc-800 bg-black"
                   />
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={openInEditor}
+                      className="flex items-center gap-1.5 text-xs text-zinc-950 font-medium px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 transition-colors"
+                      title="New project: every shot as a clip at its beat position, the song on the audio track, sections as markers"
+                    >
+                      <Film className="h-3 w-3" /> Open in editor
+                    </button>
                     <button
                       onClick={() => run.outputPath && window.electronAPI.showItemInFolder(run.outputPath)}
                       className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-white px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors"

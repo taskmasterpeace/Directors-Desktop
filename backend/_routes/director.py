@@ -10,6 +10,7 @@ from api_types import (
     DirectorRunPayload,
     DirectorRunResponse,
     DirectorRunsResponse,
+    DirectorSectionPayload,
     DirectorShotPayload,
     DirectorStartRequest,
     DirectorTargetRequest,
@@ -21,11 +22,27 @@ from state.director_store import DirectorRun
 router = APIRouter(prefix="/api/director", tags=["director"])
 
 
+def _sections_payload(sections: object) -> list[DirectorSectionPayload] | None:
+    if not isinstance(sections, list):
+        return None
+    out: list[DirectorSectionPayload] = []
+    for item in cast("list[object]", sections):
+        if not isinstance(item, dict):
+            continue
+        record = cast("dict[str, object]", item)
+        start = record.get("start")
+        end = record.get("end")
+        label = record.get("label")
+        if isinstance(start, (int, float)) and isinstance(end, (int, float)) and isinstance(label, str):
+            out.append(DirectorSectionPayload(start=float(start), end=float(end), label=label))
+    return out or None
+
+
 def _to_payload(run: DirectorRun) -> DirectorRunPayload:
     analysis = run.analysis or {}
     tempo = analysis.get("tempo_bpm")
     duration = analysis.get("duration")
-    sections = analysis.get("sections")
+    sections_payload = _sections_payload(analysis.get("sections"))
     return DirectorRunPayload(
         id=run.id,
         phase=run.phase,
@@ -38,7 +55,8 @@ def _to_payload(run: DirectorRun) -> DirectorRunPayload:
         outputPath=run.output_path,
         tempoBpm=float(tempo) if isinstance(tempo, (int, float)) else None,
         songSeconds=float(duration) if isinstance(duration, (int, float)) else None,
-        sectionCount=len(cast("list[object]", sections)) if isinstance(sections, list) else None,
+        sectionCount=len(sections_payload) if sections_payload is not None else None,
+        sections=sections_payload,
         shots=[
             DirectorShotPayload(
                 index=s.index,

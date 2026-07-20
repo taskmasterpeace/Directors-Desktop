@@ -120,7 +120,7 @@ function basename(p: string): string {
 }
 
 // Shared clip defaults so every emitted clip is a valid TimelineClip.
-function baseClip(overrides: Partial<TimelineClip> & Pick<TimelineClip, 'id' | 'type' | 'startTime' | 'duration' | 'trackIndex'>): TimelineClip {
+export function baseClip(overrides: Partial<TimelineClip> & Pick<TimelineClip, 'id' | 'type' | 'startTime' | 'duration' | 'trackIndex'>): TimelineClip {
   return {
     assetId: null,
     trimStart: 0,

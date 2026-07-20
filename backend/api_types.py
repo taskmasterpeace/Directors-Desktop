@@ -913,6 +913,12 @@ class DirectorShotPayload(BaseModel):
     resultPath: str | None
 
 
+class DirectorSectionPayload(BaseModel):
+    start: float
+    end: float
+    label: str
+
+
 class DirectorRunPayload(BaseModel):
     id: str
     phase: str
@@ -926,6 +932,7 @@ class DirectorRunPayload(BaseModel):
     tempoBpm: float | None
     songSeconds: float | None
     sectionCount: int | None
+    sections: list[DirectorSectionPayload] | None
     shots: list[DirectorShotPayload]
 
 
