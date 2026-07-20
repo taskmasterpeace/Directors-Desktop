@@ -19,7 +19,7 @@ interface ProjectContextType {
   createProject: (name: string, assetSavePath?: string) => Project
   deleteProject: (id: string) => void
   renameProject: (id: string, name: string) => void
-  updateProject: (id: string, updates: Partial<Pick<Project, 'assetSavePath'>>) => void
+  updateProject: (id: string, updates: Partial<Pick<Project, 'assetSavePath' | 'storyDocs' | 'cast'>>) => void
   
   // Assets
   addAsset: (projectId: string, asset: Omit<Asset, 'id' | 'createdAt'>) => Asset
@@ -262,7 +262,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     ))
   }, [])
 
-  const updateProject = useCallback((id: string, updates: Partial<Pick<Project, 'assetSavePath'>>) => {
+  const updateProject = useCallback((id: string, updates: Partial<Pick<Project, 'assetSavePath' | 'storyDocs' | 'cast'>>) => {
     setProjects(prev => prev.map(p =>
       p.id === id ? { ...p, ...updates, updatedAt: Date.now() } : p
     ))

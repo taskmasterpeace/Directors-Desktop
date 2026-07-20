@@ -443,11 +443,28 @@ export interface Timeline {
   markers?: TimelineMarker[]
 }
 
+/** A story/context document attached to the project — any format, verbatim. */
+export interface StoryDoc {
+  id: string
+  title: string
+  text: string
+  kind: 'script' | 'lyrics' | 'notes' | 'other'
+  updatedAt: number
+}
+
+/** Story character name -> Characters-library entry (likeness/reference images). */
+export interface CastEntry {
+  storyName: string
+  characterId?: string
+}
+
 export interface Project {
   id: string
   name: string
   createdAt: number
   updatedAt: number
+  storyDocs?: StoryDoc[]
+  cast?: CastEntry[]
   assets: Asset[]
   thumbnail?: string
   timelines: Timeline[]
