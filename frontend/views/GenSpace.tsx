@@ -900,8 +900,11 @@ function PromptBar({
             + Photo
           </button>
         )}
-        {activeQuickMode && !settings.referenceImagePaths?.length && (
+        {activeQuickMode && !settings.referenceImagePaths?.length && !editSourceImage && (
           <span className="text-[10px] text-amber-400/90">Attach photo(s) — the rest is automatic</span>
+        )}
+        {activeQuickMode && (!!settings.referenceImagePaths?.length || !!editSourceImage) && (
+          <span className="text-[10px] text-emerald-400/90">Photo attached — hit the button, the rest is automatic</span>
         )}
       </div>
 
@@ -1826,7 +1829,12 @@ export function GenSpace() {
       // model, aspect, params, mannequin prepend, verbatim prompt. The user only
       // toggled a button and attached photo(s).
       const qm = activeQuickMode ? QUICK_MODES[activeQuickMode] : null
-      const userRefs = settings.referenceImagePaths ?? []
+      // A photo is a photo: the edit-source slot counts just like the reference
+      // list, so dragging an image anywhere satisfies an armed quick mode.
+      const userRefs = [
+        ...(editSourceImage ? [editSourceImage.path] : []),
+        ...(settings.referenceImagePaths ?? []),
+      ]
       const quickPrompt = qm
         ? (activeQuickMode === 'wardrobe'
             ? qm.prompt // Palette ignores the typed prompt in wardrobe mode
@@ -1857,11 +1865,16 @@ export function GenSpace() {
         imageModelParams: qm ? { ...(qm.modelParams ?? {}) } : settings.imageModelParams,
       }
       if (qm && userRefs.length === 0) {
-        setLocalError(`${qm.label} needs at least one attached photo — use + Photo`)
+        setLocalError(`${qm.label} needs at least one attached photo — use + Photo or drop an image`)
         return
       }
 
-      if (editSourceImage) {
+      if (qm) {
+        // Armed quick mode always GENERATES the sheet from the attached photo(s)
+        // — it must never fall into img2img edit just because the photo arrived
+        // via the edit slot.
+        generateImage(quickPrompt, imageSettings)
+      } else if (editSourceImage) {
         editImage(prompt, editSourceImage.path, imageSettings, editStrength)
       } else {
         generateImage(quickPrompt, imageSettings)
@@ -1950,9 +1963,19 @@ export function GenSpace() {
   }
 
   const isRetakeMode = mode === 'retake'
+  // Every photo the user has attached in image mode, whichever spot they used:
+  // the edit-source slot and the reference list both count. (Robert dragged an
+  // image into the edit slot with Wardrobe armed and got told to attach a photo.)
+  const attachedImagePhotos = [
+    ...(editSourceImage ? [editSourceImage.path] : []),
+    ...(settings.referenceImagePaths ?? []),
+  ]
+  const armedQuickMode = mode === 'image' && activeQuickMode ? QUICK_MODES[activeQuickMode] : null
   const canSubmit = isRetakeMode
     ? retakeInput.ready && !!retakeInput.videoPath && !isRetaking
-    : !!prompt.trim()
+    : armedQuickMode
+      ? attachedImagePhotos.length > 0 // the recipe brings its own prompt
+      : !!prompt.trim()
   const estimatedCostCents = (() => {
     if (!credits.pricing || isRetakeMode) return null
     if (mode === 'image') return credits.pricing.image
@@ -1962,7 +1985,11 @@ export function GenSpace() {
     return credits.pricing.video_t2v
   })()
   const costSuffix = estimatedCostCents ? ` ($${(estimatedCostCents / 100).toFixed(2)})` : ''
-  const promptButtonLabel = isRetakeMode ? 'Retake' : (editSourceImage ? 'Edit' : `Generate${costSuffix}`)
+  const promptButtonLabel = isRetakeMode
+    ? 'Retake'
+    : armedQuickMode
+      ? `${armedQuickMode.label} Sheet · ${getImageModelCost(armedQuickMode.modelId, String(armedQuickMode.modelParams?.quality ?? ''))} pts`
+      : (editSourceImage ? 'Edit' : `Generate${costSuffix}`)
   const promptButtonIcon = isRetakeMode
     ? <Scissors className="h-3.5 w-3.5" />
     : <Sparkles className={`h-3.5 w-3.5 ${isGenerating ? 'animate-pulse' : ''}`} />
