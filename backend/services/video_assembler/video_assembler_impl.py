@@ -68,8 +68,15 @@ class VideoAssemblerImpl:
                 normalized.append(norm)
 
             concat_list = workdir / "concat.txt"
+            # ffmpeg concat-demuxer quoting: a single quote inside a quoted
+            # string is written as '\'' (close, escaped quote, reopen). Without
+            # this, any temp path containing an apostrophe (e.g. a Windows
+            # user named O'Brien) kills every assembly.
+            def _quoted(p: Path) -> str:
+                return "'" + p.as_posix().replace("'", "'\\''") + "'"
+
             concat_list.write_text(
-                "".join(f"file '{p.as_posix()}'\n" for p in normalized), encoding="utf-8"
+                "".join(f"file {_quoted(p)}\n" for p in normalized), encoding="utf-8"
             )
             silent = workdir / "silent.mp4"
             _run(
