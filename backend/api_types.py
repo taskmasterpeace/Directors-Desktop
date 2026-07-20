@@ -837,3 +837,49 @@ class VideoModelGuideResponse(BaseModel):
 
 class SelectModelRequest(BaseModel):
     model: str
+
+
+# --- Agent bridge (read-model mirror + action queue) ---
+
+
+class ProjectPublishRequest(BaseModel):
+    project: dict[str, object]
+
+
+class ProjectPublishResponse(BaseModel):
+    status: str
+    publishedAt: float
+
+
+class ProjectCurrentResponse(BaseModel):
+    project: dict[str, object] | None
+    publishedAt: float | None
+
+
+class ProjectTranscriptResponse(BaseModel):
+    words: list[dict[str, object]]
+
+
+class ProjectStoryResponse(BaseModel):
+    storyDocs: list[dict[str, object]]
+    cast: list[dict[str, object]]
+
+
+class AgentActionSubmitRequest(BaseModel):
+    actions: list[dict[str, object]]
+
+
+class AgentActionSubmitResponse(BaseModel):
+    ids: list[str]
+
+
+class AgentPendingActionsResponse(BaseModel):
+    actions: list[dict[str, object]]
+
+
+class AgentActionReportRequest(BaseModel):
+    results: list[dict[str, object]]
+
+
+class AgentActionStatusResponse(BaseModel):
+    actions: list[dict[str, object]]

@@ -229,7 +229,33 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       logger.error(`Failed to save projects: ${e}`)
     }
   }, [projects])
-  
+
+  // Publish the current project's read-model to the backend mirror on every
+  // save tick (debounced by riding the same effect). Agents read the mirror;
+  // it never writes back, so failures are silently tolerable.
+  const publishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (!isInitializedRef.current) return
+    const project = projects.find(p => p.id === currentProjectId)
+    if (!project) return
+    if (publishTimerRef.current) clearTimeout(publishTimerRef.current)
+    publishTimerRef.current = setTimeout(async () => {
+      try {
+        const base = await window.electronAPI.getBackendUrl()
+        await fetch(`${base}/api/project/publish`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ project }),
+        })
+      } catch {
+        /* backend not up yet — next save republishes */
+      }
+    }, 1000)
+    return () => {
+      if (publishTimerRef.current) clearTimeout(publishTimerRef.current)
+    }
+  }, [projects, currentProjectId])
+
   const currentProject = projects.find(p => p.id === currentProjectId) || null
   
   const createProject = useCallback((name: string, assetSavePath?: string): Project => {

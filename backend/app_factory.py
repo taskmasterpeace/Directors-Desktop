@@ -21,6 +21,7 @@ from _routes.image_gen import router as image_gen_router
 from _routes.models import router as models_router
 from _routes.enhance_prompt import router as enhance_prompt_router
 from _routes.suggest_gap_prompt import router as suggest_gap_prompt_router
+from _routes.project_bridge import router as project_bridge_router
 from _routes.retake import router as retake_router
 from _routes.queue import router as queue_router
 from _routes.generations import router as generations_router
@@ -144,5 +145,6 @@ def create_app(
     app.include_router(prompts_router)
     app.include_router(batch_router)
     app.include_router(lora_router)
+    app.include_router(project_bridge_router)
 
     return app

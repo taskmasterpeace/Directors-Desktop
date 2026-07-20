@@ -297,6 +297,11 @@ class AppHandler:
         library_store = LibraryStore(config.settings_file.parent / "library")
         self.library = LibraryHandler(store=library_store)
 
+        from handlers.project_bridge_handler import ProjectBridgeHandler
+        self.project_bridge = ProjectBridgeHandler(
+            persistence_path=config.settings_file.parent / "project_read_model.json",
+        )
+
         self.prompts = PromptHandler(
             state=self.state,
             lock=self._lock,

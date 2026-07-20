@@ -55,6 +55,40 @@ export function getBackendHealthStatus(): BackendHealthStatus | null {
   return latestBackendHealthStatus
 }
 
+// ── Agent bridge discovery file ──────────────────────────────────────────────
+// Outside agents (Claude Code) can't guess the free port or per-session token.
+// While the backend is alive, agent-bridge.json in the app data dir holds both;
+// it's removed on backend exit. `pid` lets an agent detect a stale file after a
+// hard crash.
+
+function agentBridgeFilePath(): string {
+  return path.join(getAppDataDir(), 'agent-bridge.json')
+}
+
+function writeAgentBridgeFile(): void {
+  try {
+    fs.writeFileSync(
+      agentBridgeFilePath(),
+      JSON.stringify(
+        { url: getBackendUrl(), token: getAuthToken(), pid: process.pid, startedAt: Date.now() },
+        null,
+        2,
+      ),
+      { mode: 0o600 },
+    )
+  } catch (error) {
+    logger.warn(`Failed to write agent-bridge.json: ${error}`)
+  }
+}
+
+function removeAgentBridgeFile(): void {
+  try {
+    fs.rmSync(agentBridgeFilePath(), { force: true })
+  } catch {
+    /* best-effort cleanup */
+  }
+}
+
 /** Where the Python backend lives: repo checkout in dev, resources/ in packaged builds. */
 export function getBackendPath(): string {
   if (isDev) {
@@ -294,11 +328,13 @@ export async function startPythonBackend(): Promise<void> {
           started = true
           backendOwnership = 'managed'
           publishBackendHealthStatus({ status: 'alive' })
+          writeAgentBridgeFile()
           settleResolve()
         } else if (output.includes('Uvicorn running')) {
           started = true
           backendOwnership = 'managed'
           publishBackendHealthStatus({ status: 'alive' })
+          writeAgentBridgeFile()
           settleResolve()
         }
       }
@@ -330,6 +366,7 @@ export async function startPythonBackend(): Promise<void> {
       pythonProcess = null
       backendUrl = null
       authToken = null
+      removeAgentBridgeFile()
 
       if (!started) {
         if (isIntentionalShutdown) {
@@ -346,6 +383,7 @@ export async function startPythonBackend(): Promise<void> {
           if (healthyExistingBackend) {
             backendOwnership = 'adopted'
             publishBackendHealthStatus({ status: 'alive' })
+            writeAgentBridgeFile()
             settleResolve()
             startOwnershipTakeover()
             return
