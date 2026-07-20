@@ -142,6 +142,44 @@ def test_start_validates_inputs(test_state, tmp_path: Path):
         assert e.status_code == 400
 
 
+def test_local_model_runs_on_gpu_slot_with_per_shot_audio(test_state, tmp_path: Path):
+    # Phase 2: local LTX renders through the A2V pipeline — every shot's job
+    # must carry the song plus ITS window so the model hears its own bars.
+    handler = test_state
+    run = handler.director.start(
+        audio_path=_make_song(tmp_path),
+        concept="local lip-sync test",
+        model="ltx-fast",
+        resolution="720p",
+        run_thread=False,
+    )
+    handler.director.step(run.id)  # analyze + plan
+    handler.director.step(run.id)  # submit
+
+    jobs = [j for j in handler.job_queue.all_jobs() if "director" in j.tags]
+    assert jobs and all(j.slot == "gpu" for j in jobs)
+    by_id = {j.id: j for j in jobs}
+    for shot in run.shots:
+        job = by_id[shot.job_id]
+        assert job.params["audioPath"] == run.audio_path
+        assert abs(float(job.params["audioStartTime"]) - shot.start) < 0.01
+        assert float(job.params["audioMaxDuration"]) >= (shot.end - shot.start) - 0.01
+        assert "referenceImagePaths" not in job.params
+
+
+def test_shot_phase_and_progress_are_surfaced(test_state, tmp_path: Path):
+    handler = test_state
+    run = _start(handler, tmp_path)
+    handler.director.step(run.id)
+    handler.director.step(run.id)  # submit
+    first = run.shots[0]
+    assert first.job_id is not None
+    handler.job_queue.update_job(first.job_id, phase="inference", progress=42)
+    handler.director.step(run.id)
+    assert first.phase == "inference"
+    assert first.progress == 42
+
+
 def test_start_requires_fal_key_for_seedance(test_state, tmp_path: Path):
     from _routes._errors import HTTPError
 

@@ -69,6 +69,8 @@ def _to_payload(run: DirectorRun) -> DirectorRunPayload:
                 status=s.status,
                 error=s.error,
                 resultPath=s.result_path,
+                phase=s.phase,
+                progress=s.progress,
             )
             for s in run.shots
         ],

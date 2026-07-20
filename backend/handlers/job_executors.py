@@ -198,6 +198,12 @@ class GpuJobExecutor:
             audio=str(params.get("audio", "false")),
             imagePath=str(params.get("imagePath")) if params.get("imagePath") else None,
             audioPath=str(params.get("audioPath")) if params.get("audioPath") else None,
+            audioStartTime=float(params.get("audioStartTime", 0.0)),
+            audioMaxDuration=(
+                float(params["audioMaxDuration"])
+                if isinstance(params.get("audioMaxDuration"), (int, float))
+                else None
+            ),
             lastFramePath=str(params.get("lastFramePath")) if params.get("lastFramePath") else None,
             referenceImagePaths=_str_list(params.get("referenceImagePaths")),
             audioReferencePaths=_str_list(params.get("audioReferencePaths")),
@@ -286,6 +292,12 @@ class ApiJobExecutor:
             audio=str(params.get("audio", "false")),
             imagePath=str(params.get("imagePath")) if params.get("imagePath") else None,
             audioPath=str(params.get("audioPath")) if params.get("audioPath") else None,
+            audioStartTime=float(params.get("audioStartTime", 0.0)),
+            audioMaxDuration=(
+                float(params["audioMaxDuration"])
+                if isinstance(params.get("audioMaxDuration"), (int, float))
+                else None
+            ),
             lastFramePath=str(params.get("lastFramePath")) if params.get("lastFramePath") else None,
             referenceImagePaths=_str_list(params.get("referenceImagePaths")),
             audioReferencePaths=_str_list(params.get("audioReferencePaths")),

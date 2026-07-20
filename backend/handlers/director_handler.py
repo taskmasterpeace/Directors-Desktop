@@ -42,6 +42,7 @@ class DirectorHandler:
         outputs_dir: Path,
         transcribe_fn: Callable[[str], list[dict[str, object]]] | None = None,
         fal_key_check: Callable[[], bool] | None = None,
+        slot_for_model: Callable[[str], str] | None = None,
     ) -> None:
         self._store = store
         self._job_queue = job_queue
@@ -50,6 +51,7 @@ class DirectorHandler:
         self._outputs_dir = outputs_dir
         self._transcribe_fn = transcribe_fn
         self._fal_key_check = fal_key_check
+        self._slot_for_model = slot_for_model
         self._threads: dict[str, threading.Thread] = {}
         self._cancel_flags: set[str] = set()
         self._lock = threading.Lock()
@@ -203,19 +205,27 @@ class DirectorHandler:
             if self._is_cancelled(run.id):
                 break
             if shot.status == "pending":
+                slot = self._slot_for_model(run.model) if self._slot_for_model else "api"
                 params: dict[str, object] = {
                     "prompt": shot.prompt,
                     "duration": str(shot.generate_seconds),
                     "resolution": run.resolution,
                     "audio": "false",
                 }
-                if run.reference_image_paths:
+                if slot == "gpu":
+                    # Local LTX A2V: condition each shot on ITS slice of the
+                    # song — this is the real lip-sync path, rendered free on
+                    # the user's GPU.
+                    params["audioPath"] = run.audio_path
+                    params["audioStartTime"] = round(shot.start, 3)
+                    params["audioMaxDuration"] = round(max(0.5, shot.end - shot.start), 3)
+                elif run.reference_image_paths:
                     params["referenceImagePaths"] = list(run.reference_image_paths)
                 job = self._job_queue.submit(
                     job_type="video",
                     model=run.model,
                     params=params,
-                    slot="api",
+                    slot=slot,
                     tags=["director", run.id],
                 )
                 # job_id before status: cancel() scans by status and must never
@@ -225,6 +235,12 @@ class DirectorHandler:
                 changed = True
             elif shot.status == "submitted" and shot.job_id:
                 job = self._job_queue.get_job(shot.job_id)
+                if job is not None and (job.phase != shot.phase or job.progress != shot.progress):
+                    # Surface the queue job's live phase (loading_model /
+                    # inference / ...) so the UI can say what's happening.
+                    shot.phase = job.phase
+                    shot.progress = job.progress
+                    changed = True
                 if job is None or job.status in ("error", "cancelled"):
                     reason = (job.error if job else None) or "job disappeared"
                     if shot.retries < _MAX_SHOT_RETRIES:

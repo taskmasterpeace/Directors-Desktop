@@ -326,6 +326,7 @@ class AppHandler:
             outputs_dir=config.outputs_dir,
             transcribe_fn=_director_transcribe,
             fal_key_check=lambda: bool(self.state.app_settings.fal_api_key.strip()),
+            slot_for_model=self.determine_slot,
         )
 
         self.prompts = PromptHandler(

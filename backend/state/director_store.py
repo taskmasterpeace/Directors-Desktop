@@ -39,6 +39,10 @@ class DirectorShot:
     result_path: str | None = None
     error: str | None = None
     retries: int = 0
+    # Live visibility while submitted: the queue job's phase/progress
+    # (loading_model / inference / decoding ... + percent).
+    phase: str = ""
+    progress: int = 0
 
     @property
     def duration(self) -> float:

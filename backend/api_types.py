@@ -351,6 +351,10 @@ class GenerateVideoRequest(BaseModel):
     audio: str = "false"
     imagePath: str | None = None
     audioPath: str | None = None
+    # A2V window: generate against this slice of the audio file (song seconds).
+    # The Director uses these so each shot lip-syncs to ITS bars of the song.
+    audioStartTime: float = 0.0
+    audioMaxDuration: float | None = None
     lastFramePath: str | None = None
     aspectRatio: Literal["16:9", "9:16"] = "16:9"
     loraPath: str | None = None
@@ -911,6 +915,8 @@ class DirectorShotPayload(BaseModel):
     status: str
     error: str | None
     resultPath: str | None
+    phase: str = ""
+    progress: int = 0
 
 
 class DirectorSectionPayload(BaseModel):

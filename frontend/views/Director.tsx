@@ -26,6 +26,8 @@ interface DirectorShot {
   status: 'pending' | 'submitted' | 'complete' | 'error'
   error: string | null
   resultPath: string | null
+  phase: string
+  progress: number
 }
 
 interface DirectorRun {
@@ -46,9 +48,11 @@ interface DirectorRun {
 }
 
 const MODELS = [
-  { id: 'seedance-2.0', label: 'Seedance 2.0 (best quality)' },
-  { id: 'seedance-2.0-fast', label: 'Seedance 2.0 Fast (cheaper, quicker)' },
+  { id: 'ltx-fast', label: 'LTX-2 Local — real lip-sync, free (your GPU)' },
+  { id: 'seedance-2.0', label: 'Seedance 2.0 — cloud (fal), best look' },
+  { id: 'seedance-2.0-fast', label: 'Seedance 2.0 Fast — cloud (fal), cheaper' },
 ]
+const LOCAL_MODELS = new Set(['ltx-fast'])
 const RESOLUTIONS = ['480p', '720p', '1080p']
 
 const PHASE_STEPS: { key: DirectorRun['phase'] | 'done'; label: string }[] = [
@@ -73,7 +77,7 @@ export function Director() {
   const { goHome, createProject, updateTimeline, openProject, setCurrentTab } = useProjects()
   const [audioPath, setAudioPath] = useState<string | null>(null)
   const [concept, setConcept] = useState('')
-  const [model, setModel] = useState(MODELS[0].id)
+  const [model, setModel] = useState('seedance-2.0')
   const [resolution, setResolution] = useState('720p')
   const [referencePaths, setReferencePaths] = useState<string[]>([])
   const [run, setRun] = useState<DirectorRun | null>(null)
@@ -323,7 +327,9 @@ export function Director() {
           </button>
           {startError && <p className="text-xs text-red-400">{startError}</p>}
           <p className="text-[10px] text-zinc-600">
-            Each shot renders on your connected provider (fal) — a 3-minute song is roughly 25-40 shots.
+            {LOCAL_MODELS.has(model)
+              ? 'Renders free on your GPU with true lip-sync (each shot hears its bars of the song). Expect ~1-2 min per shot; needs the local models downloaded (Model Status).'
+              : 'Each shot renders on fal (paid) — a 3-minute song is roughly 25-40 shots. Reference images ride every shot.'}
           </p>
         </div>
 
@@ -424,6 +430,19 @@ export function Director() {
                     <span className="text-xs text-zinc-400">
                       Shots: {shotsDone}/{run.shots.length} rendered
                     </span>
+                    {(() => {
+                      const active = run.shots.find((sh) => sh.status === 'submitted')
+                      if (!active) return null
+                      const phaseLabel = active.phase
+                        ? active.phase.replace(/_/g, ' ')
+                        : 'waiting in queue'
+                      return (
+                        <span className="text-[11px] text-amber-300/90">
+                          Shot {active.index + 1}: {phaseLabel}
+                          {active.progress > 0 ? ` — ${active.progress}%` : ''}
+                        </span>
+                      )
+                    })()}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {run.shots.map((s) => (
