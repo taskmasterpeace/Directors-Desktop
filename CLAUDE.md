@@ -128,6 +128,19 @@ Core: `health`, `settings`, `models`, `generation`, `image_gen`, `queue`
 Video modes: `retake`, `ic_lora`
 Library/content: `gallery`, `library`, `prompts`, `style_guide`, `contact_sheet`, `enhance_prompt`
 Integration: `sync` (Palette cloud sync — status/connect/login, credits, characters/styles/references/**recipes** import, prompt enhance, LoRA sync), `receive_job` (incoming cloud jobs)
+Agent bridge: `project` (read-model mirror + action queue — see the Agent Bridge section)
+Director: `director` (music-video builds — see below)
+
+### Director (music-video pipeline — clean-room, no Maestro/WanGP code)
+
+Song in → finished music video out. `POST /api/director/start {audioPath, concept, model, resolution, referenceImagePaths}` → phase machine `analyzing → generating → assembling → complete|error|cancelled`, crash-resumable (`/resume` requeues failed shots, keeps finished ones; `/cancel`; `GET /status?runId=`).
+
+- **Analysis** (`services/audio_analysis/`, librosa): tempo, beats, 4/4 downbeat phase, agglomerative section segmentation with energy labels. Lyrics via the existing Replicate whisper transcription (optional, non-fatal).
+- **Planning** (`server_utils/shot_planner.py`, pure + deterministic): tiles the whole song with beat-snapped cuts; section energy sets pacing; heuristic prompt grammar (shot type × section flavor × energy × concept); words sung in a shot's window land in performance-shot prompts. `generate_seconds = ceil(shot)` clamped to Seedance's 4–15s; assembler trims to the exact fractional cut.
+- **Generation**: shots are ordinary queue jobs on the `api` slot (`tags=['director', run_id]`), Seedance via fal (pre-flighted: no fal key → `FAL_API_KEY_REQUIRED` at start). One retry per shot, then a resumable error naming the failed shots.
+- **Assembly** (`services/video_assembler/`, imageio-ffmpeg): exact `-t` trim per shot, normalized concat, song muxed as the only audio track. Output `outputs_dir/director_<run>.mp4` (shows in Gallery).
+- Run state: `state/director_store.py` (`director_runs.json`, atomic writes, bounded history). Frontend: `frontend/views/Director.tsx` (Home nav).
+- **License rule**: this is a clean-room reimplementation. NEVER copy code from Maestro/WanGP (non-commercial license §3.4/3.5 forbids integration) or call a Maestro install as a service; mmgp and seed-vc are GPL-3.0 — do not vendor.
 
 ### Director's Palette image routing (v2 API — the credits path)
 
