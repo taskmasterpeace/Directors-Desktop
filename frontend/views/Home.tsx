@@ -581,8 +581,10 @@ export function Home() {
       
       {/* Main Content */}
       <main className="flex-1 overflow-auto">
-        {/* Header Banner with video background */}
-        <div className="relative h-72 overflow-hidden">
+        {/* Header banner — slimmed so the Projects area gets the vertical space.
+            Type treatment mirrors the Directors Palette front page: condensed
+            all-caps title, amber hairline, letterspaced amber kicker. */}
+        <div className="relative h-44 overflow-hidden">
           <video
             src="./hero-video.mp4"
             autoPlay
@@ -591,24 +593,25 @@ export function Home() {
             playsInline
             className="absolute inset-0 w-full h-full object-cover"
           />
-          {/* Readability overlays: a strong left-side wash anchors the title block,
-              plus a soft bottom fade so the banner settles into the page. */}
           <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/45 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-          <div className="absolute inset-y-0 left-8 z-10 flex flex-col justify-center max-w-xl">
-            <div className="flex items-center gap-3 mb-3">
-              <img src="./logo.svg" alt="" className="h-12 w-12 drop-shadow-lg" />
-              <div className="h-8 w-px bg-white/20" />
-              <span className="text-[11px] font-semibold tracking-[0.18em] uppercase text-amber-300/90 drop-shadow">
-                Machine King Labs
-              </span>
+          <div className="absolute inset-y-0 left-8 z-10 flex items-center gap-4">
+            <img src="./logo.svg" alt="" className="h-14 w-14 drop-shadow-lg shrink-0" />
+            <div>
+              <h1
+                className="text-4xl text-white leading-none drop-shadow-lg uppercase"
+                style={{
+                  fontFamily: "'Bebas Neue', 'Bahnschrift Condensed', Bahnschrift, Impact, sans-serif",
+                  letterSpacing: '0.08em',
+                }}
+              >
+                Director&apos;s Desktop
+              </h1>
+              <div className="h-px w-44 bg-gradient-to-r from-amber-500 via-amber-500/60 to-transparent my-2" />
+              <p className="text-[11px] font-medium uppercase text-amber-400 drop-shadow" style={{ letterSpacing: '0.35em' }}>
+                AI Creative Studio
+              </p>
             </div>
-            <h1 className="text-4xl font-bold text-white tracking-tight drop-shadow-lg" style={{ letterSpacing: '-0.025em' }}>
-              Director&apos;s Desktop
-            </h1>
-            <p className="mt-2 text-sm text-zinc-200/90 drop-shadow-md">
-              Direct, generate, and cut your films — all on your desk.
-            </p>
           </div>
         </div>
         

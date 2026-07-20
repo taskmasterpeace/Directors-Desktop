@@ -100,6 +100,14 @@ const IMAGE_ASPECT_RATIO_VALUE: Record<string, number> = {
   '3:4': 3 / 4,
   '4:5': 4 / 5,
   '21:9': 21 / 9,
+  // gpt-image-2's ratios (the wardrobe/character quick modes run at 3:2) —
+  // missing entries here threw "Unsupported image aspect ratio mapping" mid-submit.
+  '3:2': 3 / 2,
+  '2:3': 2 / 3,
+  // Camera Angle's "match_input_image": dimensions are only used to snap an
+  // aspect for the hosted call, and the camera route gets its real aspect via
+  // modelParams — square is a safe neutral here.
+  match_input_image: 1,
 }
 
 /**
@@ -112,15 +120,11 @@ function resolveImageModelId(settings: GenerationSettings, globalModel: string |
 }
 
 function getImageDimensions(settings: GenerationSettings): { width: number; height: number } {
-  const shortSide = IMAGE_SHORT_SIDE_BY_RESOLUTION[settings.imageResolution]
-  if (!shortSide) {
-    throw new Error(`Unsupported image resolution mapping: ${settings.imageResolution}`)
-  }
-
-  const ratio = IMAGE_ASPECT_RATIO_VALUE[settings.imageAspectRatio]
-  if (!ratio) {
-    throw new Error(`Unsupported image aspect ratio mapping: ${settings.imageAspectRatio}`)
-  }
+  // Unknown labels degrade to sane defaults instead of throwing — killing the
+  // whole generation over a display-label mapping is worse than a slightly-off
+  // aspect (the backend re-snaps to what the model supports anyway).
+  const shortSide = IMAGE_SHORT_SIDE_BY_RESOLUTION[settings.imageResolution] ?? 1080
+  const ratio = IMAGE_ASPECT_RATIO_VALUE[settings.imageAspectRatio] ?? 16 / 9
 
   if (ratio >= 1) {
     return { width: Math.round(shortSide * ratio), height: shortSide }
