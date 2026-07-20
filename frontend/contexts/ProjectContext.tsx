@@ -112,6 +112,9 @@ export interface PendingAnimateImage {
 export interface PendingReferenceImage {
   /** Absolute path of the persisted frame on disk (fed to referenceImagePaths). */
   path: string
+  /** When set, Gen Space arms this quick mode (image mode) with the frame attached
+   *  instead of the default Seedance video-reference handoff. */
+  quickMode?: 'wardrobe' | 'character' | 'location' | 'style'
 }
 
 const ProjectContext = createContext<ProjectContextType | null>(null)
