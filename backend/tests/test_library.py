@@ -284,3 +284,35 @@ class TestRecipes:
     def test_invalid_kind_rejected(self, client):
         r = client.post("/api/library/recipes", json={"name": "X", "kind": "invalid", "text": "y"})
         assert r.status_code == 422
+
+
+class TestStoreDurability:
+    """Corrupt library files are quarantined, never silently wiped."""
+
+    def test_corrupt_file_is_quarantined_not_wiped(self, tmp_path):
+        from state.library_store import LibraryStore
+
+        lib = tmp_path / "library"
+        lib.mkdir()
+        # A corrupt references.json holding (formerly) real user data.
+        (lib / "references.json").write_text("{not valid json", encoding="utf-8")
+
+        store = LibraryStore(lib)
+        assert store.list_references() == []
+        # The corrupt original is preserved for recovery...
+        quarantined = list(lib.glob("references.json.corrupt-*"))
+        assert len(quarantined) == 1
+        assert quarantined[0].read_text(encoding="utf-8") == "{not valid json"
+        # ...and a new save writes a fresh valid file instead of persisting a wipe.
+        store.create_reference(name="fresh", category="people", image_path="")
+        assert (lib / "references.json").exists()
+        assert len(store.list_references()) == 1
+
+    def test_writes_are_atomic_no_tmp_left_behind(self, tmp_path):
+        from state.library_store import LibraryStore
+
+        lib = tmp_path / "library"
+        store = LibraryStore(lib)
+        store.create_recipe(name="r", kind="style", text="t")
+        assert not list(lib.glob("*.tmp"))
+        assert len(store.list_recipes()) == 1

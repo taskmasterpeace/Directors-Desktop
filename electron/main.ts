@@ -10,6 +10,7 @@ import { registerLogHandlers } from './ipc/log-handlers'
 import { registerVideoProcessingHandlers } from './ipc/video-processing-handlers'
 import { initSessionLog } from './logging-management'
 import { registerPaletteAuthHandlers } from './palette-auth-server'
+import { consumeDeepLinkState } from './palette-auth-state'
 import { stopPythonBackend } from './python-backend'
 import { initAutoUpdater } from './updater'
 import { createWindow, getMainWindow } from './window'
@@ -47,8 +48,16 @@ function handleDeepLink(url: string): void {
   logger.info(`[deep-link] Received: ${safeUrl}`)
   try {
     const parsed = new URL(url)
-    // Expected: directorsdesktop://auth/callback?token=XXX[&refresh=YYY]
+    // Expected: directorsdesktop://auth/callback?state=NONCE&token=XXX[&refresh=YYY]
     if (parsed.hostname === 'auth' && parsed.pathname === '/callback') {
+      // Session-fixation guard: any local app/web page can fire this protocol,
+      // so the callback must echo the single-use state nonce we issued in
+      // 'open-palette-auth'. Unsolicited or mismatched tokens are dropped.
+      const state = parsed.searchParams.get('state')
+      if (!consumeDeepLinkState(state)) {
+        logger.error('[deep-link] Rejected auth callback: missing or invalid state nonce')
+        return
+      }
       const token = parsed.searchParams.get('token')
       // The refresh token lets the app stay signed in past the ~1h access-token expiry.
       const refresh = parsed.searchParams.get('refresh') ?? undefined

@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import functools
 import json
+import logging
+import os
+import threading
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal, TypeVar
+from collections.abc import Callable
+from typing import Concatenate, Literal, ParamSpec, TypeVar
 
 
 # Robert's taxonomy (2026-07-19): People / Places / Wardrobe / Styles are the
@@ -82,26 +87,65 @@ def _new_id() -> str:
     return uuid.uuid4().hex[:12]
 
 
+logger = logging.getLogger(__name__)
+
+_P = ParamSpec("_P")
+_R = TypeVar("_R")
+
+
+def _with_lock(fn: Callable[Concatenate["LibraryStore", _P], _R]) -> Callable[Concatenate["LibraryStore", _P], _R]:
+    """Serialize a mutating LibraryStore method under the store's RLock.
+
+    Queue-worker threads read the library while /api/library/* routes mutate it;
+    without this, concurrent read-modify-write pairs could lose updates.
+    """
+
+    @functools.wraps(fn)
+    def wrapper(self: "LibraryStore", *args: _P.args, **kwargs: _P.kwargs) -> _R:
+        with self._lock:  # pyright: ignore[reportPrivateUsage]
+            return fn(self, *args, **kwargs)
+
+    return wrapper
+
+
 def _load_json_list(path: Path, cls: type[_T]) -> list[_T]:
-    """Load a list of dataclass instances from a JSON file."""
+    """Load a list of dataclass instances from a JSON file.
+
+    A corrupt file is renamed to ``<name>.corrupt-<timestamp>`` instead of being
+    silently treated as empty — previously the next save would persist the empty
+    list over the user's data, making the loss permanent.
+    """
     if not path.exists():
         return []
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
         return [cls(**item) for item in raw]  # type: ignore[arg-type]
-    except (json.JSONDecodeError, TypeError, KeyError):
+    except (json.JSONDecodeError, TypeError, KeyError) as exc:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        quarantine = path.with_name(f"{path.name}.corrupt-{stamp}")
+        try:
+            os.replace(path, quarantine)
+            logger.error("Corrupt library file %s (%s) — preserved as %s", path.name, exc, quarantine.name)
+        except OSError:
+            logger.error("Corrupt library file %s (%s) — could not quarantine", path.name, exc)
         return []
 
 
 def _write_json(path: Path, data: list[dict[str, object]]) -> None:
+    # Temp file + atomic replace (same pattern as JobQueue._save): a crash or
+    # concurrent reader can never observe a truncated file, which _load_json_list
+    # would otherwise quarantine on the next start.
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+    tmp.write_text(json.dumps(data, indent=2), encoding="utf-8")
+    os.replace(tmp, path)
 
 
 class LibraryStore:
     """Manages JSON file persistence for library entities."""
 
     def __init__(self, library_dir: Path) -> None:
+        self._lock = threading.RLock()
         self._dir = library_dir
         self._dir.mkdir(parents=True, exist_ok=True)
         self._characters_file = self._dir / "characters.json"
@@ -129,6 +173,7 @@ class LibraryStore:
                 return c
         return None
 
+    @_with_lock
     def create_character(
         self,
         *,
@@ -149,6 +194,7 @@ class LibraryStore:
         self._save_characters()
         return character
 
+    @_with_lock
     def update_character(
         self,
         character_id: str,
@@ -172,6 +218,7 @@ class LibraryStore:
         self._save_characters()
         return character
 
+    @_with_lock
     def delete_character(self, character_id: str) -> bool:
         before = len(self._characters)
         self._characters = [c for c in self._characters if c.id != character_id]
@@ -193,6 +240,7 @@ class LibraryStore:
                 return s
         return None
 
+    @_with_lock
     def create_style(
         self,
         *,
@@ -211,6 +259,7 @@ class LibraryStore:
         self._save_styles()
         return style
 
+    @_with_lock
     def delete_style(self, style_id: str) -> bool:
         before = len(self._styles)
         self._styles = [s for s in self._styles if s.id != style_id]
@@ -234,6 +283,7 @@ class LibraryStore:
                 return r
         return None
 
+    @_with_lock
     def create_reference(
         self,
         *,
@@ -252,6 +302,7 @@ class LibraryStore:
         self._save_references()
         return ref
 
+    @_with_lock
     def delete_reference(self, reference_id: str) -> bool:
         before = len(self._references)
         self._references = [r for r in self._references if r.id != reference_id]
@@ -280,6 +331,7 @@ class LibraryStore:
                 return a
         return None
 
+    @_with_lock
     def create_audio(
         self,
         *,
@@ -300,6 +352,7 @@ class LibraryStore:
         self._save_audio()
         return audio
 
+    @_with_lock
     def delete_audio(self, audio_id: str) -> bool:
         before = len(self._audio)
         self._audio = [a for a in self._audio if a.id != audio_id]
@@ -323,6 +376,7 @@ class LibraryStore:
                 return r
         return None
 
+    @_with_lock
     def create_recipe(
         self,
         *,
@@ -341,6 +395,7 @@ class LibraryStore:
         self._save_recipes()
         return recipe
 
+    @_with_lock
     def delete_recipe(self, recipe_id: str) -> bool:
         before = len(self._recipes)
         self._recipes = [r for r in self._recipes if r.id != recipe_id]

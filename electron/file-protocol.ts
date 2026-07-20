@@ -53,21 +53,32 @@ function fileUrlToPath(requestUrl: string): string | null {
   }
 }
 
-function parseRange(header: string | null, size: number): { start: number; end: number } | null {
+/**
+ * Parse a Range header. Returns the byte window, `null` for absent/malformed
+ * headers (RFC 7233: ignore and serve 200), or `'unsatisfiable'` for a
+ * well-formed range outside the file (RFC 7233: answer 416, NOT the full body).
+ */
+function parseRange(
+  header: string | null,
+  size: number,
+): { start: number; end: number } | 'unsatisfiable' | null {
   if (!header) return null
   const m = /^bytes=(\d*)-(\d*)$/.exec(header.trim())
   if (!m) return null
   const hasStart = m[1] !== ''
   const hasEnd = m[2] !== ''
+  if (!hasStart && !hasEnd) return null // "bytes=-" is malformed → ignore
   let start = hasStart ? parseInt(m[1], 10) : 0
   let end = hasEnd ? parseInt(m[2], 10) : size - 1
   if (!hasStart && hasEnd) {
     // suffix range: bytes=-N  → last N bytes
     const n = parseInt(m[2], 10)
+    if (n === 0) return 'unsatisfiable'
     start = Math.max(0, size - n)
     end = size - 1
   }
-  if (Number.isNaN(start) || Number.isNaN(end) || start > end || start >= size) return null
+  if (Number.isNaN(start) || Number.isNaN(end) || start > end) return null
+  if (start >= size) return 'unsatisfiable'
   end = Math.min(end, size - 1)
   return { start, end }
 }
@@ -112,6 +123,23 @@ export function registerFileProtocol(): void {
       'Content-Type': mime,
       'Accept-Ranges': 'bytes',
       'Cache-Control': 'no-cache',
+    }
+
+    // RFC 7233: a syntactically valid range beyond EOF gets 416 + the star form,
+    // never a silent 200 with the whole file.
+    if (range === 'unsatisfiable') {
+      return new Response(null, {
+        status: 416,
+        headers: { ...baseHeaders, 'Content-Range': `bytes */${stat.size}` },
+      })
+    }
+
+    // HEAD: headers only — don't open or stream the file body.
+    if (request.method === 'HEAD') {
+      return new Response(null, {
+        status: 200,
+        headers: { ...baseHeaders, 'Content-Length': String(stat.size) },
+      })
     }
 
     try {

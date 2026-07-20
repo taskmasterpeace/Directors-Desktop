@@ -2,6 +2,7 @@ import { ipcMain } from 'electron'
 import { spawnSync } from 'child_process'
 import os from 'os'
 import path from 'path'
+import { pathToFileURL } from 'url'
 import fs from 'fs'
 import { findFfmpegPath, urlToFilePath, runFfmpeg, fileHasAudio } from '../export/ffmpeg-utils'
 import { getAllowedRoots } from '../config'
@@ -60,7 +61,9 @@ export function registerVideoProcessingHandlers(): void {
         throw new Error('ffmpeg produced no output file')
       }
 
-      const fileUrl = `file://${outputPath}`
+      // pathToFileURL produces a well-formed file:///C:/… URL; the raw template
+      // string only worked because Chromium special-cases backslash paths.
+      const fileUrl = pathToFileURL(outputPath).href
       return { path: outputPath, url: fileUrl }
     },
   )

@@ -91,6 +91,41 @@ def test_generate_image_raises_when_job_fails():
         _client(http).generate_image(api_key="k", model="nano-banana-2", prompt="x")
 
 
+def test_generate_image_cancel_stops_mid_poll():
+    """A user cancel during the job poll aborts instead of burning the full timeout."""
+    http = FakeHTTPClient()
+    http.queue("post", FakeResponse(status_code=201, json_payload={"success": True, "data": {"job_id": "j", "status": "pending"}}))
+    # Two "processing" polls are queued; cancellation flips after the first, so the
+    # second poll iteration must raise instead of consuming the queue further.
+    http.queue("get", FakeResponse(status_code=200, json_payload={"success": True, "data": {"status": "processing"}}))
+    http.queue("get", FakeResponse(status_code=200, json_payload={"success": True, "data": {"status": "processing"}}))
+
+    polls = {"n": 0}
+
+    def should_cancel() -> bool:
+        return polls["n"] > 0
+
+    def counting_sleep(_s: float) -> None:
+        polls["n"] += 1
+
+    client = PaletteImageClientImpl(http=http, base_url="https://dp.test", poll_interval=0.0, sleep=counting_sleep)
+    with pytest.raises(RuntimeError, match="cancelled"):
+        client.generate_image(api_key="k", model="nano-banana-2", prompt="x", should_cancel=should_cancel)
+    # submit + exactly one status poll happened; the second iteration cancelled first.
+    assert len([c for c in http.calls if c.method == "get"]) == 1
+
+
+def test_camera_angle_cancel_before_submit():
+    http = FakeHTTPClient()
+    client = PaletteImageClientImpl(http=http, base_url="https://dp.test")
+    with pytest.raises(RuntimeError, match="cancelled"):
+        client.generate_camera_angle(
+            api_key="k", image_url="https://r/s.png", azimuth=0, elevation=0, distance=5,
+            should_cancel=lambda: True,
+        )
+    assert http.calls == []  # nothing was sent
+
+
 # -- reference upload (multipart) ---------------------------------------------
 
 

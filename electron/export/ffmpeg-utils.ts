@@ -3,6 +3,7 @@ import path from 'path'
 import fs from 'fs'
 import { isDev, getCurrentDir } from '../config'
 import { getPythonDir } from '../python-setup'
+import { getBackendPath } from '../python-backend'
 import { logger } from '../logger'
 
 let activeExportProcess: ChildProcess | null = null
@@ -56,7 +57,10 @@ export function urlToFilePath(url: string): string {
   if (url.startsWith('http://127.0.0.1') || url.startsWith('http://localhost')) {
     const urlObj = new URL(url)
     const relPath = decodeURIComponent(urlObj.pathname).replace(/^\//, '')
-    return path.join(getCurrentDir(), 'backend', relPath)
+    // Must match the backend spawn's resolver: in packaged builds the backend
+    // lives under process.resourcesPath, not next to the exe — resolving against
+    // getCurrentDir() made frame-grab/clip-trim 404 in production.
+    return path.join(getBackendPath(), relPath)
   }
   // file:///Users/path (macOS) -> /Users/path
   // file:///C:/path (Windows) -> C:/path

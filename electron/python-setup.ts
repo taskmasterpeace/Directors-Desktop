@@ -521,8 +521,8 @@ function copyFileWithProgress(
     const readStream = fs.createReadStream(source)
     const writeStream = fs.createWriteStream(dest)
 
-    readStream.on('data', (chunk: Buffer) => {
-      copiedBytes += chunk.length
+    readStream.on('data', (chunk: string | Buffer) => {
+      copiedBytes += typeof chunk === 'string' ? Buffer.byteLength(chunk) : chunk.length
       const totalDone = globalOffset + copiedBytes
       onProgress({
         status: 'downloading',

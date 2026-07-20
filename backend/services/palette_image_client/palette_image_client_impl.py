@@ -88,6 +88,7 @@ class PaletteImageClientImpl:
         aspect_ratio: str = "16:9",
         reference_image_urls: list[str] | None = None,
         params: dict[str, object] | None = None,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> bytes:
         """Generate ONE image via /api/v2/images/generate and return the bytes.
 
@@ -95,7 +96,11 @@ class PaletteImageClientImpl:
         downloads the resulting image. `params` carries per-model settings
         (resolution / quality / background / moderation / seed / …) forwarded
         into the request body; core fields below always win on key clash.
+        `should_cancel` is checked before submit and on every poll iteration
+        (mirroring fal_video_client) so a user cancel stops the long wait.
         """
+        if should_cancel is not None and should_cancel():
+            raise RuntimeError("Generation was cancelled")
         payload: dict[str, JSONValue] = {}
         if params:
             payload.update(cast("dict[str, JSONValue]", params))
@@ -121,13 +126,21 @@ class PaletteImageClientImpl:
             job_id = data.get("job_id")
             if not isinstance(job_id, str) or not job_id:
                 raise RuntimeError("Director's Palette generate response missing job_id")
-            url = self._poll_job(api_key=api_key, job_id=job_id)
+            url = self._poll_job(api_key=api_key, job_id=job_id, should_cancel=should_cancel)
         return self._download(url)
 
-    def _poll_job(self, *, api_key: str, job_id: str) -> str:
+    def _poll_job(
+        self,
+        *,
+        api_key: str,
+        job_id: str,
+        should_cancel: Callable[[], bool] | None = None,
+    ) -> str:
         """Poll GET /api/v2/jobs/{job_id} until completed (-> url) or failed/timeout."""
         elapsed = 0.0
         while elapsed <= self._poll_timeout:
+            if should_cancel is not None and should_cancel():
+                raise RuntimeError("Generation was cancelled")
             resp = self._http.get(
                 f"{self._base_url}/api/v2/jobs/{job_id}",
                 headers={"Authorization": f"Bearer {api_key}"},
@@ -163,13 +176,18 @@ class PaletteImageClientImpl:
         lora_scale: float | None = None,
         aspect_ratio: str | None = None,
         output_format: str | None = None,
+        should_cancel: Callable[[], bool] | None = None,
     ) -> bytes:
         """Orbit the camera around a subject via /api/v2/images/camera-angle.
 
         This route is synchronous — it builds the ``<sks>`` prompt + injects the
         multi-angle LoRA + polls Replicate server-side — so the gizmo's raw
         azimuth/elevation/distance go straight through and it returns the image URL.
+        `should_cancel` is honored before the request is sent (the single blocking
+        call itself can't be interrupted once in flight).
         """
+        if should_cancel is not None and should_cancel():
+            raise RuntimeError("Generation was cancelled")
         payload: dict[str, JSONValue] = {
             "image_url": image_url,
             "azimuth": azimuth,

@@ -376,6 +376,7 @@ class ImageGenerationHandler(StateHandlerBase):
                     # (it builds the <sks> prompt + injects the multi-angle LoRA itself).
                     image_bytes = self._palette_image_client.generate_camera_angle(
                         api_key=settings.palette_api_key,
+                        should_cancel=self._generation.is_generation_cancelled,
                         image_url=palette_ref_urls[0],
                         azimuth=_as_float(params.get("azimuth"), 0.0),
                         elevation=_as_float(params.get("elevation"), 0.0),
@@ -388,6 +389,7 @@ class ImageGenerationHandler(StateHandlerBase):
                 elif use_palette:
                     image_bytes = self._palette_image_client.generate_image(
                         api_key=settings.palette_api_key,
+                        should_cancel=self._generation.is_generation_cancelled,
                         model=palette_model,
                         prompt=prompt,
                         aspect_ratio=aspect_ratio,
