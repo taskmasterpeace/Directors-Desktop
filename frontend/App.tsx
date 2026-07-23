@@ -22,6 +22,7 @@ import Director from './views/Director'
 import { LaunchGate } from './components/FirstRunSetup'
 import { PythonSetup } from './components/PythonSetup'
 import { SettingsModal, type SettingsTabId } from './components/SettingsModal'
+import { PaletteAuthGate } from './components/PaletteAuthGate'
 import { LogViewer } from './components/LogViewer'
 import { ApiGatewayModal, type ApiGatewaySection } from './components/ApiGatewayModal'
 import { Button } from './components/ui/button'
@@ -543,16 +544,21 @@ function AppContent() {
 }
 
 export default function App() {
+  // Nothing renders without a Directors Palette account. The gate is a product
+  // requirement + entitlement check; money-spending enforcement is server-side
+  // (Palette deducts points before dispatching cloud work).
   return (
-    <ProjectProvider>
-      <KeyboardShortcutsProvider>
-        <AppSettingsProvider>
-          <ConfirmProvider>
-            <AppContent />
-            <KeyboardShortcutsModal />
-          </ConfirmProvider>
-        </AppSettingsProvider>
-      </KeyboardShortcutsProvider>
-    </ProjectProvider>
+    <PaletteAuthGate>
+      <ProjectProvider>
+        <KeyboardShortcutsProvider>
+          <AppSettingsProvider>
+            <ConfirmProvider>
+              <AppContent />
+              <KeyboardShortcutsModal />
+            </ConfirmProvider>
+          </AppSettingsProvider>
+        </KeyboardShortcutsProvider>
+      </ProjectProvider>
+    </PaletteAuthGate>
   )
 }

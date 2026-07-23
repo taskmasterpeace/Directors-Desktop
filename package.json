@@ -32,7 +32,7 @@
     "prepare:python:win": "powershell -ExecutionPolicy Bypass -File scripts/prepare-python.ps1",
     "build:frontend": "vite build",
     "start:unpacked:mac": "open release/mac-arm64/LTX\\ Desktop.app",
-    "start:unpacked:win": "powershell -Command \"& '.\\release\\win-unpacked\\LTX Desktop.exe'\""
+    "start:unpacked:win": "powershell -Command \"& '.\\release\\win-unpacked\\Director'''s Desktop.exe'\""
   },
   "dependencies": {
     "@ffmpeg/ffmpeg": "^0.12.15",

@@ -25,8 +25,10 @@ if (-not (Test-Path "dist") -or -not (Test-Path "dist-electron")) {
 }
 
 if (-not (Test-Path "python-embed")) {
-    Write-Host "ERROR: Python environment not found. Run local-build.ps1 or prepare-python.ps1 first." -ForegroundColor Red
-    exit 1
+    # Not fatal: python-embed is no longer bundled into the installer. It is
+    # only needed to BUILD the downloadable runtime archives.
+    Write-Host "NOTE: python-embed not present - installer will be built without it (the app downloads the runtime on demand)." -ForegroundColor DarkYellow
+    Write-Host "      Run prepare-python.ps1 + package-python.ps1 if you need to publish the runtime archives." -ForegroundColor DarkYellow
 }
 
 # Build with electron-builder

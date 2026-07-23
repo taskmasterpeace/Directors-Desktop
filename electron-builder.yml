@@ -1,6 +1,6 @@
 appId: com.lightricks.ltx-desktop
 productName: Director's Desktop
-copyright: Copyright © 2026 Lightricks
+copyright: Copyright © 2026 Machine King Labs
 
 directories:
   output: release
@@ -39,12 +39,9 @@ win:
         - x64
   icon: resources/icon.ico
   artifactName: ${productName}-Setup.${ext}
-  azureSignOptions:
-    publisherName: Lightricks Ltd
-    endpoint: https://eus.codesigning.azure.net/
-    certificateProfileName: ltx-desktop-trusted
-    codeSigningAccountName: ltx-trusted
-    excludeEnvironmentCredential: true
+  # Code signing: intentionally unset. The upstream Lightricks certificate is
+  # not ours to use. Ship unsigned (SmartScreen shows a one-time warning) or
+  # set CSC_LINK / CSC_KEY_PASSWORD env vars with a Machine King Labs cert.
 
 nsis:
   oneClick: false
@@ -68,11 +65,8 @@ mac:
     # binaries, hitting the macOS 10240 open-files-per-process limit.
     - "/python/.*\\.(py|pyc|pyi|pxd|pyx|h|hpp|cpp|c|cuh|cu|tcl|txt|json|yaml|yml|toml|cfg|md|rst|html|css|enc|msg|cmake|gif|png|jpg|svg|xml|jinja|typed|al)$"
     - "/python/.*\\.dist-info/"
-  extraResources:
-    - from: python-embed
-      to: python
-      filter:
-        - "**/*"
+  # NOTE: python-embed is deliberately NOT bundled — see scripts/package-python.ps1
+  # and docs/RELEASING.md. The app fetches it on first local generation.
         - "!__pycache__/**"
         - "!*.pyc"
   target:
