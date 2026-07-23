@@ -7,7 +7,7 @@ next to it for the app to work.
 
 | Asset | Size | Why |
 |---|---|---|
-| `Director's Desktop-Setup.exe` | ~150–300 MB | The app: Electron shell, frontend, Python **source** backend. NSIS installer — choose install dir, shortcuts, uninstaller. |
+| `Director's Desktop-Setup.exe` | **122 MB** (measured, v1.0.1) | The app: Electron shell, frontend, Python **source** backend. NSIS installer — choose install dir, shortcuts, uninstaller. |
 | `python-embed-win32.manifest.json` | tiny | Tells the app what parts to fetch. |
 | `python-embed-win32.tar.gz.partN` | ~1.8 GB each | The embedded Python runtime (torch + CUDA). Downloaded **on demand**, only when the user first runs a local GPU generation. |
 
@@ -19,6 +19,22 @@ of that is `torch/lib` — NVIDIA's cuBLAS/cuDNN/cuFFT libraries). Bundled, the
 installer would exceed GitHub's **2 GB per-asset limit**. Splitting the runtime
 into its own parts keeps the installer small and lets cloud-only users skip the
 5 GB entirely.
+
+## Before you build (one-time on a fresh machine)
+
+Two things bite otherwise — both hit during the first real build:
+
+```powershell
+# 1. NSIS cannot read its own temp files when TEMP is the system dir.
+#    Symptom: '!include: could not find "C:\WINDOWS\TEMP
+stXXXX.tmp"'
+$env:TEMP = "D:\git\directors-desktop\.build-temp"; $env:TMP = $env:TEMP
+
+# 2. resources/vc_redist.x64.exe is gitignored but the installer embeds it
+#    (PyTorch/CUDA needs the VC++ runtime).
+#    Symptom: 'File: "...esourcesc_redist.x64.exe" -> no files found.'
+Invoke-WebRequest https://aka.ms/vs/17/release/vc_redist.x64.exe -OutFile resourcesc_redist.x64.exe
+```
 
 ## Build steps
 
