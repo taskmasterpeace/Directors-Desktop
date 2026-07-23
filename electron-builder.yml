@@ -39,6 +39,12 @@ win:
         - x64
   icon: resources/icon.ico
   artifactName: ${productName}-Setup.${ext}
+  # The 5GB python-embed runtime is intentionally NOT bundled on Windows: the
+  # installer stays under GitHub's 2GB asset limit and cloud-only users never
+  # download it. The app fetches it on first local generation via the
+  # multi-part path in electron/python-setup.ts — publish those archives with
+  # scripts/package-python.ps1 (see docs/RELEASING.md).
+  #
   # Code signing: intentionally unset. The upstream Lightricks certificate is
   # not ours to use. Ship unsigned (SmartScreen shows a one-time warning) or
   # set CSC_LINK / CSC_KEY_PASSWORD env vars with a Machine King Labs cert.
@@ -65,8 +71,13 @@ mac:
     # binaries, hitting the macOS 10240 open-files-per-process limit.
     - "/python/.*\\.(py|pyc|pyi|pxd|pyx|h|hpp|cpp|c|cuh|cu|tcl|txt|json|yaml|yml|toml|cfg|md|rst|html|css|enc|msg|cmake|gif|png|jpg|svg|xml|jinja|typed|al)$"
     - "/python/.*\\.dist-info/"
-  # NOTE: python-embed is deliberately NOT bundled — see scripts/package-python.ps1
-  # and docs/RELEASING.md. The app fetches it on first local generation.
+  # macOS DOES bundle the Python runtime into the .app (hence the signIgnore
+  # rules above). Windows does not — see the note in the `win` section.
+  extraResources:
+    - from: python-embed
+      to: python
+      filter:
+        - "**/*"
         - "!__pycache__/**"
         - "!*.pyc"
   target:
