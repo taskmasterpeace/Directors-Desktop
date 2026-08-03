@@ -198,6 +198,19 @@ def test_all_sliver_sections_fall_back_to_full_span():
     assert abs(shots[-1].end - 3.0) < 0.01
 
 
+def test_performance_framings_rotate():
+    # #59: half of all shots are performance — they must not share one setup.
+    shots = plan_shots(_analysis(), "city night", artist_name="NOVA")
+    perf = [s.prompt.split(",")[0] for s in shots if s.shot_type == "performance"]
+    assert len(perf) >= 4
+    assert len(set(perf)) >= 3, f"performance framings too repetitive: {set(perf)}"
+    # Every variant keeps the artist named (lip-sync framing intact).
+    assert all("NOVA" in s.prompt for s in shots if s.shot_type == "performance")
+    # Determinism holds.
+    again = plan_shots(_analysis(), "city night", artist_name="NOVA")
+    assert [s.prompt for s in shots] == [s.prompt for s in again]
+
+
 def test_wardrobe_maps_looks_to_sections():
     from server_utils.shot_planner import wardrobe_for_section
 

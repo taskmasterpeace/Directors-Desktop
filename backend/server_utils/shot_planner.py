@@ -38,10 +38,22 @@ _SECTION_FLAVOR = {
 
 _TYPE_DESC = {
     "establishing": "Wide establishing shot",
-    "performance": "Medium shot of {artist} performing to camera, moving with the music, framed from the waist up so the face stays large",
     "broll": "Cinematic b-roll detail shot",
 }
 _DEFAULT_ARTIST = "the artist"
+
+# Performance coverage rotates like a real music video instead of repeating
+# one setup (#59). Every variant keeps the face large — that is what makes
+# lip-sync read. Selected deterministically by shot index (and energy bumps
+# the pick so choruses favor the punchier setups).
+_PERFORMANCE_FRAMINGS = (
+    "Medium shot of {artist} performing to camera, moving with the music, framed from the waist up so the face stays large",
+    "Close-up of {artist} singing straight into the lens, face filling the frame, shallow depth of field",
+    "Slow push-in on {artist} performing, chest-up framing, the face growing larger through the shot",
+    "Low-angle hero shot of {artist} performing, framed waist-up, face prominent against the sky of the scene",
+    "Three-quarter profile of {artist} singing, head and shoulders framing, face large and lit",
+    "Handheld medium close-up of {artist} performing with energy, framed chest-up so the mouth stays clear",
+)
 
 
 @dataclass(frozen=True)
@@ -99,10 +111,17 @@ def build_prompt(
     story_beat: str = "",
     director_style: str = "",
     wardrobe_look: str = "",
+    variant_seed: int = 0,
 ) -> str:
-    desc = _TYPE_DESC.get(shot_type, _TYPE_DESC["broll"]).replace(
-        "{artist}", artist_name.strip() or _DEFAULT_ARTIST
-    )
+    if shot_type == "performance":
+        pick = (variant_seed + (2 if energy >= 0.66 else 0)) % len(_PERFORMANCE_FRAMINGS)
+        desc = _PERFORMANCE_FRAMINGS[pick].replace(
+            "{artist}", artist_name.strip() or _DEFAULT_ARTIST
+        )
+    else:
+        desc = _TYPE_DESC.get(shot_type, _TYPE_DESC["broll"]).replace(
+            "{artist}", artist_name.strip() or _DEFAULT_ARTIST
+        )
     parts = [desc]
     concept = concept.strip()
     if concept:
@@ -279,6 +298,7 @@ def plan_shots(
                             story_beat=story_beats[sections.index(section)],
                             director_style=director_style,
                             wardrobe_look=wardrobe_for_section(section.label, wardrobe or []),
+                            variant_seed=len(tiled),
                         ),
                         generate_seconds=max(GEN_MIN_SECONDS, min(GEN_MAX_SECONDS, math.ceil(end - cursor))),
                     )
@@ -336,6 +356,7 @@ def plan_shots(
                     story_beat=story_beats[-1] if story_beats else "",
                     director_style=director_style,
                     wardrobe_look=wardrobe_for_section(tail_section.label, wardrobe or []),
+                    variant_seed=len(shots),
                 ),
                 generate_seconds=max(GEN_MIN_SECONDS, min(GEN_MAX_SECONDS, math.ceil(end - start))),
             )

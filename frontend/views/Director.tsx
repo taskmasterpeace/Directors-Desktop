@@ -102,6 +102,7 @@ export function Director() {
   const [wardrobe, setWardrobe] = useState<[string, string, string]>(['', '', ''])
   const [mannequins, setMannequins] = useState<[{ path?: string; jobId?: string }, { path?: string; jobId?: string }, { path?: string; jobId?: string }]>([{}, {}, {}])
   const [redoSelection, setRedoSelection] = useState<Set<number>>(new Set())
+  const [previewShot, setPreviewShot] = useState<DirectorShot | null>(null)
   const [resolution, setResolution] = useState('720p')
   const [referencePaths, setReferencePaths] = useState<string[]>([])
   const [run, setRun] = useState<DirectorRun | null>(null)
@@ -915,13 +916,31 @@ export function Director() {
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {run.shots.map((s) => (
-                      <div
+                      <button
                         key={s.index}
-                        title={`#${s.index + 1} · ${s.sectionLabel} · ${s.shotType} · ${s.status}${s.error ? ` — ${s.error}` : ''}\n${s.prompt}`}
-                        className={`h-5 rounded-sm ${SHOT_COLOR[s.status]} transition-colors`}
+                        onClick={() => { if (s.resultPath) setPreviewShot(s) }}
+                        title={`#${s.index + 1} · ${s.sectionLabel} · ${s.shotType} · ${s.status}${s.error ? ` — ${s.error}` : ''}${s.resultPath ? ' — click to watch' : ''}\n${s.prompt}`}
+                        className={`h-5 rounded-sm ${SHOT_COLOR[s.status]} transition-colors ${s.resultPath ? 'cursor-pointer hover:ring-1 hover:ring-white/60' : 'cursor-default'}`}
                         style={{ width: `${Math.max(14, Math.min(56, (s.end - s.start) * 6))}px` }}
                       />
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Mid-render shot preview: catch a doomed concept 5 minutes in,
+                  not after an hour of assembly (#56) */}
+              {previewShot?.resultPath && (
+                <div className="fixed inset-0 z-[120] bg-black/80 flex items-center justify-center p-8" onClick={() => setPreviewShot(null)}>
+                  <div className="max-w-2xl w-full" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs text-zinc-300">
+                        Shot {previewShot.index + 1} · {previewShot.sectionLabel} · {previewShot.shotType}
+                      </span>
+                      <button onClick={() => setPreviewShot(null)} className="text-xs text-zinc-400 hover:text-white">Close</button>
+                    </div>
+                    <video src={toImgSrc(previewShot.resultPath)} controls autoPlay className="w-full rounded-xl border border-zinc-700 bg-black" />
+                    <p className="mt-2 text-[11px] text-zinc-500 line-clamp-2">{previewShot.prompt}</p>
                   </div>
                 </div>
               )}
