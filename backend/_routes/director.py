@@ -8,6 +8,8 @@ from fastapi import APIRouter, Depends
 
 from api_types import (
     DirectorApproveRequest,
+    DirectorPlanApproveRequest,
+    DirectorRerollRequest,
     DirectorStylePayload,
     DirectorStylesResponse,
     DirectorRunPayload,
@@ -66,6 +68,7 @@ def _to_payload(run: DirectorRun) -> DirectorRunPayload:
         artistName=run.artist_name,
         directorStyle=run.director_style,
         wardrobe=list(run.wardrobe),
+        planReview=run.plan_review,
         shots=[
             DirectorShotPayload(
                 index=s.index,
@@ -105,6 +108,7 @@ def route_start_director_run(
         image_model=request.imageModel,
         director_style=request.directorStyle,
         wardrobe=request.wardrobe or None,
+        plan_review=request.planReview,
     )
     return DirectorRunResponse(run=_to_payload(run))
 
@@ -145,6 +149,24 @@ def route_director_styles() -> DirectorStylesResponse:
             for s in DIRECTOR_STYLES.values()
         ]
     )
+
+
+@router.post("/plan/approve", response_model=DirectorRunResponse)
+def route_approve_plan(
+    request: DirectorPlanApproveRequest,
+    handler: AppHandler = Depends(get_state_service),
+) -> DirectorRunResponse:
+    run = handler.director.approve_plan(request.runId, prompts=request.prompts or None)
+    return DirectorRunResponse(run=_to_payload(run))
+
+
+@router.post("/reroll", response_model=DirectorRunResponse)
+def route_reroll_shots(
+    request: DirectorRerollRequest,
+    handler: AppHandler = Depends(get_state_service),
+) -> DirectorRunResponse:
+    run = handler.director.reroll_shots(request.runId, request.indices)
+    return DirectorRunResponse(run=_to_payload(run))
 
 
 @router.post("/storyboard/approve", response_model=DirectorRunResponse)

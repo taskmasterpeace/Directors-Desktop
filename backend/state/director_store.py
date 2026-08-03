@@ -19,6 +19,7 @@ from typing import Literal, cast
 
 DirectorPhase = Literal[
     "analyzing",
+    "plan_ready",
     "storyboarding",
     "awaiting_approval",
     "generating",
@@ -85,6 +86,9 @@ class DirectorRun:
     image_model: str = "dp-nano-banana-2"
     director_style: str = ""
     wardrobe: list[str] = field(default_factory=lambda: list[str]())
+    # #62: pause after (free) analysis so the creator reviews/edits the shot
+    # list before any points or GPU time are spent.
+    plan_review: bool = False
 
     @property
     def is_terminal(self) -> bool:
@@ -113,6 +117,7 @@ class DirectorStore:
         image_model: str = "dp-nano-banana-2",
         director_style: str = "",
         wardrobe: list[str] | None = None,
+        plan_review: bool = False,
     ) -> DirectorRun:
         run = DirectorRun(
             id=f"dir_{uuid.uuid4().hex[:10]}",
@@ -129,6 +134,7 @@ class DirectorStore:
             image_model=image_model,
             director_style=director_style,
             wardrobe=wardrobe or [],
+            plan_review=plan_review,
         )
         with self._lock:
             self._runs.append(run)

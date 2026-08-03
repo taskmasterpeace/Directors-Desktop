@@ -314,6 +314,86 @@ def test_director_style_flavors_every_prompt(test_state, client, tmp_path: Path)
     assert all("fisheye" in s.prompt for s in run.shots)
 
 
+def test_plan_review_pauses_free_and_applies_prompt_edits(test_state, client, tmp_path: Path):
+    handler = test_state
+    handler.state.app_settings.fal_api_key = "test-fal-key"
+    run = handler.director.start(
+        audio_path=_make_song(tmp_path),
+        concept="plan gate",
+        model="seedance-2.0",
+        resolution="720p",
+        plan_review=True,
+        run_thread=False,
+    )
+    handler.director.step(run.id)  # analyze + plan
+    assert run.phase == "plan_ready"
+    # Nothing submitted, nothing spent.
+    assert not [j for j in handler.job_queue.all_jobs() if "director" in j.tags]
+
+    # step() is a no-op while the human reviews.
+    handler.director.step(run.id)
+    assert run.phase == "plan_ready"
+
+    edited = "hand-polished prompt for the opener"
+    handler.director.approve_plan(run.id, prompts={0: edited}, run_thread=False)
+    assert run.shots[0].prompt == edited
+    assert run.phase == "generating"
+
+    # Route surface: approving when not plan_ready is a clean 409; unknown 404.
+    denied = client.post("/api/director/plan/approve", json={"runId": run.id})
+    assert denied.status_code == 409
+    missing = client.post("/api/director/plan/approve", json={"runId": "dir_nope"})
+    assert missing.status_code == 404
+
+
+def test_plan_review_flag_rides_the_start_route(client, test_state, tmp_path: Path):
+    handler = test_state
+    handler.state.app_settings.fal_api_key = "test-fal-key"
+    resp = client.post(
+        "/api/director/start",
+        json={"audioPath": _make_song(tmp_path), "concept": "x", "planReview": True},
+    )
+    assert resp.status_code == 200
+    body = resp.json()["run"]
+    assert body["planReview"] is True
+    client.post("/api/director/cancel", json={"runId": body["id"]})
+
+
+def test_reroll_rerenders_only_chosen_shots(test_state, client, tmp_path: Path):
+    handler = test_state
+    run = _start(handler, tmp_path)
+    handler.director.step(run.id)
+    handler.director.step(run.id)
+    _complete_director_jobs(handler, tmp_path)
+    handler.director.step(run.id)
+    handler.director.step(run.id)
+    assert run.phase == "complete"
+    kept_path = run.shots[0].result_path
+    old_output = run.output_path
+
+    handler.director.reroll_shots(run.id, [1, 2], run_thread=False)
+    assert run.phase == "generating"
+    assert run.shots[0].status == "complete" and run.shots[0].result_path == kept_path
+    assert run.shots[1].status == "pending" and run.shots[1].result_path is None
+    assert run.output_path is None
+
+    before = len(handler.job_queue.all_jobs())
+    handler.director.step(run.id)  # resubmit ONLY the rerolled shots
+    assert len(handler.job_queue.all_jobs()) == before + 2
+    _complete_director_jobs(handler, tmp_path)
+    handler.director.step(run.id)
+    handler.director.step(run.id)
+    assert run.phase == "complete"
+    assert run.output_path and run.output_path == old_output  # same target file, rebuilt
+
+    # Route surface: no-op indices are a 400 (state untouched), unknown run 404.
+    noop = client.post("/api/director/reroll", json={"runId": run.id, "indices": [99]})
+    assert noop.status_code == 400
+    assert run.phase == "complete"
+    missing = client.post("/api/director/reroll", json={"runId": "dir_nope", "indices": [0]})
+    assert missing.status_code == 404
+
+
 def test_start_requires_fal_key_for_seedance(test_state, tmp_path: Path):
     from _routes._errors import HTTPError
 

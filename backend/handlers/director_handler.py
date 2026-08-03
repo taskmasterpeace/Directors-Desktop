@@ -73,6 +73,7 @@ class DirectorHandler:
         image_model: str = "dp-nano-banana-2",
         director_style: str = "",
         wardrobe: list[str] | None = None,
+        plan_review: bool = False,
         run_thread: bool = True,
     ) -> DirectorRun:
         if not Path(audio_path).is_file():
@@ -98,6 +99,7 @@ class DirectorHandler:
             image_model=image_model,
             director_style=director_style,
             wardrobe=wardrobe,
+            plan_review=plan_review,
         )
         if run_thread:
             self._launch_thread(run.id)
@@ -161,6 +163,62 @@ class DirectorHandler:
         if not run.is_terminal:
             run.phase = "cancelled"
             self._store.save()
+        return run
+
+    def approve_plan(
+        self,
+        run_id: str,
+        *,
+        prompts: dict[int, str] | None = None,
+        run_thread: bool = True,
+    ) -> DirectorRun:
+        """From plan_ready: apply prompt edits, then start spending."""
+        run = self._require_run(run_id)
+        if run.phase != "plan_ready":
+            raise HTTPError(409, f"Run is not awaiting plan review (phase: {run.phase})")
+        if prompts:
+            by_index = {shot.index: shot for shot in run.shots}
+            for index, prompt in prompts.items():
+                shot = by_index.get(index)
+                if shot is not None and prompt.strip():
+                    shot.prompt = prompt.strip()
+        run.phase = "storyboarding" if run.storyboard else "generating"
+        self._store.save()
+        if run_thread:
+            self._launch_thread(run.id)
+        return run
+
+    def reroll_shots(
+        self, run_id: str, indices: list[int], *, run_thread: bool = True
+    ) -> DirectorRun:
+        """#63: re-render chosen shots of a COMPLETE run, then reassemble.
+
+        Finished shots stay untouched; keyframes are kept so a rerolled shot
+        is still seeded by its approved storyboard frame."""
+        run = self._require_run(run_id)
+        if run.phase != "complete":
+            raise HTTPError(409, f"Reroll needs a completed run (phase: {run.phase})")
+        wanted = set(indices)
+        touched = 0
+        for shot in run.shots:
+            if shot.index in wanted:
+                shot.status = "pending"
+                shot.job_id = None
+                shot.result_path = None
+                shot.error = None
+                shot.retries = 0
+                shot.phase = ""
+                shot.progress = 0
+                touched += 1
+        if touched == 0:
+            raise HTTPError(400, "No valid shot indices to reroll")
+        run.output_path = None
+        run.phase = "generating"
+        with self._lock:
+            self._cancel_flags.discard(run_id)
+        self._store.save()
+        if run_thread:
+            self._launch_thread(run.id)
         return run
 
     def approve_storyboard(
@@ -258,7 +316,10 @@ class DirectorHandler:
             )
             for p in planned
         ]
-        run.phase = "storyboarding" if run.storyboard else "generating"
+        if run.plan_review:
+            run.phase = "plan_ready"  # free stop: nothing has been spent yet
+        else:
+            run.phase = "storyboarding" if run.storyboard else "generating"
         self._store.save()
 
     def _step_storyboard(self, run: DirectorRun) -> None:
@@ -458,8 +519,8 @@ class DirectorHandler:
             run = self._store.get_run(run_id)
             if run is None or run.is_terminal:
                 return
-            if run.phase == "awaiting_approval":
-                return  # human's turn — approve_storyboard relaunches the thread
+            if run.phase in ("awaiting_approval", "plan_ready"):
+                return  # human's turn — the approve endpoints relaunch the thread
             if run.phase in ("generating", "storyboarding"):
                 time.sleep(_STEP_INTERVAL_SECONDS)
 

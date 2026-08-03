@@ -905,6 +905,7 @@ class DirectorStartRequest(BaseModel):
     imageModel: str = "dp-nano-banana-2"
     directorStyle: str = ""
     wardrobe: list[str] = []
+    planReview: bool = False
 
 
 class DirectorTargetRequest(BaseModel):
@@ -914,6 +915,17 @@ class DirectorTargetRequest(BaseModel):
 class DirectorApproveRequest(BaseModel):
     runId: str
     regenerate: list[int] = []
+
+
+class DirectorPlanApproveRequest(BaseModel):
+    runId: str
+    # index -> edited prompt (only changed ones need sending)
+    prompts: dict[int, str] = {}
+
+
+class DirectorRerollRequest(BaseModel):
+    runId: str
+    indices: list[int]
 
 
 class DirectorShotPayload(BaseModel):
@@ -958,6 +970,7 @@ class DirectorRunPayload(BaseModel):
     artistName: str = ""
     directorStyle: str = ""
     wardrobe: list[str] = []
+    planReview: bool = False
     shots: list[DirectorShotPayload]
 
 

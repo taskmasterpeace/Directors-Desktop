@@ -36,7 +36,7 @@ interface DirectorShot {
 
 interface DirectorRun {
   id: string
-  phase: 'analyzing' | 'storyboarding' | 'awaiting_approval' | 'generating' | 'assembling' | 'complete' | 'error' | 'cancelled'
+  phase: 'analyzing' | 'plan_ready' | 'storyboarding' | 'awaiting_approval' | 'generating' | 'assembling' | 'complete' | 'error' | 'cancelled'
   error: string | null
   audioPath: string
   concept: string
@@ -53,6 +53,7 @@ interface DirectorRun {
   treatment: string
   artistName: string
   directorStyle: string
+  planReview: boolean
   shots: DirectorShot[]
 }
 
@@ -98,12 +99,15 @@ export function Director() {
   const [directorStyles, setDirectorStyles] = useState<{ id: string; name: string; description: string; wardrobe: string[] }[]>([])
   const [artists, setArtists] = useState<{ id: string; name: string; reference_image_paths: string[] }[]>([])
   const [storyboard, setStoryboard] = useState(false)
+  const [planReview, setPlanReview] = useState(true)
   const [approval, setApproval] = useState<'auto' | 'approve'>('approve')
   const [imageModel, setImageModel] = useState('dp-nano-banana-2')
   const [wardrobe, setWardrobe] = useState<[string, string, string]>(['', '', ''])
   const [mannequins, setMannequins] = useState<[{ path?: string; jobId?: string }, { path?: string; jobId?: string }, { path?: string; jobId?: string }]>([{}, {}, {}])
   const [redoSelection, setRedoSelection] = useState<Set<number>>(new Set())
   const [previewShot, setPreviewShot] = useState<DirectorShot | null>(null)
+  const [planEdits, setPlanEdits] = useState<Record<number, string>>({})
+  const [rerollSelection, setRerollSelection] = useState<Set<number>>(new Set())
   const [resolution, setResolution] = useState('720p')
   const [referencePaths, setReferencePaths] = useState<string[]>([])
   const [run, setRun] = useState<DirectorRun | null>(null)
@@ -232,12 +236,15 @@ export function Director() {
           imageModel,
           directorStyle,
           wardrobe: wardrobe.filter(Boolean),
+          planReview,
         }),
       })
       const data = (await res.json()) as { run?: DirectorRun; error?: string }
       if (!res.ok || !data.run) throw new Error(data.error || `Start failed (${res.status})`)
       runIdRef.current = data.run.id
       setRun(data.run)
+      setPlanEdits({})
+      setRerollSelection(new Set())
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Could not start'
       setStartError(msg)
@@ -245,7 +252,7 @@ export function Director() {
     } finally {
       setStarting(false)
     }
-  }, [audioPath, concept, model, resolution, referencePaths, mannequins, treatment, artistName, storyboard, approval, imageModel, directorStyle, wardrobe, starting])
+  }, [audioPath, concept, model, resolution, referencePaths, mannequins, treatment, artistName, storyboard, approval, imageModel, directorStyle, wardrobe, planReview, starting])
 
   const post = useCallback(async (endpoint: 'cancel' | 'resume') => {
     if (!runIdRef.current) return
@@ -404,13 +411,49 @@ export function Director() {
     }
   }, [])
 
+  // #62: leave the free waiting room — apply prompt edits, start spending.
+  const approvePlan = useCallback(async () => {
+    if (!runIdRef.current) return
+    try {
+      const base = await backendBase()
+      const res = await fetch(`${base}/api/director/plan/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runId: runIdRef.current, prompts: planEdits }),
+      })
+      const data = (await res.json()) as { run: DirectorRun | null }
+      if (data.run) setRun(data.run)
+    } catch (e) {
+      logger.error(`Plan approve failed: ${e}`)
+    }
+  }, [planEdits])
+
+  // #63: re-render the marked shots of a finished video, then reassemble.
+  const rerollShots = useCallback(async () => {
+    if (!runIdRef.current || rerollSelection.size === 0) return
+    try {
+      const base = await backendBase()
+      const res = await fetch(`${base}/api/director/reroll`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ runId: runIdRef.current, indices: [...rerollSelection] }),
+      })
+      const data = (await res.json()) as { run: DirectorRun | null }
+      if (data.run) setRun(data.run)
+      setRerollSelection(new Set())
+    } catch (e) {
+      logger.error(`Director reroll failed: ${e}`)
+    }
+  }, [rerollSelection])
+
   const isActive = run != null && !['complete', 'error', 'cancelled'].includes(run.phase)
   const shotsDone = run?.shots.filter((s) => s.status === 'complete').length ?? 0
-  const steps = run && run.storyboard
+  const steps = run
     ? [
         { key: 'analyzing', label: 'Listen' },
-        { key: 'storyboarding', label: 'Frames' },
-        ...(run.approval === 'approve' ? [{ key: 'awaiting_approval', label: 'Approve' }] : []),
+        ...(run.planReview ? [{ key: 'plan_ready', label: 'Plan' }] : []),
+        ...(run.storyboard ? [{ key: 'storyboarding', label: 'Frames' }] : []),
+        ...(run.storyboard && run.approval === 'approve' ? [{ key: 'awaiting_approval', label: 'Approve' }] : []),
         { key: 'generating', label: 'Generate' },
         { key: 'assembling', label: 'Assemble' },
         { key: 'complete', label: 'Done' },
@@ -575,6 +618,18 @@ export function Director() {
               ))}
             </div>
             <p className="text-[10px] text-zinc-600 mt-1">Optional — describes what the artist wears; verses carry look A, choruses B, bridge C. Attach wardrobe photos via Reference images.</p>
+          </div>
+
+          <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={planReview}
+                onChange={(e) => setPlanReview(e.target.checked)}
+                disabled={isActive}
+              />
+              <span className="text-xs text-zinc-200 font-medium">Review the plan first — see and edit every shot before anything renders (free)</span>
+            </label>
           </div>
 
           <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 space-y-2">
@@ -857,6 +912,50 @@ export function Director() {
                 </div>
               )}
 
+              {/* #62: the plan — reviewable + editable BEFORE anything renders or bills */}
+              {run.phase === 'plan_ready' && (
+                <div className="rounded-xl border border-amber-500/40 bg-zinc-900/70 overflow-hidden">
+                  <div className="px-4 py-2.5 border-b border-zinc-800 flex items-center justify-between gap-3">
+                    <div className="text-xs text-zinc-300">
+                      <span className="font-semibold text-amber-300">The plan</span> — {run.shots.length} shots
+                      {(() => {
+                        const secs = run.shots.reduce((t, sh) => t + sh.generateSeconds, 0)
+                        const est = estimateCloudPoints(run.model, run.resolution, secs)
+                        if (est) {
+                          const kfPts = run.storyboard ? (KEYFRAME_MODELS.find((k) => k.id === imageModel)?.pts ?? 0) * run.shots.length : 0
+                          return ` · ≈ ${formatPoints(est.points + kfPts)} when you start${est.approx ? ' (estimate)' : ''}`
+                        }
+                        return ' · free on your GPU'
+                      })()}
+                      <span className="block text-[10px] text-zinc-500 mt-0.5">Nothing renders or bills until you press Start. Edit any prompt below.</span>
+                    </div>
+                    <button
+                      onClick={approvePlan}
+                      className="shrink-0 text-xs text-zinc-950 font-semibold px-3 py-1.5 rounded-lg bg-emerald-400 hover:bg-emerald-300 transition-colors"
+                    >
+                      Start {run.storyboard ? 'frames' : 'generating'} →
+                    </button>
+                  </div>
+                  <div className="max-h-80 overflow-y-auto divide-y divide-zinc-800/70">
+                    {run.shots.map((sh) => (
+                      <div key={sh.index} className="px-4 py-2 flex gap-3 items-start">
+                        <div className="w-24 shrink-0 pt-1">
+                          <div className="text-[11px] text-zinc-300 font-medium">#{sh.index + 1} · {sh.shotType}</div>
+                          <div className="text-[10px] text-zinc-500">{sh.sectionLabel}</div>
+                          <div className="text-[10px] text-zinc-600 tabular-nums">{sh.start.toFixed(1)}–{sh.end.toFixed(1)}s · {sh.generateSeconds}s gen</div>
+                        </div>
+                        <textarea
+                          value={planEdits[sh.index] ?? sh.prompt}
+                          onChange={(e) => setPlanEdits((prev) => ({ ...prev, [sh.index]: e.target.value }))}
+                          rows={2}
+                          className="flex-1 bg-zinc-950/70 border border-zinc-800 rounded-md px-2 py-1 text-[11px] text-zinc-200 resize-y focus:outline-none focus:border-amber-500/60"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Clapper slate: how long this is going to take */}
               {['generating', 'storyboarding'].includes(run.phase) && (() => {
                 const perShot = LOCAL_MODELS.has(run.model)
@@ -896,34 +995,75 @@ export function Director() {
                 )
               })()}
 
-              {/* Shot progress */}
-              {run.shots.length > 0 && run.phase !== 'complete' && (
+              {/* Shot strip. Mid-run: live status + click-to-watch. On a
+                  finished video: click shots to mark them for a reroll (#63). */}
+              {run.shots.length > 0 && run.phase !== 'plan_ready' && (
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs text-zinc-400">
-                      Shots: {shotsDone}/{run.shots.length} rendered
+                      {run.phase === 'complete'
+                        ? 'Shots — click any to mark for a reroll; new takes re-assemble the video'
+                        : `Shots: ${shotsDone}/${run.shots.length} rendered`}
                     </span>
-                    {(() => {
-                      const active = run.shots.find((sh) => sh.status === 'submitted')
-                      if (!active) return null
-                      const phaseLabel = active.phase
-                        ? active.phase.replace(/_/g, ' ')
-                        : 'waiting in queue'
-                      return (
-                        <span className="text-[11px] text-amber-300/90">
-                          Shot {active.index + 1}: {phaseLabel}
-                          {active.progress > 0 ? ` — ${active.progress}%` : ''}
-                        </span>
+                    {run.phase === 'complete' ? (
+                      rerollSelection.size > 0 && (
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => setRerollSelection(new Set())} className="text-[11px] text-zinc-500 hover:text-white">
+                            Clear
+                          </button>
+                          <button
+                            onClick={rerollShots}
+                            className="text-[11px] text-zinc-950 font-medium px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 transition-colors"
+                          >
+                            Reroll {rerollSelection.size} shot{rerollSelection.size === 1 ? '' : 's'}
+                            {(() => {
+                              const secs = run.shots.filter((sh) => rerollSelection.has(sh.index)).reduce((t, sh) => t + sh.generateSeconds, 0)
+                              const est = estimateCloudPoints(run.model, run.resolution, secs)
+                              return est ? ` · ≈ ${formatPoints(est.points)}` : ' · free'
+                            })()}
+                          </button>
+                        </div>
                       )
-                    })()}
+                    ) : (
+                      (() => {
+                        const active = run.shots.find((sh) => sh.status === 'submitted')
+                        if (!active) return null
+                        const phaseLabel = active.phase
+                          ? active.phase.replace(/_/g, ' ')
+                          : 'waiting in queue'
+                        return (
+                          <span className="text-[11px] text-amber-300/90">
+                            Shot {active.index + 1}: {phaseLabel}
+                            {active.progress > 0 ? ` — ${active.progress}%` : ''}
+                          </span>
+                        )
+                      })()
+                    )}
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {run.shots.map((s) => (
                       <button
                         key={s.index}
-                        onClick={() => { if (s.resultPath) setPreviewShot(s) }}
-                        title={`#${s.index + 1} · ${s.sectionLabel} · ${s.shotType} · ${s.status}${s.error ? ` — ${s.error}` : ''}${s.resultPath ? ' — click to watch' : ''}\n${s.prompt}`}
-                        className={`h-5 rounded-sm ${SHOT_COLOR[s.status]} transition-colors ${s.resultPath ? 'cursor-pointer hover:ring-1 hover:ring-white/60' : 'cursor-default'}`}
+                        onClick={() => {
+                          if (run.phase === 'complete') {
+                            setRerollSelection((prev) => {
+                              const next = new Set(prev)
+                              if (next.has(s.index)) next.delete(s.index)
+                              else next.add(s.index)
+                              return next
+                            })
+                          } else if (s.resultPath) {
+                            setPreviewShot(s)
+                          }
+                        }}
+                        title={`#${s.index + 1} · ${s.sectionLabel} · ${s.shotType} · ${s.status}${s.error ? ` — ${s.error}` : ''}${run.phase === 'complete' ? ' — click to mark for reroll' : s.resultPath ? ' — click to watch' : ''}\n${s.prompt}`}
+                        className={`h-5 rounded-sm ${SHOT_COLOR[s.status]} transition-colors ${
+                          rerollSelection.has(s.index) && run.phase === 'complete'
+                            ? 'ring-1 ring-red-400'
+                            : run.phase === 'complete' || s.resultPath
+                              ? 'cursor-pointer hover:ring-1 hover:ring-white/60'
+                              : 'cursor-default'
+                        }`}
                         style={{ width: `${Math.max(14, Math.min(56, (s.end - s.start) * 6))}px` }}
                       />
                     ))}
