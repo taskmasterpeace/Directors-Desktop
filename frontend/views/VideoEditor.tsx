@@ -14,7 +14,7 @@ import {
   Link2, Type, // EFFECTS HIDDEN: removed Search // IC-LORA HIDDEN: removed Sparkles
   CircleDot, Circle, RotateCcw, Save, LayoutGrid, PanelRight, Folder,
   AlignLeft
-} from 'lucide-react'
+, Flag } from 'lucide-react'
 import { useProjects } from '../contexts/ProjectContext'
 import { useKeyboardShortcuts } from '../contexts/KeyboardShortcutsContext'
 import { useAppSettings } from '../contexts/AppSettingsContext'
@@ -164,6 +164,7 @@ export function VideoEditor() {
   }, [])
   // ── Timeline markers (notes on the timeline; part of the agent surface) ──
   const [markerEditor, setMarkerEditor] = useState<{ id: string; x: number; y: number } | null>(null)
+  const [markersPanelOpen, setMarkersPanelOpen] = useState(false)
   const MARKER_COLORS: Record<string, string> = {
     amber: 'bg-amber-400', red: 'bg-red-400', green: 'bg-green-400',
     blue: 'bg-blue-400', zinc: 'bg-zinc-400',
@@ -2820,6 +2821,84 @@ export function VideoEditor() {
                 <Magnet className="h-4 w-4" />
               </button>
             </Tooltip>
+
+            <Tooltip content={`Markers (${markers.length}) — M adds at playhead`} side="right">
+              <button
+                onClick={() => setMarkersPanelOpen((prev) => !prev)}
+                className={`relative p-1.5 rounded-lg transition-colors flex-shrink-0 ${
+                  markersPanelOpen
+                    ? 'bg-amber-500 text-zinc-950'
+                    : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                }`}
+              >
+                <Flag className="h-4 w-4" />
+                {markers.length > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 rounded-full bg-amber-500 text-zinc-950 text-[9px] font-bold flex items-center justify-center">
+                    {markers.length}
+                  </span>
+                )}
+              </button>
+            </Tooltip>
+
+            {/* #57: markers panel — the agent's notes + song sections, navigable */}
+            {markersPanelOpen && (
+              <div className="absolute left-10 bottom-2 z-[80] w-72 max-h-80 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl flex flex-col overflow-hidden">
+                <div className="px-3 py-2 border-b border-zinc-800 flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-zinc-300">Markers</span>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => {
+                        const prev = [...markers].sort((a, b) => b.time - a.time).find((mk) => mk.time < currentTime - 0.01)
+                        if (prev) setCurrentTime(prev.time)
+                      }}
+                      className="px-1.5 py-0.5 text-[10px] rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
+                      title="Previous marker"
+                    >
+                      &#8592;
+                    </button>
+                    <button
+                      onClick={() => {
+                        const next = [...markers].sort((a, b) => a.time - b.time).find((mk) => mk.time > currentTime + 0.01)
+                        if (next) setCurrentTime(next.time)
+                      }}
+                      className="px-1.5 py-0.5 text-[10px] rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
+                      title="Next marker"
+                    >
+                      &#8594;
+                    </button>
+                    <button onClick={() => setMarkersPanelOpen(false)} className="ml-1 text-zinc-500 hover:text-white text-[11px]">&#10005;</button>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  {markers.length === 0 ? (
+                    <p className="px-3 py-4 text-[11px] text-zinc-600">No markers yet — press M at the playhead, or let the AI drop them.</p>
+                  ) : (
+                    [...markers].sort((a, b) => a.time - b.time).map((mk) => (
+                      <div
+                        key={mk.id}
+                        className="px-3 py-1.5 flex items-center gap-2 hover:bg-zinc-800/70 cursor-pointer group"
+                        onClick={() => setCurrentTime(mk.time)}
+                        title={mk.note || mk.title}
+                      >
+                        <span className={`h-2.5 w-2.5 rounded-full flex-shrink-0 ${MARKER_COLORS[mk.color] || 'bg-amber-400'} ${mk.author === 'agent' ? 'ring-1 ring-white/50' : ''}`} />
+                        <span className="text-[11px] text-zinc-200 truncate flex-1">{mk.title}</span>
+                        {mk.author === 'agent' && <span className="text-[9px] text-amber-400/80 flex-shrink-0">AI</span>}
+                        <span className="text-[10px] font-mono text-zinc-500 tabular-nums flex-shrink-0">
+                          {Math.floor(mk.time / 60)}:{String(Math.floor(mk.time % 60)).padStart(2, '0')}
+                        </span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteMarker(mk.id) }}
+                          className="opacity-0 group-hover:opacity-100 text-zinc-600 hover:text-red-400 text-[11px] flex-shrink-0"
+                          title="Delete marker"
+                        >
+                          &#10005;
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
             
             {/* EFFECTS HIDDEN - FX button hidden because effects are not applied during export
             <div className="w-6 h-px bg-zinc-700 my-1 flex-shrink-0" />

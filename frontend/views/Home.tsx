@@ -446,7 +446,7 @@ export function Home() {
                 <div className="flex items-center gap-1.5 px-2 py-1.5 rounded-md bg-zinc-800 mb-2">
                   <div className="w-2 h-2 rounded-full bg-emerald-500" />
                   <span className="text-xs text-zinc-300 font-medium">
-                    Credits: {(creditBalance / 100).toFixed(2)}
+                    {creditBalance} pts
                   </span>
                 </div>
               )}

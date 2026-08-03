@@ -6,6 +6,7 @@ import { LtxLogo } from '../components/LtxLogo'
 import { logger } from '../lib/logger'
 import { toImgSrc } from '../lib/path-to-img-src'
 import { estimateCloudPoints, formatPoints } from '../lib/palette-points'
+import { useCreditBalance } from '../hooks/use-credit-balance'
 import { MANNEQUIN_REFERENCE_URL } from '../lib/shot-creator/quick-modes'
 
 /**
@@ -107,6 +108,7 @@ export function Director() {
   const [referencePaths, setReferencePaths] = useState<string[]>([])
   const [run, setRun] = useState<DirectorRun | null>(null)
   const [gpu, setGpu] = useState<{ name: string; vramGb: number } | null>(null)
+  const balance = useCreditBalance()
   const [starting, setStarting] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
   const runIdRef = useRef<string | null>(null)
@@ -701,6 +703,7 @@ export function Director() {
                 return est ? ` — a 3-minute song ≈ ${formatPoints(est.points)}${est.approx ? ' (estimate)' : ''}` : ''
               })()}
               . A 3-minute song is roughly 25-40 shots; reference images ride every shot.
+              {balance !== null ? ` Balance: ${formatPoints(balance)}.` : ''}
             </p>
           )}
         </div>

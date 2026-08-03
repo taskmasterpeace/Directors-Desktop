@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ImageIcon, Loader2, UserRound, X } from 'lucide-react'
 import { toImgSrc } from '../../lib/path-to-img-src'
 import { dollarsToPoints, formatPoints } from '../../lib/palette-points'
+import { useCreditBalance } from '../../hooks/use-credit-balance'
 import { logger } from '../../lib/logger'
 
 /**
@@ -67,6 +68,7 @@ export function ReplacePersonModal({
   /** Kick off the job; resolves once submitted (not completed). */
   onSubmit: (opts: { characterImagePath: string; model: string; resolution: string }) => Promise<void>
 }) {
+  const balance = useCreditBalance()
   const [characters, setCharacters] = useState<LibraryCharacter[]>([])
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null)
   const [customImagePath, setCustomImagePath] = useState<string | null>(null)
@@ -223,6 +225,11 @@ export function ReplacePersonModal({
             ({dollarsToPoints(RATE_PER_SECOND[model]?.[resolution] ?? 0.06)} pts/s
             {' '}&middot; ${estimatedCost.toFixed(2)} on a BYO fal key).
             Every attempt bills again — start at 480p to test the look.
+            {balance !== null && (
+              <span className="block mt-1 text-amber-300/80">
+                Balance: {formatPoints(balance)} · after this job ≈ {formatPoints(Math.max(0, balance - estimatedPoints))}
+              </span>
+            )}
           </div>
 
           <label className="flex items-start gap-2 text-[11px] text-zinc-400 cursor-pointer">
