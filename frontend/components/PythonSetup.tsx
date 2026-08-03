@@ -292,7 +292,7 @@ export function PythonSetup({ onReady }: PythonSetupProps) {
           justifyContent: 'space-between',
           alignItems: 'center'
         }}>
-          <div style={{ fontSize: 11, color: '#666' }}>&copy; 2026 Lightricks</div>
+          <div style={{ fontSize: 11, color: '#666' }}>&copy; 2026 Machine King Labs</div>
         </div>
       </div>
     </div>

@@ -1963,6 +1963,21 @@ export function VideoEditor() {
     return () => clearInterval(interval)
   }, [recastJobs, currentProjectId, currentProject?.assetSavePath, assets, addTakeToAsset, setClips])
 
+  // #60: caption the whole cut in one action — every clip that has words,
+  // through the batch-safe engine (one subtitle track, one undo step).
+  const handleMakeCaptionsAll = useCallback(() => {
+    const targets = [...clips]
+      .sort((a, b) => a.startTime - b.startTime)
+      .filter((c) => (transcriptCache[c.id] ?? persistedTranscriptForRef.current?.(c))?.length)
+    if (targets.length === 0) {
+      setFrameActionMsg({ kind: 'error', text: 'No clips have transcripts yet — open a clip and Transcribe first.' })
+      return
+    }
+    pushTrackUndo()
+    const ok = handleMakeCaptions(targets)
+    if (!ok) setFrameActionMsg({ kind: 'error', text: 'No caption-worthy words found in the transcripts.' })
+  }, [clips, transcriptCache, pushTrackUndo, handleMakeCaptions])
+
   // Cast member -> Gen Space: arm the next generation with the linked library
   // character's reference image attached (the "Generate with cast member" flow).
   const handleGenerateWithCastMember = useCallback(async (entry: CastEntry) => {
@@ -2183,6 +2198,7 @@ export function VideoEditor() {
   // Menu bar definitions (extracted)
   const menuDefinitions: MenuDefinition[] = useMemo(() => buildMenuDefinitions({
     selectedClip, selectedClipIds, clips, tracks, subtitles, snapEnabled,
+    handleMakeCaptionsAll,
     showEffectsBrowser, showSourceMonitor, showPropertiesPanel, showICLoraPanel: _showICLoraPanel, // IC-LORA HIDDEN
     sourceAsset, activeTool, activeTimeline, timelines, kbLayout,
     fileInputRef, subtitleFileInputRef,

@@ -26,6 +26,7 @@ export interface MenuDepsParams {
   setShowExportModal: (v: boolean) => void
   handleExportTimelineXml: () => void
   handleExportSrt: () => void
+  handleMakeCaptionsAll: () => void
   undoRef: React.RefObject<() => void>
   redoRef: React.RefObject<() => void>
   cutRef: React.RefObject<() => void>
@@ -154,6 +155,7 @@ export function buildMenuDefinitions(p: MenuDepsParams): MenuDefinition[] {
         { id: 'add-video-track', label: 'Add Video Track', action: () => { p.pushUndo(); p.setTracks(prev => { const vTracks = prev.filter((t: any) => t.kind === 'video'); const name = `V${vTracks.length + 1}`; return [...prev, { id: `track-${Date.now()}`, name, muted: false, locked: false, kind: 'video' as const }] }) } },
         { id: 'add-audio-track', label: 'Add Audio Track', action: () => { p.pushUndo(); p.setTracks(prev => { const aTracks = prev.filter((t: any) => t.kind === 'audio'); const name = `A${aTracks.length + 1}`; return [...prev, { id: `track-${Date.now()}`, name, muted: false, locked: false, kind: 'audio' as const }] }) } },
         { id: 'add-subtitle-track', label: 'Add Subtitle Track', action: () => p.addSubtitleTrack() },
+        { id: 'make-captions-all', label: 'Make Captions from Transcripts (All Clips)', action: () => p.handleMakeCaptionsAll() },
         { id: 'sep-1', label: '', separator: true },
         { id: 'add-adjustment', label: 'Add Adjustment Layer', action: () => p.createAdjustmentLayerAsset() },
         { id: 'sep-2', label: '', separator: true },
