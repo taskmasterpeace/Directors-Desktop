@@ -788,6 +788,19 @@ export function ProgramMonitor({
             )}
           </div>
 
+          {/* Sequence aspect — always visible (fix #55: it only lived in the
+              split-view header, which is hidden by default) */}
+          <select
+            value={projectAspect}
+            onChange={(e) => onProjectAspectChange(e.target.value as '16:9' | '9:16' | '1:1')}
+            title="Sequence aspect — the frame you're making; drives the monitor shape and export defaults"
+            className="h-6 flex-shrink-0 bg-zinc-900 border border-zinc-700 hover:border-zinc-600 rounded px-1.5 text-[11px] font-medium text-zinc-300 cursor-pointer"
+          >
+            <option value="16:9">16:9</option>
+            <option value="9:16">9:16</option>
+            <option value="1:1">1:1</option>
+          </select>
+
           {/* Center: transport controls — Premiere-style 5-button strip */}
           <div className="flex-1 flex items-center justify-center gap-0.5">
             {/* Set In */}

@@ -428,6 +428,9 @@ function AppContent() {
     return <LaunchGate showLicenseStep={false} onComplete={handleMissingModelsComplete} />
   }
 
+  // Fix #54: the account gate must come AFTER boot — wrapping the whole app
+  // deadlocked fresh installs (gate blocked the code that starts the backend
+  // the gate itself needs to verify the account).
   const renderView = () => {
     switch (currentView) {
       case 'home':
@@ -460,6 +463,7 @@ function AppContent() {
   }
 
   return (
+    <PaletteAuthGate>
     <div className="relative h-screen w-screen">
       {renderView()}
 
@@ -540,25 +544,21 @@ function AppContent() {
 
       {restartingOverlay}
     </div>
+    </PaletteAuthGate>
   )
 }
 
 export default function App() {
-  // Nothing renders without a Directors Palette account. The gate is a product
-  // requirement + entitlement check; money-spending enforcement is server-side
-  // (Palette deducts points before dispatching cloud work).
   return (
-    <PaletteAuthGate>
-      <ProjectProvider>
-        <KeyboardShortcutsProvider>
-          <AppSettingsProvider>
-            <ConfirmProvider>
-              <AppContent />
-              <KeyboardShortcutsModal />
-            </ConfirmProvider>
-          </AppSettingsProvider>
-        </KeyboardShortcutsProvider>
-      </ProjectProvider>
-    </PaletteAuthGate>
+    <ProjectProvider>
+      <KeyboardShortcutsProvider>
+        <AppSettingsProvider>
+          <ConfirmProvider>
+            <AppContent />
+            <KeyboardShortcutsModal />
+          </ConfirmProvider>
+        </AppSettingsProvider>
+      </KeyboardShortcutsProvider>
+    </ProjectProvider>
   )
 }
