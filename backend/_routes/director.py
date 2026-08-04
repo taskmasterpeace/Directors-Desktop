@@ -87,7 +87,7 @@ def _to_payload(run: DirectorRun) -> DirectorRunPayload:
         aspect=run.aspect,
         beats=_beats_payload(analysis.get("beats")),
         lyricsWordCount=(
-            sum(len(str(line.get("text", "")).split()) for line in run.lyrics if isinstance(line, dict))
+            sum(len(str(line.get("text", "")).split()) for line in run.lyrics)
             if run.lyrics is not None
             else None
         ),

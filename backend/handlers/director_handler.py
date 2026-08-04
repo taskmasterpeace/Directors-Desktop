@@ -293,11 +293,7 @@ class DirectorHandler:
             except Exception:
                 run.lyrics = None
         if not run.concept.strip():
-            words = [
-                str(line.get("text", ""))
-                for line in (run.lyrics or [])
-                if isinstance(line, dict)
-            ]
+            words = [str(line.get("text", "")) for line in (run.lyrics or [])]
             sections_energy = [sec.energy for sec in analysis.sections] or [0.0]
             run.concept = draft_concept(
                 analysis.tempo_bpm,
