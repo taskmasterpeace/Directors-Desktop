@@ -61,7 +61,7 @@ function cleanup(): void {
   }
 }
 
-function startPaletteGoogleLogin(): Promise<{ ok: boolean; error?: string }> {
+export function startPaletteGoogleLogin(): Promise<{ ok: boolean; error?: string }> {
   // Only one sign-in flow at a time — tear down any prior server first.
   cleanup()
   const state = randomBytes(16).toString('hex')

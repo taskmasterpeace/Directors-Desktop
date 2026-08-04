@@ -95,7 +95,11 @@ export function PaletteAuthGate({ children }: { children: React.ReactNode }) {
   const signInWithBrowser = useCallback(async () => {
     setError(null)
     try {
-      await window.electronAPI.openPaletteAuth()
+      // Loopback (RFC 8252) flow — the live /auth/desktop bridge only accepts
+      // http://127.0.0.1:<port>/auth/callback redirects; the custom-scheme
+      // redirect (openPaletteAuth) fails its exact-match validation.
+      const result = await window.electronAPI.startPaletteGoogleLogin()
+      if (!result.ok) setError(result.error || 'Could not open the sign-in page')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not open the sign-in page')
     }

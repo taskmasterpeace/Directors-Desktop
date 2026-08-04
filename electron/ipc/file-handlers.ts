@@ -271,15 +271,15 @@ export function registerFileHandlers(): void {
   // real browser. The web bridge at /auth/desktop reuses Palette's Google + email login and
   // hands the session back via the directorsdesktop://auth/callback deep link (see main.ts).
   ipcMain.handle('open-palette-auth', async () => {
-    const { shell } = await import('electron')
-    const { issueDeepLinkState } = await import('../palette-auth-state')
-    // The state nonce rides INSIDE the redirect URL — the /auth/desktop bridge
-    // preserves the redirect's query params verbatim, and handleDeepLink refuses
-    // any callback whose state doesn't match (session-fixation guard).
-    const state = issueDeepLinkState()
-    const redirect = encodeURIComponent(`directorsdesktop://auth/callback?state=${state}`)
-    await shell.openExternal(`https://directorspal.com/auth/desktop?redirect=${redirect}`)
-    return true
+    // The deployed /auth/desktop bridge only accepts the bare custom-scheme
+    // string or a loopback URL — a scheme redirect carrying ?state= fails its
+    // exact-match check ("Invalid or missing redirect target"). Delegate to
+    // the loopback (RFC 8252) flow, which the site accepts AND which keeps
+    // the state nonce end-to-end. Revisit if the site learns to preserve
+    // query params on scheme redirects.
+    const { startPaletteGoogleLogin } = await import('../palette-auth-server')
+    const result = await startPaletteGoogleLogin()
+    return result.ok
   })
 
   ipcMain.handle('open-palette-api-key-page', async () => {
