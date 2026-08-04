@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 from state.app_settings import AppSettings, UpdateSettingsRequest
 from state import build_initial_state
@@ -314,3 +315,87 @@ class TestAbliteratedTextEncoder:
 class TestSettingsSchemaDrift:
     def test_update_request_tracks_app_settings_fields(self):
         assert set(AppSettings.model_fields) == set(UpdateSettingsRequest.model_fields)
+
+
+class TestSettingsDurability:
+    """F14 — settings.json holds the API keys the app gates on.
+
+    Writing it in place meant a crash mid-write truncated the file, load fell
+    back to defaults, and the next save persisted those defaults over the user's
+    data. Because the Palette gate treats an empty key as a real sign-out (the
+    offline grace window only covers an unreachable backend), that silently
+    locked the user out of their own app.
+    """
+
+    def test_save_is_atomic_and_leaves_no_temp_file(self, test_state):
+        test_state.settings.state.app_settings.palette_api_key = "dp_secret"
+        test_state.settings.save_settings()
+
+        path = test_state.config.settings_file
+        assert json.loads(path.read_text(encoding="utf-8"))["palette_api_key"] == "dp_secret"
+        # A stray .tmp would be mistaken for real state by anything globbing the dir.
+        assert not list(path.parent.glob(f"{path.name}.*.tmp"))
+
+    def test_a_reader_never_observes_a_truncated_file(self, test_state):
+        """The actual crash-safety property: the file is only ever whole.
+
+        Written as an invariant over repeated saves rather than a simulated
+        crash — with os.replace the target is swapped, never truncated, so any
+        read between saves must parse.
+        """
+        path = test_state.config.settings_file
+        for i in range(20):
+            test_state.settings.state.app_settings.palette_api_key = f"dp_{i}"
+            test_state.settings.save_settings()
+            assert json.loads(path.read_text(encoding="utf-8"))["palette_api_key"] == f"dp_{i}"
+
+    def test_corrupt_settings_are_quarantined_with_the_data_still_inside(self, test_state, default_app_settings):
+        path = test_state.config.settings_file
+        path.write_text('{"palette_api_key": "dp_keep_me", TRUNCATED', encoding="utf-8")
+
+        test_state.settings.load_settings(default_app_settings)
+
+        quarantined = list(path.parent.glob(f"{path.name}.corrupt-*"))
+        assert len(quarantined) == 1, "corrupt settings must be preserved, not discarded"
+        assert "dp_keep_me" in quarantined[0].read_text(encoding="utf-8")
+
+    def test_a_later_save_does_not_destroy_the_quarantined_original(self, test_state, default_app_settings):
+        path = test_state.config.settings_file
+        path.write_text('{"palette_api_key": "dp_keep_me", TRUNCATED', encoding="utf-8")
+        test_state.settings.load_settings(default_app_settings)
+
+        # The app carries on and saves defaults — recovery must stay possible.
+        test_state.settings.save_settings()
+
+        quarantined = list(path.parent.glob(f"{path.name}.corrupt-*"))
+        assert len(quarantined) == 1
+        assert "dp_keep_me" in quarantined[0].read_text(encoding="utf-8")
+
+    def test_a_failed_write_leaves_the_previous_settings_intact(self, test_state):
+        """The property the in-place write did not have.
+
+        Blocks the temp path with a directory so the write raises partway through
+        save_settings. Under the old ``open(path, "w")`` the real file was already
+        truncated by this point and the keys were gone; with tmp+replace the
+        original is untouched.
+        """
+        path = test_state.config.settings_file
+        test_state.settings.state.app_settings.palette_api_key = "dp_original"
+        test_state.settings.save_settings()
+
+        blocker = path.with_name(f"{path.name}.{os.getpid()}.tmp")
+        blocker.mkdir()
+        try:
+            test_state.settings.state.app_settings.palette_api_key = "dp_never_written"
+            test_state.settings.save_settings()  # swallows the error by design
+            assert json.loads(path.read_text(encoding="utf-8"))["palette_api_key"] == "dp_original"
+        finally:
+            blocker.rmdir()
+
+    def test_keys_survive_a_save_load_cycle_byte_exact(self, test_state, default_app_settings):
+        secret = "dp_" + "x" * 509  # 512 chars, the length the loop probed
+        test_state.settings.state.app_settings.palette_api_key = secret
+        test_state.settings.save_settings()
+
+        reloaded = test_state.settings.load_settings(default_app_settings)
+        assert reloaded.palette_api_key == secret

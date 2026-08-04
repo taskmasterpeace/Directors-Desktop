@@ -4,6 +4,7 @@ import { DEFAULT_COLOR_CORRECTION, DEFAULT_LETTERBOX, EFFECT_DEFINITIONS, DEFAUL
 import type { ParsedTimeline } from '../../lib/timeline-import'
 import { exportFcp7Xml } from '../../lib/timeline-import'
 import { resolveOverlaps, DEFAULT_DISSOLVE_DURATION } from './video-editor-utils'
+import { splitTrims } from '../../lib/clip-time'
 
 interface UseClipOperationsParams {
   clips: TimelineClip[]
@@ -321,18 +322,20 @@ export function useClipOperations(params: UseClipOperationsParams) {
         .map(lid => newClips.find(c => c.id === lid))
         .filter((c): c is TimelineClip => !!c)
       
+      // Trim maths must be speed- and direction-aware: at 2x, a cut 4s into the
+      // timeline is 8s into the source. See lib/clip-time.ts.
+      const trims = splitTrims(clip, splitPoint)
+
       const firstHalf: TimelineClip = {
         ...clip,
-        duration: splitPoint,
-        trimEnd: clip.trimEnd + (clip.duration - splitPoint),
+        ...trims.firstHalf,
       }
-      
+
       const secondHalf: TimelineClip = {
         ...clip,
+        ...trims.secondHalf,
         id: secondHalfId,
         startTime: clip.startTime + splitPoint,
-        duration: clip.duration - splitPoint,
-        trimStart: clip.trimStart + splitPoint,
       }
       
       newClips = newClips.map(c => c.id === splitId ? firstHalf : c).concat(secondHalf)
@@ -355,19 +358,21 @@ export function useClipOperations(params: UseClipOperationsParams) {
         firstHalfLinkedIds.push(linkedClip.id)
         secondHalfLinkedIds.push(linkedSecondId)
         
+        // A linked partner can carry its own speed (e.g. detached audio), so it
+        // gets its own conversion rather than reusing the video clip's.
+        const linkedTrims = splitTrims(linkedClip, linkedSplitPoint)
+
         const linkedFirstHalf: TimelineClip = {
           ...linkedClip,
-          duration: linkedSplitPoint,
-          trimEnd: linkedClip.trimEnd + (linkedClip.duration - linkedSplitPoint),
+          ...linkedTrims.firstHalf,
           linkedClipIds: [firstHalfId],
         }
-        
+
         const linkedSecondHalf: TimelineClip = {
           ...linkedClip,
+          ...linkedTrims.secondHalf,
           id: linkedSecondId,
           startTime: linkedClip.startTime + linkedSplitPoint,
-          duration: linkedClip.duration - linkedSplitPoint,
-          trimStart: linkedClip.trimStart + linkedSplitPoint,
           linkedClipIds: [secondHalfId],
         }
         

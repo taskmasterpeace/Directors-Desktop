@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+from datetime import datetime, timezone
 from pathlib import Path
 from threading import RLock
 
@@ -42,18 +44,48 @@ class SettingsHandler(StateHandlerBase):
                 self.state.app_settings = loaded
                 return loaded
             except Exception as exc:
-                logger.warning("Could not load settings: %s", exc, exc_info=True)
+                # Preserve the unreadable file instead of letting the next save
+                # write defaults over it — that is what makes credential loss
+                # permanent. Mirrors library_store._load_json_list.
+                stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+                quarantine = self._settings_file.with_name(f"{self._settings_file.name}.corrupt-{stamp}")
+                try:
+                    os.replace(self._settings_file, quarantine)
+                    logger.error(
+                        "Corrupt settings file (%s) — preserved as %s; starting from defaults",
+                        exc, quarantine.name,
+                    )
+                except OSError:
+                    logger.error("Corrupt settings file (%s) — could not quarantine", exc)
 
         self.state.app_settings = default_settings.model_copy(deep=True)
         return self.state.app_settings
 
     def save_settings(self) -> None:
+        """Persist settings atomically.
+
+        This file holds the user's API keys, including the Directors Palette key
+        the app gates on. Writing it in place meant a crash mid-write truncated
+        it, load fell back to defaults, and the next save made that permanent —
+        silently signing the user out of their own app.
+
+        Same tmp + PID-suffix + ``os.replace`` pattern as ``library_store._write_json``
+        and ``JobQueue._save``: a reader can never observe a half-written file,
+        and the PID suffix keeps two processes from colliding on the temp name.
+        """
+        tmp = self._settings_file.with_name(f"{self._settings_file.name}.{os.getpid()}.tmp")
         try:
             payload = self.get_settings_snapshot().model_dump(by_alias=False)
-            with open(self._settings_file, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2)
+            self._settings_file.parent.mkdir(parents=True, exist_ok=True)
+            tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            os.replace(tmp, self._settings_file)
         except Exception as exc:
             logger.warning("Could not save settings: %s", exc, exc_info=True)
+            # Never leave a stray temp file behind to be mistaken for real state.
+            try:
+                tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
 
     @with_state_lock
     def get_settings_snapshot(self) -> AppSettings:

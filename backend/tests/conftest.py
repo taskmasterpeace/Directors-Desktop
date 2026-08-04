@@ -5,6 +5,8 @@ from __future__ import annotations
 from io import BytesIO
 from pathlib import Path
 
+import threading
+
 import pytest
 
 from state.app_settings import AppSettings
@@ -103,7 +105,19 @@ def test_state(tmp_path: Path, fake_services: FakeServices):
         service_bundle=bundle,
     )
     set_state_service_for_tests(handler)
+    before = {t.name for t in threading.enumerate()}
     yield handler
+
+    # Director runs drive themselves on background threads. Left alive they kept
+    # stepping shared state while later tests ran — ~16 leaked threads per suite
+    # run and the most likely cause of the intermittent full-suite failure.
+    handler.director.shutdown()
+
+    leaked = [
+        t.name for t in threading.enumerate()
+        if t.name not in before and t.name.startswith("director-") and t.is_alive()
+    ]
+    assert not leaked, f"director threads outlived the test: {leaked}"
 
 
 @pytest.fixture

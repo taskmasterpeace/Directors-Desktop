@@ -10,6 +10,7 @@ import { flattenTimeline } from './timeline'
 import type { ExportClip } from './timeline'
 import type { ExportSubtitle } from './video-filter'
 import { buildVideoFilterGraph } from './video-filter'
+import { resolveFontSet } from './fonts'
 import { mixAudioToPcm } from './audio-mix'
 
 export function registerExportHandlers(): void {
@@ -57,7 +58,10 @@ export function registerExportHandlers(): void {
       // STEP 1: Export video-only (simple concat, no audio complexity)
       logger.info( `[Export] Step 1: Video-only export (${segments.length} segments)`)
       {
-        const { inputs, filterScript } = buildVideoFilterGraph(segments, { width, height, fps, letterbox, subtitles })
+        // Resolve real font files once per export so burned-in captions honour
+        // bold/italic — drawtext takes weight from the file, not a flag.
+        const fonts = resolveFontSet()
+        const { inputs, filterScript } = buildVideoFilterGraph(segments, { width, height, fps, letterbox, subtitles, fonts })
 
         const filterFile = path.join(tmpDir, `ltx-filter-v-${ts}.txt`)
         fs.writeFileSync(filterFile, filterScript, 'utf8')

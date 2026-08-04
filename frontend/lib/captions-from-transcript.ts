@@ -36,6 +36,32 @@ const DEFAULTS: CaptionOptions = {
 
 const SENTENCE_END = /[.!?…]["')\]]?$/
 
+/** Shortest a word-pop cue may be held, when there is room for it. */
+export const WORD_POP_MIN_SECONDS = 0.12
+
+/**
+ * One cue per word, for karaoke-style "word pop" captions.
+ *
+ * Each cue is held for at least {@link WORD_POP_MIN_SECONDS} so single-frame
+ * words stay readable — but never past the next word's start. Without that
+ * clamp the floor ran over the following word above ~8.3 words/sec (ordinary
+ * double-time rap), putting two cues on screen at once.
+ *
+ * Words are assumed to already be in the target timebase.
+ */
+export function wordPopCues(words: CaptionWord[]): CaptionCue[] {
+  const spoken = words.filter((w) => w.text.trim())
+  return spoken.map((w, i) => {
+    const nextStart = spoken[i + 1]?.start ?? Number.POSITIVE_INFINITY
+    const padded = Math.max(w.end, w.start + WORD_POP_MIN_SECONDS)
+    return {
+      text: w.text.trim(),
+      start: w.start,
+      end: Math.max(w.start, Math.min(padded, nextStart)),
+    }
+  })
+}
+
 export function captionsFromWords(
   words: CaptionWord[],
   options: Partial<CaptionOptions> = {},
