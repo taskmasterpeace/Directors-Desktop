@@ -32,7 +32,7 @@ type RequiredModelsGateState = 'checking' | 'missing' | 'ready'
 
 function AppContent() {
   const { currentView } = useProjects()
-  const { status, processStatus, isLoading: backendLoading, error: backendError } = useBackend()
+  const { status, processStatus, isLoading: backendLoading, error: backendError, reconnectNow } = useBackend()
   const { settings, saveReplicateApiKey, forceApiGenerations, isLoaded, runtimePolicyLoaded, refreshSettings } = useAppSettings()
 
   const [pythonReady, setPythonReady] = useState<boolean | null>(null)
@@ -57,6 +57,17 @@ function AppContent() {
   const [apiGatewayRequest, setApiGatewayRequest] = useState<ApiGatewayRequest | null>(null)
 
   const isBackendRestarting = processStatus === 'restarting'
+  // Elapsed seconds in the reconnect state — so "Reconnecting..." shows real
+  // progress instead of an indefinite spinner.
+  const [restartSeconds, setRestartSeconds] = useState(0)
+  useEffect(() => {
+    if (processStatus !== 'restarting') {
+      setRestartSeconds(0)
+      return
+    }
+    const interval = setInterval(() => setRestartSeconds((s) => s + 1), 1000)
+    return () => clearInterval(interval)
+  }, [processStatus])
   const isBackendDead = processStatus === 'dead'
   const waitingForRuntimePolicy = processStatus === 'alive' && !runtimePolicyLoaded
 
@@ -280,12 +291,35 @@ function AppContent() {
 
   const restartingOverlay = isBackendRestarting ? (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="rounded-lg border border-zinc-700 bg-zinc-900/95 px-6 py-4 text-center shadow-xl">
+      <div className="rounded-lg border border-zinc-700 bg-zinc-900/95 px-6 py-4 text-center shadow-xl max-w-sm">
         <div className="flex items-center justify-center gap-2 text-zinc-100">
           <Loader2 className="h-4 w-4 animate-spin" />
-          <span className="font-medium">Reconnecting...</span>
+          <span className="font-medium">Reconnecting… {restartSeconds}s</span>
         </div>
-        <p className="mt-2 text-sm text-zinc-400">The backend process stopped unexpectedly. Attempting to restart...</p>
+        <p className="mt-2 text-sm text-zinc-400">
+          The engine restarted. This normally takes about 20 seconds — the app checks every 2 seconds and comes back on its own.
+        </p>
+        {restartSeconds >= 15 && (
+          <div className="mt-3 flex items-center justify-center gap-2">
+            <button
+              onClick={() => void reconnectNow()}
+              className="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-semibold transition-colors"
+            >
+              Try again now
+            </button>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium transition-colors"
+            >
+              Reload app
+            </button>
+          </div>
+        )}
+        {restartSeconds >= 45 && (
+          <p className="mt-2 text-[11px] text-zinc-500">
+            Taking longer than usual — Help → Open Log Folder shows what the engine printed.
+          </p>
+        )}
       </div>
     </div>
   ) : null

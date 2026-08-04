@@ -31,6 +31,7 @@ interface UseBackendReturn {
   status: BackendStatus
   models: ModelStatus[]
   processStatus: BackendProcessStatus | null
+  reconnectNow: () => Promise<boolean>
   isLoading: boolean
   error: string | null
   checkHealth: () => Promise<boolean>
@@ -168,6 +169,62 @@ export function useBackend(): UseBackendReturn {
     setIsLoading(false)
   }, [checkHealth, fetchModels])
 
+  /**
+   * Force a reconnect attempt right now (the overlay's "Try again" button).
+   * Trusts the socket over the flag: if /health answers, we're alive.
+   */
+  const reconnectNow = useCallback(async (): Promise<boolean> => {
+    resetBackendInfo()
+    const healthy = await checkHealth()
+    if (healthy) {
+      setProcessStatus('alive')
+      setError(null)
+      setIsLoading(false)
+      void fetchModels()
+    }
+    return healthy
+  }, [checkHealth, fetchModels])
+
+  // Self-healing reconnect. The main process publishes 'alive' exactly once —
+  // if this window misses that event (subscribed a beat late, reloaded mid-
+  // restart, or the emit raced the listener), the UI used to sit on
+  // "Reconnecting..." forever with no way out. Poll while restarting so the
+  // app comes back on its own.
+  useEffect(() => {
+    if (processStatus !== 'restarting') return
+    let cancelled = false
+
+    const tick = async () => {
+      try {
+        const snapshot = await window.electronAPI.getBackendHealthStatus()
+        const payload = toBackendHealthStatus(snapshot)
+        if (cancelled) return
+        if (payload && payload.status !== 'restarting') {
+          await handleBackendStatus(payload)
+          return
+        }
+        // Main process still says "restarting", but a real /health response
+        // means the backend is serving — believe the socket.
+        const healthy = await checkHealth()
+        if (!cancelled && healthy) {
+          setProcessStatus('alive')
+          setError(null)
+          setIsLoading(false)
+          void fetchModels()
+        }
+      } catch {
+        /* backend still coming up — keep polling */
+      }
+    }
+
+    void tick()
+    const interval = setInterval(() => { void tick() }, 2000)
+    return () => {
+      cancelled = true
+      clearInterval(interval)
+    }
+  }, [processStatus, handleBackendStatus, checkHealth, fetchModels])
+
   useEffect(() => {
     let cancelled = false
 
@@ -206,6 +263,7 @@ export function useBackend(): UseBackendReturn {
     processStatus,
     isLoading,
     error,
+    reconnectNow,
     checkHealth,
     downloadModel,
   }
