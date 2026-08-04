@@ -48,6 +48,7 @@ interface Window {
     readTextFile: (filePath: string) => Promise<{ success: boolean; content?: string; error?: string }>
     searchDirectoryForFiles: (directory: string, filenames: string[]) => Promise<Record<string, string | null>>
     getDiskSpace: (dirPath: string) => Promise<{ freeBytes: number } | null>
+    materializeSampleBeat: () => Promise<string | null>
     exportNative: (data: {
       clips: { url: string; type: string; startTime: number; duration: number; trimStart: number; speed: number; reversed: boolean; flipH: boolean; flipV: boolean; opacity: number; trackIndex: number; muted: boolean; volume: number }[]
       outputPath: string; codec: string; width: number; height: number; fps: number; quality: number

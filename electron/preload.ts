@@ -69,6 +69,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('search-directory-for-files', dir, filenames),
   getDiskSpace: (dirPath: string): Promise<{ freeBytes: number } | null> =>
     ipcRenderer.invoke('get-disk-space', dirPath),
+  materializeSampleBeat: (): Promise<string | null> =>
+    ipcRenderer.invoke('materialize-sample-beat'),
   copyFile: (src: string, dest: string): Promise<{ success: boolean; error?: string }> =>
     ipcRenderer.invoke('copy-file', src, dest),
   
@@ -201,6 +203,7 @@ declare global {
       showOpenDirectoryDialog: (options: { title?: string }) => Promise<string | null>
       searchDirectoryForFiles: (dir: string, filenames: string[]) => Promise<Record<string, string>>
       getDiskSpace: (dirPath: string) => Promise<{ freeBytes: number } | null>
+      materializeSampleBeat: () => Promise<string | null>
       copyFile: (src: string, dest: string) => Promise<{ success: boolean; error?: string }>
       checkFilesExist: (filePaths: string[]) => Promise<Record<string, boolean>>
       readTextFile: (filePath: string) => Promise<{ success: boolean; content?: string; error?: string }>

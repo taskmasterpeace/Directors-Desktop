@@ -363,6 +363,26 @@ export function registerFileHandlers(): void {
     }
   })
 
+  ipcMain.handle('materialize-sample-beat', () => {
+    // #76: copy the bundled demo beat somewhere the Python backend can read
+    // it (bundled assets may live inside app.asar, invisible to Python).
+    try {
+      const target = path.join(app.getPath('userData'), 'sample-beat.wav')
+      if (!fs.existsSync(target)) {
+        const candidates = [
+          path.join(app.getAppPath(), 'public', 'sample-beat.wav'),
+          path.join(app.getAppPath(), 'dist', 'sample-beat.wav'),
+        ]
+        const src = candidates.find((c) => fs.existsSync(c))
+        if (!src) return null
+        fs.copyFileSync(src, target)
+      }
+      return target
+    } catch {
+      return null
+    }
+  })
+
   ipcMain.handle('get-disk-space', (_event, dirPath: string) => {
     // Walk up to the nearest existing ancestor so a not-yet-created install
     // path still reports its drive's free space.

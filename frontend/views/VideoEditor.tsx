@@ -20,6 +20,7 @@ import { useKeyboardShortcuts } from '../contexts/KeyboardShortcutsContext'
 import { useAppSettings } from '../contexts/AppSettingsContext'
 import { useGeneration } from '../hooks/use-generation'
 import { Button } from '../components/ui/button'
+import { WORD_POP_STYLE } from '../lib/caption-presets'
 import { logger } from '../lib/logger'
 import { extractVideoFrame } from '../lib/video-frames'
 import { Tooltip } from '../components/ui/tooltip'
@@ -740,7 +741,7 @@ export function VideoEditor() {
   useEffect(() => {
     if (tracks.some((t) => t.type === 'subtitle')) subtitleTrackPendingRef.current = false
   }, [tracks])
-  const handleMakeCaptions = useCallback((targets: TimelineClip[]): boolean => {
+  const handleMakeCaptions = useCallback((targets: TimelineClip[], opts?: { wordPop?: boolean }): boolean => {
     interface CaptionRun { newSubs: SubtitleClip[]; windowStart: number; windowEnd: number }
     const runs: CaptionRun[] = []
     const stamp = Date.now()
@@ -757,7 +758,13 @@ export function VideoEditor() {
           start: sourceTimeToTimelineTime(Math.max(w.start, srcStart), clip),
           end: sourceTimeToTimelineTime(Math.min(w.end, srcEnd), clip),
         }))
-      const cues = captionsFromWords(mapped)
+      // #75 karaoke: one cue per WORD so each word pops exactly as it's sung —
+      // rendered by the normal per-subtitle pipeline in playback AND export.
+      const cues = opts?.wordPop
+        ? mapped
+            .filter((w) => w.text.trim())
+            .map((w) => ({ text: w.text.trim(), start: w.start, end: Math.max(w.end, w.start + 0.12) }))
+        : captionsFromWords(mapped)
       if (cues.length === 0) continue
       runs.push({
         newSubs: cues.map((c, i) => ({
@@ -766,6 +773,7 @@ export function VideoEditor() {
           startTime: c.start,
           endTime: c.end,
           trackIndex: 0, // patched to the real subtitle track index below
+          ...(opts?.wordPop ? { style: WORD_POP_STYLE } : {}),
         })),
         windowStart: clip.startTime,
         windowEnd: clip.startTime + clip.duration,
@@ -1966,6 +1974,19 @@ export function VideoEditor() {
 
   // #60: caption the whole cut in one action — every clip that has words,
   // through the batch-safe engine (one subtitle track, one undo step).
+  const handleMakeCaptionsKaraoke = useCallback(() => {
+    const targets = [...clips]
+      .sort((a, b) => a.startTime - b.startTime)
+      .filter((c) => (transcriptCache[c.id] ?? persistedTranscriptForRef.current?.(c))?.length)
+    if (targets.length === 0) {
+      setFrameActionMsg({ kind: 'error', text: 'No clips have transcripts yet — open a clip and Transcribe first.' })
+      return
+    }
+    pushTrackUndo()
+    const ok = handleMakeCaptions(targets, { wordPop: true })
+    if (!ok) setFrameActionMsg({ kind: 'error', text: 'No caption-worthy words found in the transcripts.' })
+  }, [clips, transcriptCache, pushTrackUndo, handleMakeCaptions])
+
   const handleMakeCaptionsAll = useCallback(() => {
     const targets = [...clips]
       .sort((a, b) => a.startTime - b.startTime)
@@ -2243,6 +2264,7 @@ export function VideoEditor() {
   const menuDefinitions: MenuDefinition[] = useMemo(() => buildMenuDefinitions({
     selectedClip, selectedClipIds, clips, tracks, subtitles, snapEnabled,
     handleMakeCaptionsAll,
+    handleMakeCaptionsKaraoke,
     handleCutToBeats,
     showEffectsBrowser, showSourceMonitor, showPropertiesPanel, showICLoraPanel: _showICLoraPanel, // IC-LORA HIDDEN
     sourceAsset, activeTool, activeTimeline, timelines, kbLayout,

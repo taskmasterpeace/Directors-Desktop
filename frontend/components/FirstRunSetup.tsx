@@ -7,6 +7,8 @@ interface LaunchGateProps {
   showLicenseStep?: boolean
   onComplete: () => Promise<void>
   onAcceptLicense?: () => Promise<void>
+  /** #74: cloud-first — leave the wizard without the 30GB pack; local pipelines gate on it later. */
+  onSkipCloudOnly?: () => void
 }
 
 type Step = 'license' | 'location' | 'installing' | 'complete'
@@ -42,6 +44,7 @@ export function LaunchGate({
   showLicenseStep = true,
   onComplete,
   onAcceptLicense,
+  onSkipCloudOnly,
 }: LaunchGateProps) {
   const [currentStep, setCurrentStep] = useState<Step>(showLicenseStep ? 'license' : 'location')
   const [installPath, setInstallPath] = useState('')
@@ -804,6 +807,25 @@ export function LaunchGate({
           <div style={{ fontSize: 11, color: '#666' }}>© 2026 Machine King Labs</div>
 
           <div style={{ display: 'flex', gap: 10 }}>
+            {currentStep === 'location' && onSkipCloudOnly && (
+              <button
+                onClick={onSkipCloudOnly}
+                title="Generate with Directors Palette points right away; install the local models anytime from Settings &gt; Models"
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: 8,
+                  fontSize: 13,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  background: 'transparent',
+                  border: '1px solid #444',
+                  color: '#d4d4d8',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                Start with cloud only — skip the 30 GB
+              </button>
+            )}
             {/* Next/Install/Finish Button */}
             {currentStep !== 'installing' && (
               <button

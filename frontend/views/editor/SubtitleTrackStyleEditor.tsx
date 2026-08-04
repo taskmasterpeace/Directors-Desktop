@@ -2,6 +2,7 @@ import React from 'react'
 import { X, Palette } from 'lucide-react'
 import type { Track, SubtitleClip, SubtitleStyle } from '../../types/project'
 import { DEFAULT_SUBTITLE_STYLE } from '../../types/project'
+import { CAPTION_PRESETS } from '../../lib/caption-presets'
 
 interface SubtitleTrackStyleEditorProps {
   subtitleTrackStyleIdx: number
@@ -62,6 +63,27 @@ export function SubtitleTrackStyleEditor({
             >
               Preview subtitle
             </span>
+          </div>
+
+          {/* #75: one-tap looks — every preset uses fields the export burn-in honors */}
+          <div>
+            <span className="text-[10px] text-zinc-400">Presets</span>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {CAPTION_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  onClick={() => updateTrackStyle(preset.style)}
+                  className="px-2.5 py-1 rounded-lg border border-zinc-700 bg-zinc-950/60 text-[11px] hover:border-amber-500/60 transition-colors"
+                  style={{
+                    color: preset.style.color,
+                    fontWeight: preset.style.fontWeight === 'bold' ? 700 : 400,
+                    fontStyle: preset.style.italic ? 'italic' : 'normal',
+                  }}
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Font size */}

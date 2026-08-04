@@ -246,7 +246,16 @@ function AppContent() {
       try {
         const allDownloaded = await areRequiredModelsDownloaded()
         if (cancelled) return
-        setRequiredModelsGate(allDownloaded ? 'ready' : 'missing')
+        if (allDownloaded) {
+          localStorage.removeItem('dd-cloud-only') // full install: back to normal mode
+          setRequiredModelsGate('ready')
+        } else if (localStorage.getItem('dd-cloud-only') === '1') {
+          // #74: cloud-only mode — the app opens now; LOCAL pipelines still
+          // require the pack (Settings > Models installs it anytime).
+          setRequiredModelsGate('ready')
+        } else {
+          setRequiredModelsGate('missing')
+        }
       } catch (e) {
         logger.error(`Failed to check required model status: ${e}`)
         if (cancelled) return
@@ -406,6 +415,10 @@ function AppContent() {
         showLicenseStep
         licenseOnly={licenseOnly}
         onAcceptLicense={handleAcceptLicense}
+        onSkipCloudOnly={() => {
+          localStorage.setItem('dd-cloud-only', '1')
+          void handleFirstRunComplete()
+        }}
         onComplete={
           licenseOnly
             ? async () => {
@@ -421,11 +434,29 @@ function AppContent() {
   }
 
   if (setupState.needsSetup && !forceApiGenerations) {
-    return <LaunchGate showLicenseStep={false} onComplete={handleFirstRunComplete} />
+    return (
+      <LaunchGate
+        showLicenseStep={false}
+        onComplete={handleFirstRunComplete}
+        onSkipCloudOnly={() => {
+          localStorage.setItem('dd-cloud-only', '1')
+          void handleFirstRunComplete()
+        }}
+      />
+    )
   }
 
   if (requiredModelsGate === 'missing') {
-    return <LaunchGate showLicenseStep={false} onComplete={handleMissingModelsComplete} />
+    return (
+      <LaunchGate
+        showLicenseStep={false}
+        onComplete={handleMissingModelsComplete}
+        onSkipCloudOnly={() => {
+          localStorage.setItem('dd-cloud-only', '1')
+          setRequiredModelsGate('ready')
+        }}
+      />
+    )
   }
 
   // Fix #54: the account gate must come AFTER boot — wrapping the whole app

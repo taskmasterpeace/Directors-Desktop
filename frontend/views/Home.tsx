@@ -114,7 +114,7 @@ function ProjectCard({ project, onOpen, onDelete, onRename, onSetAssetFolder }: 
 }
 
 export function Home() {
-  const { projects, createProject, deleteProject, renameProject, updateProject, openProject, importPaletteMv, openPlayground, openGallery, openCharacters, openReferences, openRecipes, openWildcards, openPromptLibrary, openClipTool, openDirector } = useProjects()
+  const { projects, createProject, deleteProject, renameProject, updateProject, openProject, importPaletteMv, openPlayground, openGallery, openCharacters, openReferences, openRecipes, openWildcards, openPromptLibrary, openClipTool, openDirector, setPendingDirectorAudio } = useProjects()
 
   const [importingMv, setImportingMv] = useState(false)
   const [importMvError, setImportMvError] = useState<string | null>(null)
@@ -330,6 +330,14 @@ export function Home() {
               Create
             </h4>
             <button
+              onClick={openDirector}
+              className="w-full px-3 py-2 rounded-lg text-amber-300/90 hover:bg-zinc-800 hover:text-amber-200 text-left text-sm flex items-center gap-2 transition-colors font-medium"
+              title="Song in, music video out"
+            >
+              <Clapperboard className="h-4 w-4" />
+              Director
+            </button>
+            <button
               onClick={openPlayground}
               className="w-full px-3 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white text-left text-sm flex items-center gap-2 transition-colors"
             >
@@ -416,13 +424,6 @@ export function Home() {
             >
               <Scissors className="h-4 w-4" />
               Clip Tool
-            </button>
-            <button
-              onClick={openDirector}
-              className="w-full px-3 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white text-left text-sm flex items-center gap-2 transition-colors"
-            >
-              <Clapperboard className="h-4 w-4" />
-              Director
             </button>
           </div>
         </nav>
@@ -622,6 +623,21 @@ export function Home() {
           </div>
         </div>
         
+        {/* #74: cloud-only mode banner */}
+        {localStorage.getItem('dd-cloud-only') === '1' && (
+          <div className="mx-8 mt-4 flex items-center justify-between rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2.5">
+            <span className="text-xs text-amber-200">
+              Cloud-only mode — cloud generation works now; free local rendering needs the ~30 GB model pack.
+            </span>
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'models' } }))}
+              className="text-xs font-semibold text-amber-300 hover:text-amber-200 shrink-0 ml-3"
+            >
+              Install models →
+            </button>
+          </div>
+        )}
+
         {/* Projects Grid */}
         <div className="p-8">
           <div className="flex items-center justify-between mb-6">
@@ -633,13 +649,30 @@ export function Home() {
               <Folder className="h-16 w-16 text-zinc-700 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-zinc-400 mb-2">No projects yet</h3>
               <p className="text-zinc-500 mb-6">Create your first project to get started</p>
-              <Button 
-                onClick={() => setIsCreating(true)}
-                className="bg-amber-500 hover:bg-amber-400 text-zinc-950"
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Create Project
-              </Button>
+              <div className="flex items-center justify-center gap-3">
+                <Button
+                  onClick={() => {
+                    void (async () => {
+                      // #76: bundled 16s beat — the wow moment needs zero assets.
+                      const sample = await window.electronAPI.materializeSampleBeat()
+                      if (sample) setPendingDirectorAudio(sample)
+                      openDirector()
+                    })()
+                  }}
+                  className="bg-amber-500 hover:bg-amber-400 text-zinc-950"
+                >
+                  <Clapperboard className="h-4 w-4 mr-2" />
+                  Make your first music video
+                </Button>
+                <Button
+                  onClick={() => setIsCreating(true)}
+                  variant="outline"
+                  className="border-zinc-700 text-zinc-300"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create Project
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">

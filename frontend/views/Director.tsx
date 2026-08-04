@@ -92,7 +92,7 @@ async function backendBase(): Promise<string> {
 }
 
 export function Director() {
-  const { goHome, createProject, updateTimeline, openProject, setCurrentTab, projects } = useProjects()
+  const { goHome, createProject, updateTimeline, openProject, setCurrentTab, projects, pendingDirectorAudio, setPendingDirectorAudio } = useProjects()
   const [audioPath, setAudioPath] = useState<string | null>(null)
   const [concept, setConcept] = useState('')
   const [model, setModel] = useState('ltx-fast')
@@ -123,6 +123,13 @@ export function Director() {
   const [starting, setStarting] = useState(false)
   const [startError, setStartError] = useState<string | null>(null)
   const runIdRef = useRef<string | null>(null)
+
+  // #76: Home's "Make your first music video" hands the bundled sample here.
+  useEffect(() => {
+    if (!pendingDirectorAudio) return
+    setAudioPath(pendingDirectorAudio)
+    setPendingDirectorAudio(null)
+  }, [pendingDirectorAudio, setPendingDirectorAudio])
 
   // Vision sources: director styles + the Characters library as artists.
   useEffect(() => {
