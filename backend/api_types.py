@@ -862,6 +862,9 @@ class ProjectPublishResponse(BaseModel):
 class ProjectCurrentResponse(BaseModel):
     project: dict[str, object] | None
     publishedAt: float | None
+    # True when the snapshot is fresh enough that the editor is very likely open
+    # and still autosaving. Lets an agent avoid acting on a stale project.
+    editorLive: bool = False
 
 
 class ProjectTranscriptResponse(BaseModel):

@@ -7,6 +7,7 @@ import {
   timelineToSource,
   sourceToTimeline,
   splitTrims,
+  segmentClipAtOffsets,
   type TimeMappedClip,
 } from './clip-time'
 
@@ -119,5 +120,56 @@ describe('splitTrims', () => {
     const { firstHalf, secondHalf } = splitTrims(fast, 4)
     const firstEnd = firstHalf.trimStart + timelineDeltaToSource(firstHalf.duration, fast)
     expect(firstEnd).toBeCloseTo(secondHalf.trimStart, 9)
+  })
+})
+
+describe('segmentClipAtOffsets (Cut-to-Beats)', () => {
+  it('one cut produces the same trims as splitTrims', () => {
+    for (const clip of [base, fast, backwards]) {
+      const seg = segmentClipAtOffsets(clip, [4])
+      const split = splitTrims(clip, 4)
+      expect(seg).toHaveLength(2)
+      expect(seg[0].trimStart).toBeCloseTo(split.firstHalf.trimStart, 9)
+      expect(seg[0].trimEnd).toBeCloseTo(split.firstHalf.trimEnd, 9)
+      expect(seg[1].trimStart).toBeCloseTo(split.secondHalf.trimStart, 9)
+      expect(seg[1].trimEnd).toBeCloseTo(split.secondHalf.trimEnd, 9)
+    }
+  })
+
+  it('covers the whole clip with adjacent, gapless segments', () => {
+    const segs = segmentClipAtOffsets(fast, [2, 5, 8])
+    expect(segs).toHaveLength(4)
+    let cursor = 0
+    for (const s of segs) {
+      expect(s.offset).toBeCloseTo(cursor, 9)
+      cursor += s.duration
+    }
+    expect(cursor).toBeCloseTo(fast.duration, 9)
+  })
+
+  it('scales every segment by speed', () => {
+    // Total source consumed across all segments = duration * speed.
+    const segs = segmentClipAtOffsets(fast, [3, 6])
+    const totalSource = segs.reduce((t, s) => t + timelineDeltaToSource(s.duration, fast), 0)
+    expect(totalSource).toBeCloseTo(fast.duration * 2, 9)
+  })
+
+  it('ignores out-of-range and returns a single segment', () => {
+    expect(segmentClipAtOffsets(base, [])).toHaveLength(1)
+    expect(segmentClipAtOffsets(base, [-1, 999])).toHaveLength(1)
+  })
+
+  it('sorts unsorted cut points', () => {
+    const a = segmentClipAtOffsets(base, [7, 2, 5])
+    const b = segmentClipAtOffsets(base, [2, 5, 7])
+    expect(a).toEqual(b)
+  })
+
+  it('keeps segments inside the source window for a reversed clip', () => {
+    const segs = segmentClipAtOffsets(backwards, [3, 6])
+    for (const s of segs) {
+      expect(s.trimStart).toBeGreaterThanOrEqual(backwards.trimStart - 1e-9)
+      expect(s.trimEnd).toBeGreaterThanOrEqual(backwards.trimEnd - 1e-9)
+    }
   })
 })

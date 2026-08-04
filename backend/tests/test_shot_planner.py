@@ -6,6 +6,7 @@ from server_utils.shot_planner import (
     GEN_MAX_SECONDS,
     GEN_MIN_SECONDS,
     MAX_TOTAL_SHOTS,
+    draft_concept,
     plan_shots,
     quantize_frames_8k1,
     snap_to_grid,
@@ -235,3 +236,86 @@ def test_empty_sections_fall_back_to_single_span():
     shots = plan_shots(analysis, "fallback")
     assert shots
     assert abs(shots[-1].end - 30.0) < 0.01
+
+
+# --- draft_concept ("Surprise me" #72): locked so it stays pure & deterministic ---
+
+def test_draft_concept_is_deterministic():
+    # Same song in -> same concept out. This is the whole promise of "Surprise me".
+    a = draft_concept(120.0, 0.5, ["fire", "fire", "night", "chrome"])
+    b = draft_concept(120.0, 0.5, ["fire", "fire", "night", "chrome"])
+    assert a == b
+
+
+def test_draft_concept_pace_follows_tempo():
+    assert "high-velocity" in draft_concept(140.0, 0.5, [])
+    assert "confident mid-tempo" in draft_concept(110.0, 0.5, [])
+    assert "head-nod groove" in draft_concept(90.0, 0.5, [])
+    assert "slow-burn" in draft_concept(70.0, 0.5, [])
+
+
+def test_draft_concept_mood_follows_energy():
+    assert "peaking hard" in draft_concept(120.0, 0.9, [])
+    assert "building steadily" in draft_concept(120.0, 0.5, [])
+    assert "kept intimate" in draft_concept(120.0, 0.1, [])
+
+
+def test_draft_concept_surfaces_the_top_themes_by_frequency():
+    words = ["money"] * 3 + ["power"] * 2 + ["fame"] * 1 + ["the", "a", "and"]
+    concept = draft_concept(120.0, 0.5, words)
+    assert "'money'" in concept and "'power'" in concept and "'fame'" in concept
+    # Stopwords and sub-3-char tokens never become themes.
+    assert "'the'" not in concept and "'a'" not in concept
+
+
+def test_draft_concept_falls_back_cleanly_with_no_usable_lyrics():
+    concept = draft_concept(120.0, 0.5, ["a", "i", "the"])
+    assert "instrumental visual" in concept
+    assert "themes of" not in concept  # never dangles an empty theme clause
+
+
+def test_draft_concept_ties_break_alphabetically_for_determinism():
+    # Equal counts must resolve stably, or "same song, same concept" is a lie.
+    c1 = draft_concept(120.0, 0.5, ["zebra", "apple", "mango"])
+    c2 = draft_concept(120.0, 0.5, ["mango", "zebra", "apple"])
+    assert c1 == c2
+    assert c1.index("'apple'") < c1.index("'mango'") < c1.index("'zebra'")
+
+
+# --- prompt distinctiveness (F2): the shot-specific clause must LEAD ----------
+
+def test_the_distinguishing_clause_comes_before_the_shared_concept():
+    from server_utils.shot_planner import build_prompt
+
+    concept = "a lone astronaut on a red planet"
+    perf = build_prompt(concept, "chorus", "performance", 0.9,
+                        lyric_line="midnight run", artist_name="NOVA")
+    # The sung line (unique per shot) must appear before the concept (identical
+    # on every shot) — that ordering is the whole point of F2.
+    assert perf.index("midnight run") < perf.index(concept)
+
+    narr = build_prompt(concept, "verse", "broll", 0.4, story_beat="he leaves town")
+    assert narr.index("he leaves town") < narr.index(concept)
+
+
+def test_two_performance_shots_differ_in_their_opening_not_just_the_tail():
+    from server_utils.shot_planner import build_prompt
+
+    a = build_prompt("same concept", "chorus", "performance", 0.9, lyric_line="fire in the sky")
+    b = build_prompt("same concept", "chorus", "performance", 0.9, lyric_line="ice on the road")
+    # Before the fix these differed only in the final clause; now the first 40
+    # characters already diverge.
+    assert a[:40] != b[:40]
+
+
+def test_the_sung_line_lands_near_the_front_not_buried_at_the_tail():
+    # F2's actual property: the distinguishing content is early. The template
+    # prefix ("They sing the words ") is a fixed ~20 chars, so the sung line
+    # itself starts well within the first clause rather than after the concept,
+    # framing and flavor that used to precede it.
+    from server_utils.shot_planner import build_prompt
+
+    lines = ["fire in the sky", "chrome and gold", "run through the rain"]
+    for ln in lines:
+        p = build_prompt("neon city at night, cinematic", "verse", "performance", 0.5, lyric_line=ln)
+        assert p.index(ln) < 25, f"sung line buried at index {p.index(ln)}: {p!r}"

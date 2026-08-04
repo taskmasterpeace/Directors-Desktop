@@ -3,15 +3,25 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from pathlib import Path
 from typing import Any
 
 from services.http_client.http_client import HTTPClient
-from services.palette_sync_client.palette_sync_client import PaletteSyncClient
+from services.palette_sync_client.palette_sync_client import (
+    InsufficientCreditsError,
+    PaletteSyncClient,
+)
 from state.app_state_types import AppState
 from state.lora_library import LoraEntry, LoraLibraryStore
 
 logger = logging.getLogger(__name__)
+
+# Total attempts and base backoff for a transient credit-deduction failure.
+# Kept small: this runs on the api-slot executor thread just before the slot is
+# released, so worst-case added latency is ~ (1+2) * base ≈ 0.9s on total loss.
+_DEDUCT_MAX_ATTEMPTS = 3
+_DEDUCT_BACKOFF_SECONDS = 0.3
 
 # Fallback pricing (cents) when the Palette credits endpoint doesn't return it.
 # Values sourced from the live Palette /api/desktop/credits/check endpoint.
@@ -217,15 +227,37 @@ class SyncHandler:
         api_key = self._state.app_settings.palette_api_key
         if not api_key:
             return {"deducted": False}
-        try:
-            result = self._client.deduct_credits(
-                api_key=api_key, generation_type=generation_type,
-                count=count, metadata=metadata,
-            )
-            return {"deducted": True, **result}
-        except Exception as exc:
-            logger.warning("Credit deduction failed: %s", exc)
-            return {"deducted": False, "error": str(exc)}
+
+        # The render is already delivered, so a dropped deduction is lost revenue
+        # (the user got the work for free), not user harm. Retry transient
+        # failures a few times so a brief Palette blip doesn't leak an unbilled
+        # generation. Retries are double-charge-safe ONLY because the request
+        # carries an idempotency_key (job_id) — see the client. Insufficient
+        # credits (402) is permanent and never retried.
+        last_error = ""
+        for attempt in range(_DEDUCT_MAX_ATTEMPTS):
+            try:
+                result = self._client.deduct_credits(
+                    api_key=api_key, generation_type=generation_type,
+                    count=count, metadata=metadata,
+                )
+                return {"deducted": True, **result}
+            except InsufficientCreditsError as exc:
+                logger.warning("Credit deduction refused (insufficient): %s", exc)
+                return {"deducted": False, "error": str(exc), "insufficient": True}
+            except Exception as exc:
+                last_error = str(exc)
+                if attempt + 1 < _DEDUCT_MAX_ATTEMPTS:
+                    logger.warning(
+                        "Credit deduction failed (attempt %d/%d), retrying: %s",
+                        attempt + 1, _DEDUCT_MAX_ATTEMPTS, exc,
+                    )
+                    time.sleep(_DEDUCT_BACKOFF_SECONDS * (attempt + 1))
+        logger.error(
+            "Credit deduction failed after %d attempts — usage may be unbilled: %s",
+            _DEDUCT_MAX_ATTEMPTS, last_error,
+        )
+        return {"deducted": False, "error": last_error}
 
     def list_gallery(
         self, page: int = 1, per_page: int = 50, asset_type: str = "all",

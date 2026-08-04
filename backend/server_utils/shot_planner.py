@@ -122,30 +122,39 @@ def build_prompt(
         desc = _TYPE_DESC.get(shot_type, _TYPE_DESC["broll"]).replace(
             "{artist}", artist_name.strip() or _DEFAULT_ARTIST
         )
-    parts = [desc]
+    parts: list[str] = []
     concept = concept.strip()
-    if concept:
-        parts.append(concept)
+
+    # F2: the clause that actually makes this shot DIFFERENT from the other ~40
+    # goes first. Differentiation used to be appended at the very end (after the
+    # concept, framing and flavor that repeat across every shot in the song), so
+    # ~60% of a song's prompts read as duplicates and a model weighting early
+    # tokens rendered them near-identical. Narrative shots carry the story; the
+    # performer carries the words.
+    if lyric_line and shot_type == "performance":
+        parts.append(f'They sing the words "{lyric_line}" in sync with the music')
+    elif story_beat and shot_type != "performance":
+        parts.append(f"Story beat: {story_beat}")
+
+    # Then this shot's framing and its section's flavor (varies per section).
+    parts.append(desc)
     parts.append(_SECTION_FLAVOR.get(section_label, _SECTION_FLAVOR["verse"]))
     if energy >= 0.66:
         parts.append("kinetic motion, high intensity")
     elif energy <= 0.33:
         parts.append("calm, lingering camera")
-    if director_style:
-        parts.append(director_style)
     if wardrobe_look and shot_type != "broll":
         # The performer's look reads on people shots; pure b-roll has no one
         # to dress and the text would leak wardrobe into empty scenery.
         parts.append(f"{artist_name.strip() or _DEFAULT_ARTIST} wearing {wardrobe_look}")
-    prompt = ", ".join(parts)
-    # Narrative shots (establishing/b-roll) carry the story; the performer
-    # carries the words. This is how a video tells a story ACROSS the song
-    # instead of being 40 disconnected performance clips.
-    if story_beat and shot_type != "performance":
-        prompt += f". Story beat: {story_beat}"
-    if lyric_line and shot_type == "performance":
-        prompt += f'. They sing the words "{lyric_line}" in sync with the music'
-    return prompt
+
+    # Shared-across-the-whole-song context last — it's identical on every shot,
+    # so it belongs where it can't drown out the distinguishing lead.
+    if concept:
+        parts.append(concept)
+    if director_style:
+        parts.append(director_style)
+    return ", ".join(parts)
 
 
 def wardrobe_for_section(section_label: str, wardrobe: list[str]) -> str:

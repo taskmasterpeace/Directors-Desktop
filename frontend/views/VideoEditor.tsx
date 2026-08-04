@@ -48,7 +48,7 @@ import { TakeContextMenu } from './editor/TakeContextMenu'
 import { ClipPropertiesPanel } from './editor/ClipPropertiesPanel'
 import { TranscriptPanel } from '../components/TranscriptPanel'
 import { rippleDeleteSpan } from '../lib/transcript-ripple'
-import { timelineDeltaToSource, sourceToTimeline } from '../lib/clip-time'
+import { sourceToTimeline, segmentClipAtOffsets } from '../lib/clip-time'
 import { StoryCastPanel } from './editor/StoryCastPanel'
 import { useAgentActions } from './editor/useAgentActions'
 import { ReplacePersonModal } from './editor/ReplacePersonModal'
@@ -2016,31 +2016,27 @@ export function VideoEditor() {
     const next: TimelineClip[] = []
     for (const clip of clips) {
       if (!ids.has(clip.id) || tracks[clip.trackIndex]?.locked) { next.push(clip); continue }
-      const inner = beats.filter((b) => b > clip.startTime + 0.1 && b < clip.startTime + clip.duration - 0.1)
-      if (inner.length === 0) { next.push(clip); continue }
-      const bounds = [clip.startTime, ...inner, clip.startTime + clip.duration]
-      for (let i = 0; i < bounds.length - 1; i++) {
-        const segStart = bounds[i]
-        const segDur = bounds[i + 1] - bounds[i]
-        const offset = segStart - clip.startTime
-        // Beat times are TIMELINE seconds; trims are SOURCE seconds. On a clip
-        // whose speed isn't 1 the two differ, and cutting on the raw offset lands
-        // on the wrong frame. See lib/clip-time.ts.
-        const headSource = timelineDeltaToSource(offset, clip)
-        const tailSource = timelineDeltaToSource(clip.duration - (offset + segDur), clip)
+      // Beat times are TIMELINE seconds; trims are SOURCE seconds. On a clip
+      // whose speed != 1 (or reversed) the two differ, so the segment math lives
+      // in lib/clip-time.ts where it's unit-tested.
+      const interior = beats
+        .filter((b) => b > clip.startTime + 0.1 && b < clip.startTime + clip.duration - 0.1)
+        .map((b) => b - clip.startTime)
+      if (interior.length === 0) { next.push(clip); continue }
+      const segments = segmentClipAtOffsets(clip, interior)
+      if (segments.length <= 1) { next.push(clip); continue }
+      segments.forEach((seg, i) => {
         next.push({
           ...clip,
           id: i === 0 ? clip.id : `clip-${Date.now()}-${Math.random().toString(36).slice(2, 9)}-${i}`,
-          startTime: segStart,
-          duration: segDur,
-          // A reversed clip consumes its window from the far end, so the first
-          // timeline segment is the LAST source material.
-          trimStart: clip.reversed ? clip.trimStart + tailSource : clip.trimStart + headSource,
-          trimEnd: clip.reversed ? clip.trimEnd + headSource : clip.trimEnd + tailSource,
+          startTime: clip.startTime + seg.offset,
+          duration: seg.duration,
+          trimStart: seg.trimStart,
+          trimEnd: seg.trimEnd,
           linkedClipIds: undefined,
         })
         produced++
-      }
+      })
     }
     if (produced === 0) {
       setFrameActionMsg({ kind: 'error', text: 'No beats fall inside the chosen clips.' })

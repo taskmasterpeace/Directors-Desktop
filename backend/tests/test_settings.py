@@ -392,6 +392,37 @@ class TestSettingsDurability:
         finally:
             blocker.rmdir()
 
+    def test_unknown_keys_from_a_newer_build_survive_a_downgrade(self, test_state, default_app_settings):
+        """#12 — an older build must not erase a newer build's settings.
+
+        AppSettings is extra="ignore", so a key the running build has never heard
+        of is dropped on load. If save then wrote only known fields, opening a
+        project once in last month's build wiped this month's settings.
+        """
+        path = test_state.config.settings_file
+        path.write_text(
+            '{"palette_api_key": "dp_x", "future_feature_flag": true, '
+            '"future_nested": {"a": 1}}',
+            encoding="utf-8",
+        )
+        test_state.settings.load_settings(default_app_settings)
+
+        # A normal save (e.g. the user toggles anything) must keep the unknowns.
+        test_state.settings.save_settings()
+        written = json.loads(path.read_text(encoding="utf-8"))
+        assert written["future_feature_flag"] is True
+        assert written["future_nested"] == {"a": 1}
+        assert written["palette_api_key"] == "dp_x"  # known keys still round-trip
+
+    def test_a_known_key_always_wins_over_a_stale_preserved_copy(self, test_state, default_app_settings):
+        # If a key later becomes known, the model's value must win, not the stashed one.
+        path = test_state.config.settings_file
+        path.write_text('{"prompt_cache_size": 50}', encoding="utf-8")
+        test_state.settings.load_settings(default_app_settings)
+        test_state.settings.state.app_settings.prompt_cache_size = 999
+        test_state.settings.save_settings()
+        assert json.loads(path.read_text(encoding="utf-8"))["prompt_cache_size"] == 999
+
     def test_keys_survive_a_save_load_cycle_byte_exact(self, test_state, default_app_settings):
         secret = "dp_" + "x" * 509  # 512 chars, the length the loop probed
         test_state.settings.state.app_settings.palette_api_key = secret

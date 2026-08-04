@@ -466,6 +466,10 @@ class FakePaletteSyncClient:
         self.provisioned_key: str = "dp_faketestkey0123456789"
         self.raise_on_validate: Exception | None = None
         self.raise_on_login: Exception | None = None
+        # Credit-deduction controls (for the #23 retry tests).
+        self.deduct_calls: list[dict[str, Any]] = []
+        self.deduct_fail_times: int = 0        # raise a transient error this many times, then succeed
+        self.deduct_raise_insufficient: bool = False
         self.user_info: dict[str, Any] = {"id": "user-123", "email": "test@example.com", "name": "Test User"}
         self.credits_info: dict[str, Any] = {
             "balance_cents": 5000,
@@ -529,6 +533,14 @@ class FakePaletteSyncClient:
         self, *, api_key: str, generation_type: str, count: int,
         metadata: dict[str, Any] | None,
     ) -> dict[str, Any]:
+        from services.palette_sync_client.palette_sync_client import InsufficientCreditsError
+
+        self.deduct_calls.append({"generation_type": generation_type, "count": count, "metadata": metadata})
+        if self.deduct_raise_insufficient:
+            raise InsufficientCreditsError("Insufficient credits: balance=0")
+        if self.deduct_fail_times > 0:
+            self.deduct_fail_times -= 1
+            raise RuntimeError("Credit deduction failed: 503")
         cost = {"video_t2v": 40, "video_i2v": 40, "video_seedance": 80, "image": 20, "text_enhance": 3}.get(generation_type, 40)
         total = cost * count
         balance = self.credits_info.get("balance_cents", 5000)

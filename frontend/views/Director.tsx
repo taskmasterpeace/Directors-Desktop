@@ -8,6 +8,7 @@ import { toImgSrc } from '../lib/path-to-img-src'
 import { estimateCloudPoints, formatPoints } from '../lib/palette-points'
 import { useCreditBalance } from '../hooks/use-credit-balance'
 import { MANNEQUIN_REFERENCE_URL } from '../lib/shot-creator/quick-modes'
+import { pluralize } from '../lib/pluralize'
 
 /**
  * Director — turn a song into a finished music video.
@@ -856,12 +857,12 @@ export function Director() {
                     </span>
                   )}
                   {run.sectionCount != null && (
-                    <span className="px-2 py-1 rounded-md bg-zinc-800 text-zinc-300">{run.sectionCount} sections</span>
+                    <span className="px-2 py-1 rounded-md bg-zinc-800 text-zinc-300">{pluralize(run.sectionCount, 'section')}</span>
                   )}
                   <span className="px-2 py-1 rounded-md bg-zinc-800 text-zinc-300">
-                    {run.lyricsWordCount != null ? `lyrics: ${run.lyricsWordCount} words` : 'no lyrics detected'}
+                    {run.lyricsWordCount != null ? `lyrics: ${pluralize(run.lyricsWordCount, 'word')}` : 'no lyrics detected'}
                   </span>
-                  <span className="px-2 py-1 rounded-md bg-zinc-800 text-zinc-300">{run.shots.length} shots</span>
+                  <span className="px-2 py-1 rounded-md bg-zinc-800 text-zinc-300">{pluralize(run.shots.length, 'shot')}</span>
                 </div>
               )}
 
@@ -961,7 +962,7 @@ export function Director() {
                   className="flex items-center gap-1.5 text-xs text-zinc-300 hover:text-white px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 transition-colors"
                   title="Place the shots that DID render on a timeline"
                 >
-                  <Film className="h-3 w-3" /> Open partial cut in editor ({shotsDone} shots)
+                  <Film className="h-3 w-3" /> Open partial cut in editor ({pluralize(shotsDone, 'shot')})
                 </button>
               )}
 
@@ -1029,7 +1030,7 @@ export function Director() {
                 <div className="rounded-xl border border-amber-500/40 bg-zinc-900/70 overflow-hidden">
                   <div className="px-4 py-2.5 border-b border-zinc-800 flex items-center justify-between gap-3">
                     <div className="text-xs text-zinc-300">
-                      <span className="font-semibold text-amber-300">The plan</span> — {run.shots.length} shots
+                      <span className="font-semibold text-amber-300">The plan</span> — {pluralize(run.shots.length, 'shot')}
                       {(() => {
                         const secs = run.shots.reduce((t, sh) => t + sh.generateSeconds, 0)
                         const est = estimateCloudPoints(run.model, run.resolution, secs)

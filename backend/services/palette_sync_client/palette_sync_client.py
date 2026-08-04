@@ -5,6 +5,14 @@ from __future__ import annotations
 from typing import Any, Protocol
 
 
+class InsufficientCreditsError(RuntimeError):
+    """The account cannot afford the generation (HTTP 402).
+
+    A PERMANENT failure: retrying will never succeed, so the deduction retry
+    loop must treat it as terminal rather than a transient blip.
+    """
+
+
 class PaletteSyncClient(Protocol):
     def validate_connection(self, *, api_key: str) -> dict[str, Any]:
         """Validate API key and return user info. Raises on failure."""

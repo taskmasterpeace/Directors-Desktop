@@ -82,3 +82,45 @@ class TestGenerationKeyProvisioning:
         assert "KEY_PROVISION_UNAVAILABLE" in body["error"]
         # Sync/credits must keep working so the fallback paste path stays usable.
         assert client.get("/api/sync/status").json()["connected"] is True
+
+
+class TestCreditDeductionRetry:
+    """#23 — a delivered render whose deduction hits a transient blip must not
+    leak as free usage; but a retry must never be able to double-charge."""
+
+    def _connect(self, test_state):
+        test_state.state.app_settings.palette_api_key = "dp_key"
+
+    def test_transient_failure_is_retried_then_succeeds(self, test_state):
+        self._connect(test_state)
+        test_state.palette_sync_client.deduct_fail_times = 2  # fail twice, then work
+        result = test_state.sync.deduct_credits("video_i2v", 1, {"job_id": "j1"})
+        assert result["deducted"] is True
+        assert len(test_state.palette_sync_client.deduct_calls) == 3
+
+    def test_insufficient_credits_is_terminal_and_not_retried(self, test_state):
+        self._connect(test_state)
+        test_state.palette_sync_client.deduct_raise_insufficient = True
+        result = test_state.sync.deduct_credits("video_i2v", 1, {"job_id": "j1"})
+        assert result["deducted"] is False
+        assert result.get("insufficient") is True
+        assert len(test_state.palette_sync_client.deduct_calls) == 1  # no retry
+
+    def test_persistent_transient_failure_gives_up_without_raising(self, test_state):
+        from handlers.sync_handler import _DEDUCT_MAX_ATTEMPTS
+
+        self._connect(test_state)
+        test_state.palette_sync_client.deduct_fail_times = 99  # never recovers
+        result = test_state.sync.deduct_credits("video_i2v", 1, {"job_id": "j1"})
+        assert result["deducted"] is False
+        assert "error" in result
+        assert len(test_state.palette_sync_client.deduct_calls) == _DEDUCT_MAX_ATTEMPTS
+
+    def test_every_attempt_carries_the_same_idempotency_metadata(self, test_state):
+        # The retry is only double-charge-safe because each attempt sends the
+        # same job_id; verify the handler doesn't mutate it between tries.
+        self._connect(test_state)
+        test_state.palette_sync_client.deduct_fail_times = 2
+        test_state.sync.deduct_credits("video_i2v", 1, {"job_id": "same-job"})
+        job_ids = {c["metadata"]["job_id"] for c in test_state.palette_sync_client.deduct_calls}
+        assert job_ids == {"same-job"}
