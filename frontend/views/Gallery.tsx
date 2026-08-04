@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, Image as ImageIcon, Film, Trash2, Download, X, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
+import { ArrowLeft, Image as ImageIcon, Film, Trash2, Download, X, ChevronLeft, ChevronRight, Sparkles , UserPlus, Images } from 'lucide-react'
 import { useConfirm } from '../components/ConfirmDialog'
+import { SaveToLibraryModal, type SaveToLibraryRequest } from '../components/SaveToLibraryModal'
 import { useProjects } from '../contexts/ProjectContext'
 import { LtxLogo } from '../components/LtxLogo'
 import { Button } from '../components/ui/button'
@@ -49,6 +50,12 @@ function formatDate(dateStr: string): string {
 function pathToFileUrl(filePath: string): string {
   const normalized = filePath.replace(/\\/g, '/')
   return normalized.startsWith('/') ? `file://${normalized}` : `file:///${normalized}`
+}
+
+// #73: readable default name from an output filename.
+function suggestFromFilename(filename: string): string {
+  const stem = filename.replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim()
+  return stem ? stem[0].toUpperCase() + stem.slice(1, 40) : ''
 }
 
 export function Gallery() {
@@ -110,6 +117,7 @@ export function Gallery() {
   }, [fetchGallery])
 
   const confirm = useConfirm()
+  const [saveToLibrary, setSaveToLibrary] = useState<SaveToLibraryRequest | null>(null)
   const handleDelete = async (item: GalleryItem) => {
     if (!(await confirm({ title: `Delete "${item.filename}"?`, destructive: true }))) return
     try {
@@ -254,6 +262,32 @@ export function Gallery() {
                       <Sparkles className="h-3.5 w-3.5 text-white" />
                     </button>
                   )}
+                  {item.type === 'image' && (
+                    <>
+                      <button
+                        aria-label="Save as Character"
+                        title="Save as Character — reusable across the Director and Gen Space"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setSaveToLibrary({ kind: 'character', imagePath: item.path, suggestedName: suggestFromFilename(item.filename) })
+                        }}
+                        className="absolute top-2 right-[4.5rem] p-1.5 rounded bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-amber-500/80"
+                      >
+                        <UserPlus className="h-3.5 w-3.5 text-white" />
+                      </button>
+                      <button
+                        aria-label="Save to References"
+                        title="Save to References (people / places / wardrobe / styles)"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setSaveToLibrary({ kind: 'reference', imagePath: item.path, suggestedName: suggestFromFilename(item.filename) })
+                        }}
+                        className="absolute top-2 right-[6.5rem] p-1.5 rounded bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-amber-500/80"
+                      >
+                        <Images className="h-3.5 w-3.5 text-white" />
+                      </button>
+                    </>
+                  )}
                   <button
                     aria-label="Delete"
                     onClick={(e) => { e.stopPropagation(); void handleDelete(item) }}
@@ -294,6 +328,8 @@ export function Gallery() {
           </>
         )}
       </div>
+
+      <SaveToLibraryModal request={saveToLibrary} onClose={() => setSaveToLibrary(null)} />
 
       {/* Preview Lightbox */}
       {previewItem && (

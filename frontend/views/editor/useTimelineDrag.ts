@@ -45,6 +45,19 @@ export interface SlipSlideClipState {
   nextOrigTrimStart?: number
 }
 
+// #71: beat grid + markers are first-class snap targets (Director imports
+// carry the song's librosa beats on timeline.beats).
+function extraSnapTimes(activeTimeline: unknown): number[] {
+  const tl = activeTimeline as { beats?: unknown; markers?: { time?: unknown }[] } | null | undefined
+  const beats = Array.isArray(tl?.beats)
+    ? (tl!.beats as unknown[]).filter((b): b is number => typeof b === 'number')
+    : []
+  const markers = Array.isArray(tl?.markers)
+    ? tl!.markers!.map((m) => m?.time).filter((t): t is number => typeof t === 'number')
+    : []
+  return markers.concat(beats)
+}
+
 interface UseTimelineDragParams {
   activeTool: ToolType
   setActiveTool: (tool: ToolType) => void
@@ -416,6 +429,13 @@ export function useTimelineDrag(params: UseTimelineDragParams) {
       if (Math.abs(newStartTime + primaryClip.duration - currentTime) < snapThreshold) {
         newStartTime = currentTime - primaryClip.duration
       }
+      for (const t of extraSnapTimes(activeTimeline)) {
+        if (Math.abs(newStartTime - t) < snapThreshold) {
+          newStartTime = t
+        } else if (Math.abs(newStartTime + primaryClip.duration - t) < snapThreshold) {
+          newStartTime = t - primaryClip.duration
+        }
+      }
     }
     
     // Use average track height for drag delta computation
@@ -510,7 +530,7 @@ export function useTimelineDrag(params: UseTimelineDragParams) {
         trackIndex: newTrackIndex,
       }
     }))
-  }, [draggingClip, clips, pixelsPerSecond, snapEnabled, tracks, currentTime, lassoRect, trackDisplayRow, orderedTracks])
+  }, [draggingClip, clips, pixelsPerSecond, snapEnabled, tracks, currentTime, lassoRect, trackDisplayRow, orderedTracks, activeTimeline])
   
   const handleMouseUp = useCallback((e?: MouseEvent | Event) => {
     // Finalize lasso selection
@@ -742,6 +762,13 @@ export function useTimelineDrag(params: UseTimelineDragParams) {
             newDuration -= adjustment
           }
         }
+        for (const t of extraSnapTimes(activeTimeline)) {
+          if (Math.abs(newStartTime - t) < snapThreshold) {
+            const adjustment = t - newStartTime
+            newStartTime = t
+            newDuration -= adjustment
+          }
+        }
       }
       
       const newTrimStart = resizingClip.originalTrimStart + (newStartTime - resizingClip.originalStartTime)
@@ -784,6 +811,11 @@ export function useTimelineDrag(params: UseTimelineDragParams) {
             newDuration = otherEnd - clip.startTime
           }
         }
+        for (const t of extraSnapTimes(activeTimeline)) {
+          if (Math.abs(newEndTime - t) < snapThreshold) {
+            newDuration = t - clip.startTime
+          }
+        }
       }
       
       const maxDur = getMaxClipDuration(clip)
@@ -799,7 +831,7 @@ export function useTimelineDrag(params: UseTimelineDragParams) {
         return c
       }))
     }
-  }, [resizingClip, clips, pixelsPerSecond, snapEnabled, currentTime, getMaxClipDuration])
+  }, [resizingClip, clips, pixelsPerSecond, snapEnabled, currentTime, getMaxClipDuration, activeTimeline])
   
   const handleResizeStart = (e: React.MouseEvent, clip: TimelineClip, edge: 'left' | 'right') => {
     e.stopPropagation()

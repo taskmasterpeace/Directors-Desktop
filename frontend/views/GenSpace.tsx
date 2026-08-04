@@ -5,7 +5,7 @@ import {
   Clock, Monitor, ChevronUp, Scissors, Music,
   ChevronLeft, ChevronRight, Copy, Check, Wand2,
   FastForward, Frame, SlidersHorizontal, Pencil, Grid3X3
-} from 'lucide-react'
+, UserPlus, Images } from 'lucide-react'
 import { useProjects } from '../contexts/ProjectContext'
 import type { GenSpaceRetakeSource } from '../contexts/ProjectContext'
 import { useAppSettings } from '../contexts/AppSettingsContext'
@@ -14,6 +14,7 @@ import { useRetake } from '../hooks/use-retake'
 import type { Asset } from '../types/project'
 import { GenerationErrorDialog } from '../components/GenerationErrorDialog'
 import { useConfirm } from '../components/ConfirmDialog'
+import { SaveToLibraryModal, type SaveToLibraryRequest } from '../components/SaveToLibraryModal'
 import { copyToAssetFolder } from '../lib/asset-copy'
 import { fileUrlToPath } from '../lib/url-to-path'
 import { extractVideoFrame } from '../lib/video-frames'
@@ -83,6 +84,14 @@ import { useAtCaretAutocomplete } from '../hooks/useAtCaretAutocomplete'
 import { useMentionOptions } from '../hooks/useMentionOptions'
 
 // Asset card with hover overlays
+
+// #73: a readable default name from the generation prompt.
+function suggestLibraryName(prompt: string): string {
+  const words = prompt.replace(/[^\w\s'-]/g, ' ').split(/\s+/).filter(Boolean).slice(0, 4)
+  const name = words.join(' ').trim()
+  return name ? name[0].toUpperCase() + name.slice(1) : ''
+}
+
 function AssetCard({
   asset,
   onDelete,
@@ -92,7 +101,8 @@ function AssetCard({
   onEditImage,
   onRetake,
   onExtendVideo,
-  onToggleFavorite
+  onToggleFavorite,
+  onSaveToLibrary
 }: {
   asset: Asset
   onDelete: () => void
@@ -103,6 +113,7 @@ function AssetCard({
   onRetake?: (asset: Asset) => void
   onExtendVideo?: (asset: Asset) => void
   onToggleFavorite?: () => void
+  onSaveToLibrary?: (asset: Asset, kind: 'character' | 'reference') => void
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [isHovered, setIsHovered] = useState(false)
@@ -209,6 +220,22 @@ function AssetCard({
                 >
                   <Film className="h-3 w-3" />
                   Create video
+                </button>
+                <button
+                  title="Save as Character — reusable across the Director and Gen Space"
+                  onClick={(e) => { e.stopPropagation(); onSaveToLibrary?.(asset, 'character') }}
+                  className="px-2.5 py-1.5 rounded-lg bg-black/40 backdrop-blur-md text-white hover:bg-black/60 transition-colors flex items-center gap-1.5 text-xs font-medium whitespace-nowrap"
+                >
+                  <UserPlus className="h-3 w-3" />
+                  Character
+                </button>
+                <button
+                  title="Save to References (people / places / wardrobe / styles)"
+                  onClick={(e) => { e.stopPropagation(); onSaveToLibrary?.(asset, 'reference') }}
+                  className="px-2.5 py-1.5 rounded-lg bg-black/40 backdrop-blur-md text-white hover:bg-black/60 transition-colors flex items-center gap-1.5 text-xs font-medium whitespace-nowrap"
+                >
+                  <Images className="h-3 w-3" />
+                  Reference
                 </button>
               </>
             )}
@@ -1468,6 +1495,7 @@ export function GenSpace() {
     }
   } | null>(null)
   const [editSourceImage, setEditSourceImage] = useState<{ url: string; path: string } | null>(null)
+  const [saveToLibrary, setSaveToLibrary] = useState<SaveToLibraryRequest | null>(null)
   const [editStrength, setEditStrength] = useState(0.65)
   const [showBatchModal, setShowBatchModal] = useState(false)
   const [settings, setSettings] = useState<GenSpaceSettings>(() => ({ ...DEFAULT_VIDEO_SETTINGS }))
@@ -2302,6 +2330,7 @@ export function GenSpace() {
                   onRetake={handleRetake}
                   onExtendVideo={handleExtendVideo}
                   onToggleFavorite={() => currentProjectId && toggleFavorite(currentProjectId, asset.id)}
+                  onSaveToLibrary={(a, kind) => setSaveToLibrary({ kind, imagePath: a.path, suggestedName: suggestLibraryName(a.prompt) })}
                 />
               ))}
             </div>
@@ -2369,6 +2398,8 @@ export function GenSpace() {
       </div>
       
       {/* Asset preview modal */}
+      <SaveToLibraryModal request={saveToLibrary} onClose={() => setSaveToLibrary(null)} />
+
       {selectedAsset && (
         <div 
           className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"

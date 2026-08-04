@@ -1979,6 +1979,49 @@ export function VideoEditor() {
     if (!ok) setFrameActionMsg({ kind: 'error', text: 'No caption-worthy words found in the transcripts.' })
   }, [clips, transcriptCache, pushTrackUndo, handleMakeCaptions])
 
+  // #71: quantize-cut — split the selected clips (or all video clips) at every
+  // beat of the sequence's beat grid. Segments drop A/V links by design.
+  const handleCutToBeats = useCallback(() => {
+    const beats = (activeTimeline as { beats?: number[] } | null)?.beats ?? []
+    if (beats.length === 0) {
+      setFrameActionMsg({ kind: 'error', text: 'No beat grid on this sequence — Director-built timelines carry one.' })
+      return
+    }
+    const ids = selectedClipIds.size > 0
+      ? new Set(selectedClipIds)
+      : new Set(clips.filter((c) => c.type === 'video').map((c) => c.id))
+    let produced = 0
+    const next: TimelineClip[] = []
+    for (const clip of clips) {
+      if (!ids.has(clip.id) || tracks[clip.trackIndex]?.locked) { next.push(clip); continue }
+      const inner = beats.filter((b) => b > clip.startTime + 0.1 && b < clip.startTime + clip.duration - 0.1)
+      if (inner.length === 0) { next.push(clip); continue }
+      const bounds = [clip.startTime, ...inner, clip.startTime + clip.duration]
+      for (let i = 0; i < bounds.length - 1; i++) {
+        const segStart = bounds[i]
+        const segDur = bounds[i + 1] - bounds[i]
+        const offset = segStart - clip.startTime
+        next.push({
+          ...clip,
+          id: i === 0 ? clip.id : `clip-${Date.now()}-${Math.random().toString(36).slice(2, 9)}-${i}`,
+          startTime: segStart,
+          duration: segDur,
+          trimStart: clip.trimStart + offset,
+          trimEnd: clip.trimEnd + (clip.duration - (offset + segDur)),
+          linkedClipIds: undefined,
+        })
+        produced++
+      }
+    }
+    if (produced === 0) {
+      setFrameActionMsg({ kind: 'error', text: 'No beats fall inside the chosen clips.' })
+      return
+    }
+    pushTrackUndo()
+    setClips(next)
+    setFrameActionMsg({ kind: 'ok', text: `Cut to beats — ${produced} segments.` })
+  }, [activeTimeline, selectedClipIds, clips, tracks, pushTrackUndo, setClips])
+
   // Cast member -> Gen Space: arm the next generation with the linked library
   // character's reference image attached (the "Generate with cast member" flow).
   const handleGenerateWithCastMember = useCallback(async (entry: CastEntry) => {
@@ -2200,6 +2243,7 @@ export function VideoEditor() {
   const menuDefinitions: MenuDefinition[] = useMemo(() => buildMenuDefinitions({
     selectedClip, selectedClipIds, clips, tracks, subtitles, snapEnabled,
     handleMakeCaptionsAll,
+    handleCutToBeats,
     showEffectsBrowser, showSourceMonitor, showPropertiesPanel, showICLoraPanel: _showICLoraPanel, // IC-LORA HIDDEN
     sourceAsset, activeTool, activeTimeline, timelines, kbLayout,
     fileInputRef, subtitleFileInputRef,
@@ -3054,6 +3098,19 @@ export function VideoEditor() {
                       )
                     }
                     return ticks
+                  })()}
+                  {/* #71: beat grid ticks — only when zoomed in enough to read them */}
+                  {(() => {
+                    const beats = (activeTimeline as { beats?: number[] } | null)?.beats
+                    if (!beats || beats.length < 2) return null
+                    if ((beats[1] - beats[0]) * pixelsPerSecond < 5) return null
+                    return beats.map((b, i) => (
+                      <div
+                        key={`beat-${i}`}
+                        className="absolute bottom-0 w-px h-1.5 bg-amber-400/50 pointer-events-none z-[12]"
+                        style={{ left: `${b * pixelsPerSecond}px` }}
+                      />
+                    ))
                   })()}
                   {/* Timeline markers: range bands + flag pins (M adds at playhead) */}
                   {markers.map((m) => (
