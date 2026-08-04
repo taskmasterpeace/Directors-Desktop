@@ -325,6 +325,7 @@ class GalleryAsset(BaseModel):
     size_bytes: int
     created_at: str
     model_name: str | None = None
+    prompt: str | None = None
 
 
 class GalleryListResponse(BaseModel):

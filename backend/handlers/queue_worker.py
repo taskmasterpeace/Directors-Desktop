@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import logging
+from pathlib import Path
 import threading
 from typing import Callable, Protocol
 
@@ -28,6 +30,29 @@ class CreditDeductor(Protocol):
         metadata: dict[str, object] | None,
     ) -> dict[str, object]:
         ...
+
+
+def _write_generation_sidecars(job: QueueJob, result_paths: list[str]) -> None:
+    """#78: remix metadata — drop <output>.meta.json beside every generated
+    file so the Gallery can recall prompt/model/params later. Best-effort:
+    a failed sidecar never fails the job."""
+    keep = ("resolution", "duration", "aspectRatio", "quality")
+    meta: dict[str, object] = {
+        "prompt": str(job.params.get("prompt", "")),
+        "model": job.model,
+        "type": job.type,
+        "jobId": job.id,
+        "params": {k: job.params[k] for k in keep if k in job.params},
+    }
+    for raw in result_paths:
+        try:
+            target = Path(raw)
+            if not target.is_file():
+                continue
+            sidecar = target.with_name(target.name + ".meta.json")
+            sidecar.write_text(json.dumps(meta, ensure_ascii=False), encoding="utf-8")
+        except Exception:
+            logger.debug("Sidecar write failed for %s", raw)
 
 
 def _credit_type_for_job(job: QueueJob) -> str | None:
@@ -209,6 +234,7 @@ class QueueWorker:
                     job.id, status="complete", progress=100, phase="complete",
                     result_paths=result_paths,
                 )
+                _write_generation_sidecars(job, result_paths)
                 # Deduct credits for API-slot jobs (local GPU jobs are free).
                 # update_job refuses to leave a "cancelled" job, so re-read status.
                 finished = self._queue.get_job(job.id)

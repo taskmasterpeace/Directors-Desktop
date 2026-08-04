@@ -75,6 +75,8 @@ interface ProjectContextType {
   // animate via image-to-video, Shot Animator-style.
   pendingAnimateImage: PendingAnimateImage | null
   setPendingAnimateImage: (img: PendingAnimateImage | null) => void
+  pendingRemix: PendingRemix | null
+  setPendingRemix: (r: PendingRemix | null) => void
   // Cross-view communication (editor → gen space): a captured video frame to
   // attach as a Seedance 2.0 reference image.
   pendingReferenceImage: PendingReferenceImage | null
@@ -101,6 +103,11 @@ export interface PendingClipReference {
   path: string
   /** Display label (usually the output filename). */
   label: string
+}
+
+/** #78: a Gallery Remix — reopen the gen surface preloaded with the original prompt. */
+export interface PendingRemix {
+  prompt: string
 }
 
 export interface PendingAnimateImage {
@@ -208,6 +215,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const [pendingRetakeUpdate, setPendingRetakeUpdate] = useState<PendingRetakeUpdate | null>(null)
   const [pendingClipReference, setPendingClipReference] = useState<PendingClipReference | null>(null)
   const [pendingAnimateImage, setPendingAnimateImage] = useState<PendingAnimateImage | null>(null)
+  const [pendingRemix, setPendingRemix] = useState<PendingRemix | null>(null)
   const [pendingReferenceImage, setPendingReferenceImage] = useState<PendingReferenceImage | null>(null)
   // Initialize with data from localStorage
   const [projects, setProjects] = useState<Project[]>(() => loadProjectsFromStorage())
@@ -694,6 +702,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     pendingClipReference,
     setPendingClipReference,
     pendingAnimateImage,
+    pendingRemix,
+    setPendingRemix,
     setPendingAnimateImage,
     pendingReferenceImage,
     setPendingReferenceImage,
@@ -707,7 +717,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     openGallery, openCharacters, openStyles, openReferences, openRecipes,
     openWildcards, openPromptLibrary, openClipTool, openDirector,
     genSpaceEditImageUrl, genSpaceEditMode, genSpaceAudioUrl,
-    genSpaceRetakeSource, pendingRetakeUpdate, pendingClipReference, pendingAnimateImage,
+    genSpaceRetakeSource, pendingRetakeUpdate, pendingClipReference, pendingAnimateImage, pendingRemix,
     pendingReferenceImage,
   ])
 

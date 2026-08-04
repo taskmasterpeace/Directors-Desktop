@@ -22,6 +22,8 @@ export interface ImageModelConfig {
   provider: ImageModelProvider
   /** One line shown under the picker. */
   description: string
+  /** #77: the outcome headline a creator picks by — 'Best all-round', not a model id. */
+  outcome?: string
   /** Points per image for Palette models; null for local GPU (free). */
   costPoints: number | null
   /** Palette models whose cost depends on a param (gpt-image-2 quality). */
@@ -67,6 +69,7 @@ export const PALETTE_IMAGE_MODELS: ImageModelConfig[] = [
     icon: '🍌',
     provider: 'palette',
     description: 'Best all-round quality and text rendering. Up to 14 reference images.',
+    outcome: 'Best all-round',
     costPoints: 10,
     maxReferenceImages: 14,
     requiresInputImage: false,
@@ -81,6 +84,7 @@ export const PALETTE_IMAGE_MODELS: ImageModelConfig[] = [
     icon: '🍌',
     provider: 'palette',
     description: 'Fastest and cheapest — great for drafts and high-volume batches.',
+    outcome: 'Drafts & batches',
     costPoints: 5,
     maxReferenceImages: 14,
     requiresInputImage: false,
@@ -95,6 +99,7 @@ export const PALETTE_IMAGE_MODELS: ImageModelConfig[] = [
     icon: '🎨',
     provider: 'palette',
     description: 'Best-in-class text in images and instruction following. Up to 10 references.',
+    outcome: 'Text master',
     costPoints: 2,
     costByQuality: { low: 2, medium: 8 },
     qualityOptions: ['low', 'medium'],
@@ -112,6 +117,7 @@ export const PALETTE_IMAGE_MODELS: ImageModelConfig[] = [
     icon: '🎥',
     provider: 'palette',
     description: 'Re-shoot a photo from any angle — orbit the camera around your subject.',
+    outcome: 'Re-shoot any angle',
     costPoints: 5,
     maxReferenceImages: 1,
     requiresInputImage: true,
@@ -131,6 +137,7 @@ export const LOCAL_IMAGE_MODELS: ImageModelConfig[] = [
     icon: '⚡',
     provider: 'local',
     description: 'Fast single-step local generation. Stays in VRAM for quick back-to-back images.',
+    outcome: 'Instant local',
     costPoints: null,
     maxReferenceImages: 0,
     requiresInputImage: false,
@@ -145,6 +152,7 @@ export const LOCAL_IMAGE_MODELS: ImageModelConfig[] = [
     icon: '🖥',
     provider: 'local',
     description: 'High quality local images with LoRA support. Reloads each run (~5s extra).',
+    outcome: 'Local + LoRA',
     costPoints: null,
     maxReferenceImages: 0,
     requiresInputImage: false,
@@ -160,6 +168,7 @@ export const LOCAL_IMAGE_MODELS: ImageModelConfig[] = [
     icon: '🖥',
     provider: 'local',
     description: 'Best local quality and the standard LoRA target. ~34s/image.',
+    outcome: 'Best local quality',
     costPoints: null,
     maxReferenceImages: 0,
     requiresInputImage: false,
@@ -179,6 +188,7 @@ export const REPLICATE_IMAGE_MODELS: ImageModelConfig[] = [
     icon: '🍌',
     provider: 'replicate',
     description: 'Runs in the cloud on your own Replicate key — no GPU needed.',
+    outcome: 'Your Replicate key',
     costPoints: null,
     maxReferenceImages: 14,
     requiresInputImage: false,

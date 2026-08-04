@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import time
 from pathlib import Path
 
 from state.job_queue import JobQueue, QueueJob
@@ -236,3 +238,33 @@ def test_worker_generates_i2v_prompt_for_auto_prompt_job(tmp_path: Path) -> None
     assert child_job is not None
     assert child_job.params.get("prompt") == "The camera pans across mountains."
     assert child_job.params.get("imagePath") == "/out/landscape.png"
+
+
+def test_worker_writes_remix_sidecar(tmp_path: Path) -> None:
+    out = tmp_path / "img.png"
+    out.write_bytes(b"fake")
+    queue = JobQueue(persistence_path=tmp_path / "queue.json")
+    queue.submit(
+        job_type="image",
+        model="dp-nano-banana-2",
+        params={"prompt": "neon fox portrait", "quality": "high"},
+        slot="api",
+    )
+
+    class _PathExecutor:
+        def execute(self, job):  # noqa: ANN001, ANN201 - structural JobExecutor
+            return [str(out)]
+
+    worker = QueueWorker(queue=queue, gpu_executor=FakeJobExecutor(), api_executor=_PathExecutor())
+    worker.tick()
+
+    # _run_job executes on a daemon thread — wait for the sidecar to land.
+    sidecar = tmp_path / "img.png.meta.json"
+    deadline = time.time() + 5
+    while not sidecar.is_file() and time.time() < deadline:
+        time.sleep(0.02)
+    assert sidecar.is_file()
+    meta = json.loads(sidecar.read_text(encoding="utf-8"))
+    assert meta["prompt"] == "neon fox portrait"
+    assert meta["model"] == "dp-nano-banana-2"
+    assert meta["params"]["quality"] == "high"

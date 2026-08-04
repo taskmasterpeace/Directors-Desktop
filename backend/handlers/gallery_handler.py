@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+import json
 import hashlib
 import logging
 import math
@@ -113,6 +115,17 @@ class GalleryHandler:
                     continue
 
                 stat = entry.stat()
+                prompt_value: str | None = None
+                sidecar = entry.with_name(entry.name + ".meta.json")
+                if sidecar.is_file():
+                    try:
+                        meta = json.loads(sidecar.read_text(encoding="utf-8"))
+                        if isinstance(meta, dict):
+                            raw_prompt = cast("dict[str, object]", meta).get("prompt")
+                            if isinstance(raw_prompt, str) and raw_prompt:
+                                prompt_value = raw_prompt
+                    except Exception:
+                        prompt_value = None
                 # Use st_ctime_ns for cross-platform compatibility (st_ctime
                 # property is deprecated on Python 3.12+).
                 created_at_secs = stat.st_ctime_ns / 1_000_000_000
@@ -126,6 +139,7 @@ class GalleryHandler:
                         size_bytes=stat.st_size,
                         created_at=str(created_at_secs),
                         model_name=_parse_model_name(entry.name),
+                        prompt=prompt_value,
                     )
                 )
 
@@ -161,6 +175,10 @@ class GalleryHandler:
                     os.remove(entry)
                 except OSError as exc:
                     raise HTTPError(500, f"Failed to delete asset: {exc}") from exc
+                # #78: the remix sidecar goes with its asset.
+                sidecar = entry.with_name(entry.name + ".meta.json")
+                if sidecar.is_file():
+                    sidecar.unlink(missing_ok=True)
                 return
 
         raise HTTPError(404, f"Asset {asset_id} not found")

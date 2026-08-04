@@ -15,6 +15,7 @@ import type { Asset } from '../types/project'
 import { GenerationErrorDialog } from '../components/GenerationErrorDialog'
 import { useConfirm } from '../components/ConfirmDialog'
 import { SaveToLibraryModal, type SaveToLibraryRequest } from '../components/SaveToLibraryModal'
+import { LookPicker } from '../components/LookPicker'
 import { copyToAssetFolder } from '../lib/asset-copy'
 import { fileUrlToPath } from '../lib/url-to-path'
 import { extractVideoFrame } from '../lib/video-frames'
@@ -22,7 +23,6 @@ import {
   getImageModel,
   getImageModelCost,
   isPaletteImageModel,
-  listImageModelGroups,
   migrateImageModelId,
   coerceAspectRatio,
 } from '../lib/image-models'
@@ -991,36 +991,12 @@ function PromptBar({
           <div className="text-[10px] text-zinc-500 pr-2">Trim in the panel above, then retake</div>
         ) : mode === 'image' ? (
           <>
-            {/* Model picker — global, so the choice applies app-wide */}
-            <SettingsDropdown
-              title="IMAGE MODEL"
+            {/* #77: look-first model picker — outcome cards, ids as fine print */}
+            <LookPicker
               value={imageModelId}
               onChange={(v) => { void saveImageModel(v) }}
-              options={listImageModelGroups().flatMap((group) =>
-                group.models.map((m) => ({
-                  value: m.id,
-                  label:
-                    m.provider === 'palette'
-                      ? `${m.displayName} · ${m.costByQuality ? 'from ' : ''}${m.costPoints} pts`
-                      : m.provider === 'local'
-                        ? `${m.displayName} · local GPU`
-                        : `${m.displayName} · Replicate key`,
-                  icon: <span className="text-sm leading-none">{m.icon}</span>,
-                  disabled: m.provider === 'replicate' && !hasReplicateApiKey,
-                  tooltip:
-                    m.provider === 'replicate' && !hasReplicateApiKey
-                      ? 'Needs a Replicate API key in Settings'
-                      : m.description,
-                })),
-              )}
-              trigger={
-                <>
-                  <span className="text-sm leading-none">{imageModelConfig.icon}</span>
-                  <span className="text-zinc-300 font-medium">
-                    {editSourceImage ? `Edit · ${imageModelConfig.displayName}` : imageModelConfig.displayName}
-                  </span>
-                </>
-              }
+              hasReplicateApiKey={hasReplicateApiKey}
+              editLabel={editSourceImage ? 'Edit' : null}
             />
 
             {/* Camera Angle needs exactly one source image to orbit around */}

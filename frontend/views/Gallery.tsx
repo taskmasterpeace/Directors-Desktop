@@ -19,6 +19,7 @@ interface GalleryItem {
   model_name?: string
   size_bytes?: number
   created_at: string
+  prompt?: string | null
 }
 
 interface GalleryResponse {
@@ -59,7 +60,7 @@ function suggestFromFilename(filename: string): string {
 }
 
 export function Gallery() {
-  const { goHome, setPendingAnimateImage, openPlayground } = useProjects()
+  const { goHome, setPendingAnimateImage, openPlayground , setPendingRemix } = useProjects()
   const [filter, setFilter] = useState<FilterType>('all')
   const [items, setItems] = useState<GalleryItem[]>([])
   const [total, setTotal] = useState(0)
@@ -69,7 +70,7 @@ export function Gallery() {
   const [previewItem, setPreviewItem] = useState<GalleryItem | null>(null)
   const [backendUrl, setBackendUrl] = useState<string>('')
 
-  const perPage = 50
+  const perPage = 200
 
   useEffect(() => {
     window.electronAPI.getBackendUrl().then(setBackendUrl).catch(() => {})
@@ -118,6 +119,8 @@ export function Gallery() {
 
   const confirm = useConfirm()
   const [saveToLibrary, setSaveToLibrary] = useState<SaveToLibraryRequest | null>(null)
+  const [query, setQuery] = useState('')
+  const [modelFilter, setModelFilter] = useState('all')
   const handleDelete = async (item: GalleryItem) => {
     if (!(await confirm({ title: `Delete "${item.filename}"?`, destructive: true }))) return
     try {
@@ -138,6 +141,14 @@ export function Gallery() {
     { label: 'Images', value: 'images', icon: <ImageIcon className="h-3.5 w-3.5" /> },
     { label: 'Videos', value: 'videos', icon: <Film className="h-3.5 w-3.5" /> },
   ]
+
+  const modelOptions = [...new Set(items.map((i) => i.model_name).filter((m): m is string => !!m))].sort()
+  const q = query.trim().toLowerCase()
+  const visibleItems = items.filter(
+    (i) =>
+      (modelFilter === 'all' || i.model_name === modelFilter) &&
+      (!q || i.filename.toLowerCase().includes(q) || (i.prompt ?? '').toLowerCase().includes(q)),
+  )
 
   return (
     <div className="h-screen bg-background flex flex-col">
@@ -173,6 +184,23 @@ export function Gallery() {
             ))}
           </div>
 
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search name or prompt…"
+            className="h-8 w-52 rounded-lg border border-zinc-700 bg-zinc-900 px-2.5 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-amber-500/60"
+          />
+          <select
+            value={modelFilter}
+            onChange={(e) => setModelFilter(e.target.value)}
+            className="h-8 rounded-lg border border-zinc-700 bg-zinc-900 px-2 text-xs text-zinc-200"
+          >
+            <option value="all">All models</option>
+            {modelOptions.map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+
         </div>
       </header>
 
@@ -200,7 +228,7 @@ export function Gallery() {
         ) : (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-              {items.map(item => (
+              {visibleItems.map(item => (
                 <div
                   key={item.id}
                   className="group relative bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800 hover:border-zinc-600 transition-all cursor-pointer hover:shadow-lg hover:shadow-black/20"
@@ -361,6 +389,24 @@ export function Gallery() {
                 alt={previewItem.filename}
                 className="w-full max-h-[80vh] object-contain rounded-lg"
               />
+            )}
+            {previewItem.prompt && (
+              <div className="mt-3 flex items-start gap-3">
+                <p className="flex-1 text-xs text-zinc-400 line-clamp-3" title={previewItem.prompt}>
+                  {previewItem.prompt}
+                </p>
+                <button
+                  onClick={() => {
+                    setPendingRemix({ prompt: previewItem.prompt! })
+                    setPreviewItem(null)
+                    openPlayground()
+                  }}
+                  className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-semibold transition-colors"
+                  title="Reopen the gen surface preloaded with this prompt"
+                >
+                  Remix
+                </button>
+              </div>
             )}
             <div className="mt-3 flex items-center justify-between">
               <div>

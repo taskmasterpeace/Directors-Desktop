@@ -43,7 +43,7 @@ const DEFAULT_SETTINGS: GenerationSettings = {
 }
 
 export function Playground() {
-  const { goHome, pendingClipReference, setPendingClipReference, pendingAnimateImage, setPendingAnimateImage } = useProjects()
+  const { goHome, pendingClipReference, setPendingClipReference, pendingAnimateImage, setPendingAnimateImage, pendingRemix, setPendingRemix } = useProjects()
   const { settings: appSettings, forceApiGenerations, shouldVideoGenerateWithLtxApi, credits } = useAppSettings()
   const [mode, setMode] = useState<GenerationMode>('text-to-video')
   const [prompt, setPrompt] = useState('')
@@ -93,6 +93,14 @@ export function Playground() {
     if (seedPrompt) setPrompt(seedPrompt)
     requestAnimationFrame(() => promptRef.current?.focus())
   }, [pendingAnimateImage, setPendingAnimateImage, shouldVideoGenerateWithLtxApi])
+
+  // #78: a Gallery Remix lands here with the original prompt preloaded.
+  useEffect(() => {
+    if (!pendingRemix) return
+    setMode('text-to-image')
+    setPrompt(pendingRemix.prompt)
+    setPendingRemix(null)
+  }, [pendingRemix, setPendingRemix])
 
   // Clip Tool handoff: attach a freshly trimmed clip as a Seedance 2.0 video
   // reference and seed the prompt so the user describes the changes they want.
