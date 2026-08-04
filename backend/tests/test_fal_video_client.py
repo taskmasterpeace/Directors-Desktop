@@ -270,3 +270,76 @@ def test_reference_images_take_precedence_over_first_frame() -> None:
     assert "reference-to-video" in submit.url
     assert submit.json_payload["image_urls"] == [END_FRAME]
     assert "image_url" not in submit.json_payload
+
+
+# --- MiniMax H3 (fal-hosted; the ONLY compliant H3 path — US-excluded weights) ---
+
+def test_h3_i2v_uses_h3_route_and_omits_aspect_and_audio() -> None:
+    http = FakeHTTPClient()
+    _queue_completed(http)
+    _make_client(http).generate_video(**_kwargs(model="minimax-h3", first_frame=START_FRAME))  # type: ignore[arg-type]
+    submit = http.calls[0]
+    assert submit.url == f"{QUEUE_BASE}/minimax/h3/image-to-video"
+    payload = submit.json_payload
+    assert payload is not None
+    assert payload["image_url"] == START_FRAME
+    # fal's H3 i2v schema has neither of these; sending them would 422.
+    assert "aspect_ratio" not in payload
+    assert "generate_audio" not in payload
+    assert "seed" not in payload
+
+
+def test_h3_first_and_last_frame_map_to_h3_names() -> None:
+    http = FakeHTTPClient()
+    _queue_completed(http)
+    _make_client(http).generate_video(
+        **_kwargs(model="minimax-h3", first_frame=START_FRAME, last_frame=END_FRAME)  # type: ignore[arg-type]
+    )
+    payload = http.calls[0].json_payload
+    assert payload is not None
+    assert payload["image_url"] == START_FRAME
+    assert payload["end_image_url"] == END_FRAME
+
+
+def test_h3_t2v_carries_aspect_ratio() -> None:
+    http = FakeHTTPClient()
+    _queue_completed(http)
+    _make_client(http).generate_video(**_kwargs(model="minimax-h3", aspect_ratio="9:16"))  # type: ignore[arg-type]
+    submit = http.calls[0]
+    assert submit.url == f"{QUEUE_BASE}/minimax/h3/text-to-video"
+    assert submit.json_payload is not None and submit.json_payload["aspect_ratio"] == "9:16"
+
+
+def test_h3_reference_mode_uses_h3_list_names() -> None:
+    # Seedance calls these image_urls/audio_urls/video_urls; H3 renames all three.
+    http = FakeHTTPClient()
+    _queue_completed(http)
+    _make_client(http).generate_video(
+        **_kwargs(  # type: ignore[arg-type]
+            model="minimax-h3",
+            reference_images=["https://r/1.png", "https://r/2.png"],
+            reference_audio=["https://r/a.mp3"],
+            reference_videos=["https://r/v.mp4"],
+        )
+    )
+    submit = http.calls[0]
+    assert submit.url == f"{QUEUE_BASE}/minimax/h3/reference-to-video"
+    payload = submit.json_payload
+    assert payload is not None
+    assert payload["reference_image_urls"] == ["https://r/1.png", "https://r/2.png"]
+    assert payload["reference_audio_urls"] == ["https://r/a.mp3"]
+    assert payload["reference_video_urls"] == ["https://r/v.mp4"]
+    assert "image_urls" not in payload and "audio_urls" not in payload
+
+
+def test_h3_resolution_maps_to_the_two_tiers() -> None:
+    # H3 has no 480p; its floor is 768P and only 1080p+ requests hit 2K pricing.
+    for dd_res, expected in (("480p", "768P"), ("720p", "768P"), ("768p", "768P"),
+                             ("1080p", "2K"), ("2k", "2K")):
+        http = FakeHTTPClient()
+        _queue_completed(http)
+        _make_client(http).generate_video(
+            **_kwargs(model="minimax-h3", resolution=dd_res, first_frame=START_FRAME)  # type: ignore[arg-type]
+        )
+        payload = http.calls[0].json_payload
+        assert payload is not None and payload["resolution"] == expected, dd_res

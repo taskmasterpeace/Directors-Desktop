@@ -36,7 +36,24 @@ _MODEL_ROUTES: dict[str, dict[str, str]] = {
         "t2v": "bytedance/seedance-2.0/fast/text-to-video",
         "ref": "bytedance/seedance-2.0/fast/reference-to-video",
     },
+    # MiniMax H3 (Hailuo 3.0): native synced audio, up to 15s single shot, omni
+    # reference (<=9 images, <=3 videos, <=3 audios). HOSTED ONLY by policy: the
+    # H3 open-weights license excludes the United States, so the fal-hosted API
+    # is the only compliant way this product can offer H3. Never add a local path.
+    "minimax-h3": {
+        "i2v": "minimax/h3/image-to-video",
+        "t2v": "minimax/h3/text-to-video",
+        "ref": "minimax/h3/reference-to-video",
+    },
 }
+
+# Verified against fal's OpenAPI (2026-08-04). H3 differs from Seedance:
+#   - resolution enum is "768P" | "2K" (no 480p tier)
+#   - i2v takes image_url + optional end_image_url and NO aspect_ratio (follows image)
+#   - ref mode names its lists reference_*_urls (Seedance: image_urls/audio_urls/video_urls)
+#   - audio is always generated; there is no generate_audio or seed input
+_H3_RESOLUTIONS = ("768P", "2K")
+_H3_REF_ASPECTS = ("adaptive", "21:9", "16:9", "4:3", "1:1", "3:4", "9:16")
 
 _FAL_RESOLUTIONS = ("480p", "720p", "1080p")
 _MIN_DURATION = 4
@@ -84,24 +101,75 @@ class FalVideoClientImpl:
         else:
             route = routes["t2v"]
 
-        input_payload = self._build_input(
-            prompt=prompt,
-            duration=duration,
-            resolution=resolution,
-            aspect_ratio=aspect_ratio,
-            generate_audio=generate_audio,
-            first_frame=first_frame,
-            last_frame=last_frame,
-            reference_images=reference_images,
-            reference_audio=reference_audio,
-            reference_videos=reference_videos,
-            seed=seed,
-        )
+        if model == "minimax-h3":
+            input_payload = self._build_h3_input(
+                mode=("ref" if (reference_images or reference_videos) else "i2v" if first_frame else "t2v"),
+                prompt=prompt,
+                duration=duration,
+                resolution=resolution,
+                aspect_ratio=aspect_ratio,
+                first_frame=first_frame,
+                last_frame=last_frame,
+                reference_images=reference_images,
+                reference_audio=reference_audio,
+                reference_videos=reference_videos,
+            )
+        else:
+            input_payload = self._build_input(
+                prompt=prompt,
+                duration=duration,
+                resolution=resolution,
+                aspect_ratio=aspect_ratio,
+                generate_audio=generate_audio,
+                first_frame=first_frame,
+                last_frame=last_frame,
+                reference_images=reference_images,
+                reference_audio=reference_audio,
+                reference_videos=reference_videos,
+                seed=seed,
+            )
 
         submit = self._submit(api_key=api_key, route=route, input_payload=input_payload)
         response_url = self._wait_for_completion(api_key=api_key, submit=submit, should_cancel=should_cancel)
         video_url = self._extract_video_url(self._fetch_result(api_key=api_key, response_url=response_url))
         return self._download(api_key=api_key, url=video_url)
+
+    @staticmethod
+    def _build_h3_input(
+        *,
+        mode: str,
+        prompt: str,
+        duration: int,
+        resolution: str,
+        aspect_ratio: str,
+        first_frame: str | None,
+        last_frame: str | None,
+        reference_images: list[str] | None,
+        reference_audio: list[str] | None,
+        reference_videos: list[str] | None,
+    ) -> dict[str, JSONValue]:
+        payload: dict[str, JSONValue] = {
+            "prompt": prompt,
+            "duration": max(_MIN_DURATION, min(_MAX_DURATION, int(duration))),
+            "resolution": _h3_resolution(resolution),
+        }
+        if mode == "ref":
+            if reference_images:
+                payload["reference_image_urls"] = cast("list[JSONValue]", list(reference_images)[:_MAX_REF_IMAGES])
+            if reference_videos:
+                payload["reference_video_urls"] = cast("list[JSONValue]", list(reference_videos)[:_MAX_REF_VIDEOS])
+            if reference_audio:
+                payload["reference_audio_urls"] = cast("list[JSONValue]", list(reference_audio)[:_MAX_REF_AUDIO])
+            payload["aspect_ratio"] = aspect_ratio if aspect_ratio in _H3_REF_ASPECTS else "adaptive"
+        elif mode == "i2v":
+            # Aspect follows the input image; fal rejects an aspect_ratio here.
+            assert first_frame is not None
+            payload["image_url"] = first_frame
+            if last_frame is not None:
+                payload["end_image_url"] = last_frame
+        else:  # t2v
+            payload["aspect_ratio"] = aspect_ratio if aspect_ratio in _H3_REF_ASPECTS[1:] else "16:9"
+        return payload
 
     @staticmethod
     def _build_input(
@@ -257,6 +325,18 @@ class FalVideoClientImpl:
         if isinstance(payload, dict):
             return cast(dict[str, Any], payload)
         raise RuntimeError(f"Unexpected fal {context} response format")
+
+
+def _h3_resolution(resolution: str) -> str:
+    """Map DD resolution strings onto H3's two tiers.
+
+    H3 has no 480p — its floor is 768P. Anything at or below 768 vertical maps
+    to "768P"; only an explicit 1080p+/2K request gets the 4x-priced 2K tier.
+    """
+    value = (resolution or "").strip().lower()
+    if value in ("2k", "1440p", "1080p"):
+        return "2K"
+    return "768P"
 
 
 def _normalize_resolution(resolution: str) -> str:

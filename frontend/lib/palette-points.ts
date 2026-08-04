@@ -49,6 +49,14 @@ export const CLOUD_VIDEO_RATES: Record<string, CloudVideoRate> = {
     dollarsPerSecond: { '480p': 0.04, '720p': 0.08, '1080p': 0.13 },
     approx: true,
   },
+  // fal-hosted H3 (the only compliant H3 path — its open-weights license
+  // excludes the US). fal publishes $0.26/s at 2K; the 768P tier's rate is
+  // unpublished, so we quote the 2K rate as a worst case rather than invent a
+  // cheaper number. DD requests <=768 vertical map to fal's 768P tier.
+  'minimax-h3': {
+    dollarsPerSecond: { '480p': 0.26, '720p': 0.26, '1080p': 0.26 },
+    approx: true,
+  },
 }
 
 /** Points for `seconds` of footage on a cloud model (null when unknown/local). */

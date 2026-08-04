@@ -30,7 +30,9 @@ from state.app_state_types import AppState
 from state.app_settings import should_video_generate_with_ltx_api
 
 REPLICATE_VIDEO_MODELS = {"seedance-1.5-pro"}
-FAL_VIDEO_MODELS = {"seedance-2.0", "seedance-2.0-fast"}
+# minimax-h3 is fal-hosted ONLY: its open-weights license excludes the United
+# States, so the hosted API is the sole compliant path for this product.
+FAL_VIDEO_MODELS = {"seedance-2.0", "seedance-2.0-fast", "minimax-h3"}
 
 if TYPE_CHECKING:
     from runtime_config.runtime_config import RuntimeConfig
@@ -100,6 +102,10 @@ class VideoGenerationHandler(StateHandlerBase):
         logger.info("Resolution %s - using fast pipeline", resolution)
 
         RESOLUTION_MAP_16_9: dict[str, tuple[int, int]] = {
+            # The pipeline rounds dims to /64 (see round(x/64)*64 below), so "480p"
+            # uses 832x448 — the closest 64-aligned 480p-class size. 864x480 would
+            # silently render as 896x512, i.e. not 480p at all.
+            "480p": (832, 448),
             "540p": (960, 544),
             "720p": (1280, 704),
             "1080p": (1920, 1088),
@@ -243,6 +249,12 @@ class VideoGenerationHandler(StateHandlerBase):
             encoding_method = "api" if use_api_encoding else "local"
             t_text_start = time.perf_counter()
             self._text.prepare_text_encoding(enhanced_prompt, enhance_prompt=enhance)
+            # Pre-encode with the local Gemma encoder while the GPU is ours and
+            # report it as its own phase. Left to the pipeline, this encode ran
+            # wedged beside the staged transformer — device-split onto the CPU —
+            # and was the real identity of the legendary "stall at 15%".
+            self._generation.update_progress("encoding_prompt", 12, 0, total_steps)
+            self._text.precompute_local_embeddings(pipeline_state.pipeline, enhanced_prompt)
             t_text_end = time.perf_counter()
             logger.info("[%s] Text encoding (%s): %.2fs", gen_mode, encoding_method, t_text_end - t_text_start)
 
@@ -306,6 +318,7 @@ class VideoGenerationHandler(StateHandlerBase):
         4. Concatenate all segments (trimming first frame of extensions)
         """
         RESOLUTION_MAP_16_9: dict[str, tuple[int, int]] = {
+            "480p": (832, 448),
             "512p": (960, 544), "540p": (960, 544),
             "720p": (1280, 704), "1080p": (1920, 1088),
         }
@@ -473,6 +486,7 @@ class VideoGenerationHandler(StateHandlerBase):
         audio_path_str = str(validated_audio_path)
 
         RESOLUTION_MAP: dict[str, tuple[int, int]] = {
+            "480p": (832, 448),
             "540p": (960, 576),
             "720p": (1280, 704),
             "1080p": (1920, 1088),
@@ -528,6 +542,9 @@ class VideoGenerationHandler(StateHandlerBase):
             self._generation.update_progress("loading_model", 5, 0, total_steps)
             self._generation.update_progress("encoding_text", 10, 0, total_steps)
             self._text.prepare_text_encoding(enhanced_prompt, enhance_prompt=a2v_enhance)
+            # Same pre-encode as i2v/t2v: never let the pipeline run Gemma beside
+            # the staged transformer (the "stall at 15%" root cause).
+            self._text.precompute_local_embeddings(a2v_state.pipeline, enhanced_prompt)
             self._generation.update_progress("inference", 15, 0, total_steps)
 
             a2v_state.pipeline.generate(

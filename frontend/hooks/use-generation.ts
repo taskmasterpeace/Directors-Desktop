@@ -36,19 +36,32 @@ interface GenerationState {
 }
 
 // Estimated generation times (seconds) based on benchmark data
-// LTX local: RTX 4090, FFN chunk=8, TeaCache=0.03
-// Seedance: Replicate API cloud timings
-const VIDEO_TIME_ESTIMATES: Record<string, Record<string, Record<string, number>>> = {
+// LTX local: RTX 4090, FFN chunk=8, TeaCache=0.03, prompt pre-encode (2026-08)
+// Cloud rows are seed estimates that should be tuned from real completions.
+export const VIDEO_TIME_ESTIMATES: Record<string, Record<string, Record<string, number>>> = {
   'ltx-fast': {
+    '480p': { '2': 35, '3': 45, '4': 50, '5': 55, '6': 60, '8': 65, '10': 220 },
     '512p': { '2': 40, '3': 50, '4': 55, '5': 65, '6': 65, '7': 65, '8': 65, '10': 275 },
+    '540p': { '2': 40, '3': 50, '4': 55, '5': 65, '6': 65, '7': 65, '8': 65, '10': 275 },
     '720p': { '2': 40, '3': 60, '5': 90 },
   },
   'seedance-1.5-pro': {
     '720p': { '5': 60, '10': 120 },
   },
+  'seedance-2.0': {
+    '480p': { '5': 60, '10': 110, '15': 160 },
+    '720p': { '5': 70, '10': 130, '15': 190 },
+    '1080p': { '5': 110, '10': 200, '15': 290 },
+  },
+  // H3 renders at fal's 768P tier for any request <=768 vertical, 2K for 1080p+.
+  'minimax-h3': {
+    '480p': { '5': 120, '10': 210, '15': 300 },
+    '720p': { '5': 120, '10': 210, '15': 300 },
+    '1080p': { '5': 240, '10': 420, '15': 600 },
+  },
 }
 
-function getEstimatedSeconds(job: QueueJob): number | null {
+export function getEstimatedSeconds(job: QueueJob): number | null {
   const params = job.params
   const resolution = (params.resolution as string) || '512p'
   const duration = String(params.duration || '2')

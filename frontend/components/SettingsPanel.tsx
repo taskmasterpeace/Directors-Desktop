@@ -11,7 +11,7 @@ import {
 import { getImageModel, listImageModelGroups } from '../lib/image-models'
 import { useAppSettings } from '../contexts/AppSettingsContext'
 
-export type VideoModel = 'fast' | 'pro' | 'seedance-1.5-pro' | 'seedance-2.0' | 'seedance-2.0-fast'
+export type VideoModel = 'fast' | 'pro' | 'seedance-1.5-pro' | 'seedance-2.0' | 'seedance-2.0-fast' | 'minimax-h3'
 
 export interface GenerationSettings {
   model: VideoModel
@@ -71,7 +71,7 @@ export function SettingsPanel({
   // Playground stays in lockstep with every other surface.
   const { settings: appSettings, saveImageModel } = useAppSettings()
   const imageModelConfig = getImageModel(appSettings.imageModel)
-  const LOCAL_MAX_DURATION: Record<string, number> = { '540p': 60, '720p': 10, '1080p': 5 }
+  const LOCAL_MAX_DURATION: Record<string, number> = { '480p': 60, '540p': 60, '720p': 10, '1080p': 5 }
 
   const handleChange = (key: keyof GenerationSettings, value: string | number | boolean) => {
     const nextSettings = { ...settings, [key]: value } as GenerationSettings
@@ -103,20 +103,22 @@ export function SettingsPanel({
     'seedance-2.0': 15,
     'seedance-2.0-fast': 15,
     'seedance-1.5-pro': 12,
+    'minimax-h3': 15,
   }
   const maxExactDuration =
     SEEDANCE_MAX[settings.model] ??
     (forceApiGenerations
       ? (durationOptions.length ? Math.max(...durationOptions) : 20)
       : localMaxDuration)
-  const seedanceFloor = settings.model.startsWith('seedance') ? 4 : null
+  // Cloud models floor at 4s (shorter requests generate at the floor, then trim).
+  const seedanceFloor = settings.model.startsWith('seedance') || settings.model === 'minimax-h3' ? 4 : null
   const exactLengthHint =
     seedanceFloor && settings.duration < seedanceFloor
       ? `Generates at the model minimum (${seedanceFloor}s), then trims back to ${settings.duration}s — audio kept.`
       : 'Generates at the nearest supported length, then trims to the exact second — audio kept.'
   const resolutionOptions = forceApiGenerations
     ? (hasAudio ? ['1080p'] : [...FORCED_API_VIDEO_RESOLUTIONS])
-    : ['1080p', '720p', '540p']
+    : ['1080p', '720p', '540p', '480p']
   const fpsOptions = forceApiGenerations ? [...FORCED_API_VIDEO_FPS] : [24, 25, 50]
 
   // Image mode settings
@@ -395,6 +397,9 @@ export function SettingsPanel({
         </option>
         <option value="seedance-2.0-fast" disabled={!hasFalApiKey}>
           Seedance 2.0 Fast (fal){!hasFalApiKey ? ' — needs fal key' : ''}
+        </option>
+        <option value="minimax-h3" disabled={!hasFalApiKey}>
+          MiniMax H3 (fal) — native audio{!hasFalApiKey ? ' — needs fal key' : ''}
         </option>
       </Select>
 
