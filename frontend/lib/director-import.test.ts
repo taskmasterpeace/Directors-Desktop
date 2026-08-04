@@ -18,6 +18,14 @@ const run = {
 }
 
 describe('directorRunToTimeline', () => {
+  it('carries aspect and beats onto the timeline', () => {
+    const timeline = directorRunToTimeline({ ...run, aspect: '9:16', beats: [0.5, 1.0, 1.5] })
+    expect(timeline.aspectRatio).toBe('9:16')
+    expect(timeline.beats).toEqual([0.5, 1.0, 1.5])
+    const fallback = directorRunToTimeline(run)
+    expect(fallback.aspectRatio).toBe('16:9')
+  })
+
   it('places rendered shots as muted V1 clips at their beat positions', () => {
     const tl = directorRunToTimeline(run)
     const videos = tl.clips.filter((c) => c.type === 'video')

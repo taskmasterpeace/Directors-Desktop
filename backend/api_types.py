@@ -906,6 +906,7 @@ class DirectorStartRequest(BaseModel):
     directorStyle: str = ""
     wardrobe: list[str] = []
     planReview: bool = False
+    aspect: str = "16:9"
 
 
 class DirectorTargetRequest(BaseModel):
@@ -948,6 +949,7 @@ class DirectorSectionPayload(BaseModel):
     start: float
     end: float
     label: str
+    energy: float = 0.0
 
 
 class DirectorRunPayload(BaseModel):
@@ -971,6 +973,9 @@ class DirectorRunPayload(BaseModel):
     directorStyle: str = ""
     wardrobe: list[str] = []
     planReview: bool = False
+    aspect: str = "16:9"
+    beats: list[float] | None = None
+    lyricsWordCount: int | None = None
     shots: list[DirectorShotPayload]
 
 

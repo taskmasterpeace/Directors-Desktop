@@ -445,6 +445,7 @@ export interface Timeline {
   markers?: TimelineMarker[]
   /** Sequence aspect — drives the program monitor frame and export defaults. */
   aspectRatio?: TimelineAspect
+  beats?: number[]  // #71: beat grid (seconds) — from Director import; snap + ruler ticks
 }
 
 /** A story/context document attached to the project — any format, verbatim. */

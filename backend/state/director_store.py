@@ -89,6 +89,8 @@ class DirectorRun:
     # #62: pause after (free) analysis so the creator reviews/edits the shot
     # list before any points or GPU time are spent.
     plan_review: bool = False
+    # #70: output aspect for the whole run — plan, keyframes, render, assembly.
+    aspect: str = "16:9"
 
     @property
     def is_terminal(self) -> bool:
@@ -118,6 +120,7 @@ class DirectorStore:
         director_style: str = "",
         wardrobe: list[str] | None = None,
         plan_review: bool = False,
+        aspect: str = "16:9",
     ) -> DirectorRun:
         run = DirectorRun(
             id=f"dir_{uuid.uuid4().hex[:10]}",
@@ -135,6 +138,7 @@ class DirectorStore:
             director_style=director_style,
             wardrobe=wardrobe or [],
             plan_review=plan_review,
+            aspect=aspect,
         )
         with self._lock:
             self._runs.append(run)

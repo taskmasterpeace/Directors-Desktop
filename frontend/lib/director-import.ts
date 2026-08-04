@@ -18,6 +18,8 @@ export interface DirectorRunForImport {
   audioPath: string
   songSeconds: number | null
   sections: { start: number; end: number; label: string }[] | null
+  aspect?: string
+  beats?: number[] | null
   shots: {
     index: number
     start: number
@@ -141,5 +143,7 @@ export function directorRunToTimeline(run: DirectorRunForImport): Timeline {
     clips,
     subtitles: [],
     markers,
+    aspectRatio: run.aspect === '9:16' ? '9:16' : '16:9',
+    beats: run.beats ?? undefined,
   }
 }

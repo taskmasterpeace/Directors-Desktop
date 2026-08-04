@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable
 
 from _routes._errors import HTTPError
-from server_utils.shot_planner import plan_shots
+from server_utils.shot_planner import draft_concept, plan_shots
 from services.audio_analysis import AudioAnalysis, AudioAnalyzer, AudioSection
 from services.video_assembler import AssemblyShot, VideoAssembler
 from state.director_store import DirectorRun, DirectorStore
@@ -74,18 +74,21 @@ class DirectorHandler:
         director_style: str = "",
         wardrobe: list[str] | None = None,
         plan_review: bool = False,
+        aspect: str = "16:9",
         run_thread: bool = True,
     ) -> DirectorRun:
         if not Path(audio_path).is_file():
             raise HTTPError(400, f"Song file not found: {audio_path}")
-        if not concept.strip():
-            raise HTTPError(400, "A concept is required — one line about the video's world.")
+        # #72: concept is optional — a blank one is drafted from the song
+        # itself during analysis ('Surprise me').
         if model.startswith("seedance") and self._fal_key_check is not None and not self._fal_key_check():
             raise HTTPError(
                 400,
                 "FAL_API_KEY_REQUIRED: Seedance renders on fal. Add your fal API key in "
                 "Settings before starting a Director run.",
             )
+        if aspect not in ("16:9", "9:16"):
+            raise HTTPError(400, f"Unsupported aspect: {aspect} (16:9 or 9:16)")
         run = self._store.create_run(
             audio_path=audio_path,
             concept=concept.strip(),
@@ -100,6 +103,7 @@ class DirectorHandler:
             director_style=director_style,
             wardrobe=wardrobe,
             plan_review=plan_review,
+            aspect=aspect,
         )
         if run_thread:
             self._launch_thread(run.id)
@@ -288,6 +292,18 @@ class DirectorHandler:
                 run.lyrics = self._transcribe_fn(run.audio_path)
             except Exception:
                 run.lyrics = None
+        if not run.concept.strip():
+            words = [
+                str(line.get("text", ""))
+                for line in (run.lyrics or [])
+                if isinstance(line, dict)
+            ]
+            sections_energy = [sec.energy for sec in analysis.sections] or [0.0]
+            run.concept = draft_concept(
+                analysis.tempo_bpm,
+                sum(sections_energy) / len(sections_energy),
+                " ".join(words).split(),
+            )
         from server_utils.director_styles import get_director_style
 
         style = get_director_style(run.director_style)
@@ -338,10 +354,11 @@ class DirectorHandler:
                 )
                 image_params: dict[str, object] = {
                     "prompt": (
-                        f"{shot.prompt}. Cinematic film still, 16:9, true body proportions."
+                        f"{shot.prompt}. Cinematic film still, {run.aspect}, true body proportions."
                         f"{keyframe_suffix}"
                     ),
                     "numImages": 1,
+                    "aspectRatio": run.aspect,
                 }
                 if run.reference_image_paths:
                     image_params["referenceImagePaths"] = list(run.reference_image_paths)
@@ -403,6 +420,7 @@ class DirectorHandler:
                     "duration": str(shot.generate_seconds),
                     "resolution": run.resolution,
                     "audio": "false",
+                    "aspectRatio": run.aspect,
                 }
                 if shot.keyframe_path:
                     # Storyboard mode: the approved keyframe seeds the video

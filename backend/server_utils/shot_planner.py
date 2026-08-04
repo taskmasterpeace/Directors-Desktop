@@ -419,3 +419,38 @@ def plan_shots(
         )
         shots = head + [merged]
     return shots
+
+
+_DRAFT_STOPWORDS = frozenset(
+    "the a an and or but of to in on at for with is are was were be been i you he she it we "
+    "they me my your his her its our their this that these those so no not do does did dont "
+    "cant wont im its na la oh yeah uh huh got get like just".split()
+)
+
+
+def draft_concept(
+    tempo_bpm: float, avg_energy: float, lyric_words: list[str]
+) -> str:
+    """#72 'Surprise me': when the creator gives no concept, draft one from the
+    song itself. Pure + deterministic — same song, same concept."""
+    if tempo_bpm >= 132:
+        pace, world = "high-velocity", "strobing warehouse party, bodies in motion"
+    elif tempo_bpm >= 104:
+        pace, world = "confident mid-tempo", "neon-lit city streets after rain"
+    elif tempo_bpm >= 84:
+        pace, world = "head-nod groove", "golden-hour rooftops over the city"
+    else:
+        pace, world = "slow-burn", "moody late-night interiors, haze and practical lights"
+    mood = "peaking hard" if avg_energy >= 0.66 else ("building steadily" if avg_energy >= 0.33 else "kept intimate")
+
+    counts: dict[str, int] = {}
+    for raw in lyric_words:
+        word = "".join(ch for ch in raw.lower() if ch.isalpha())
+        if len(word) < 3 or word in _DRAFT_STOPWORDS:
+            continue
+        counts[word] = counts.get(word, 0) + 1
+    top = [w for w, _ in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[:3]]
+    if top:
+        themes = ", ".join(f"'{w}'" for w in top)
+        return f"A {pace} music video set in {world}, energy {mood}, themes of {themes}"
+    return f"A {pace} instrumental visual set in {world}, energy {mood}"

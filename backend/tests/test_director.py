@@ -128,18 +128,17 @@ def test_start_validates_inputs(test_state, tmp_path: Path):
     except HTTPError as e:
         assert e.status_code == 400
 
+    # #72: a blank concept is now ALLOWED — it gets drafted from the song
+    # during analysis (see test_blank_concept_gets_drafted_from_the_song).
     handler.state.app_settings.fal_api_key = "test-fal-key"
-    try:
-        handler.director.start(
-            audio_path=_make_song(tmp_path),
-            concept="   ",
-            model="seedance-2.0",
-            resolution="720p",
-            run_thread=False,
-        )
-        raise AssertionError("expected HTTPError")
-    except HTTPError as e:
-        assert e.status_code == 400
+    run = handler.director.start(
+        audio_path=_make_song(tmp_path),
+        concept="   ",
+        model="seedance-2.0",
+        resolution="720p",
+        run_thread=False,
+    )
+    assert run.phase == "analyzing"
 
 
 def test_local_model_runs_on_gpu_slot_with_per_shot_audio(test_state, tmp_path: Path):
@@ -165,6 +164,65 @@ def test_local_model_runs_on_gpu_slot_with_per_shot_audio(test_state, tmp_path: 
         assert abs(float(job.params["audioStartTime"]) - shot.start) < 0.01
         assert float(job.params["audioMaxDuration"]) >= (shot.end - shot.start) - 0.01
         assert "referenceImagePaths" not in job.params
+
+
+def test_aspect_rides_every_job_and_surface(test_state, client, tmp_path: Path):
+    handler = test_state
+    handler.state.app_settings.fal_api_key = "test-fal-key"
+    run = handler.director.start(
+        audio_path=_make_song(tmp_path),
+        concept="vertical",
+        model="seedance-2.0",
+        resolution="720p",
+        storyboard=True,
+        approval="auto",
+        aspect="9:16",
+        run_thread=False,
+    )
+    handler.director.step(run.id)  # analyze
+    handler.director.step(run.id)  # storyboard submit
+    image_jobs = [j for j in handler.job_queue.all_jobs() if "keyframe" in j.tags]
+    assert image_jobs and all(j.params.get("aspectRatio") == "9:16" for j in image_jobs)
+    assert all("9:16" in str(j.params.get("prompt", "")) for j in image_jobs)
+    _complete_keyframe_jobs(handler, tmp_path)
+    handler.director.step(run.id)  # keyframes land -> generating
+    handler.director.step(run.id)  # submit videos
+    video_jobs = [j for j in handler.job_queue.all_jobs() if j.type == "video" and "director" in j.tags]
+    assert video_jobs and all(j.params.get("aspectRatio") == "9:16" for j in video_jobs)
+    status = client.get(f"/api/director/status?runId={run.id}").json()["run"]
+    assert status["aspect"] == "9:16"
+
+    denied = handler.director
+    try:
+        denied.start(
+            audio_path=_make_song(tmp_path),
+            concept="x",
+            model="seedance-2.0",
+            resolution="720p",
+            aspect="4:3",
+            run_thread=False,
+        )
+        raise AssertionError("bad aspect accepted")
+    except Exception as exc:
+        assert "aspect" in str(exc).lower()
+
+
+def test_blank_concept_gets_drafted_from_the_song(test_state, client, tmp_path: Path):
+    handler = test_state
+    run = handler.director.start(
+        audio_path=_make_song(tmp_path),
+        concept="   ",
+        model="ltx-fast",
+        resolution="720p",
+        run_thread=False,
+    )
+    handler.director.step(run.id)
+    assert run.concept.strip(), "concept was not drafted"
+    assert run.shots and all(run.concept.split(",")[0] for _ in run.shots)
+    status = client.get(f"/api/director/status?runId={run.id}").json()["run"]
+    # #69 surface data: beats + per-section energy ride the payload.
+    assert status["beats"], "beats missing from payload"
+    assert status["sections"] and all("energy" in sec for sec in status["sections"])
 
 
 def test_local_default_seeds_performance_shots_with_artist_ref(test_state, tmp_path: Path):

@@ -27,6 +27,13 @@ from state.director_store import DirectorRun
 router = APIRouter(prefix="/api/director", tags=["director"])
 
 
+def _beats_payload(beats: object) -> list[float] | None:
+    if not isinstance(beats, list):
+        return None
+    out = [float(b) for b in cast("list[object]", beats) if isinstance(b, (int, float))]
+    return out or None
+
+
 def _sections_payload(sections: object) -> list[DirectorSectionPayload] | None:
     if not isinstance(sections, list):
         return None
@@ -39,7 +46,15 @@ def _sections_payload(sections: object) -> list[DirectorSectionPayload] | None:
         end = record.get("end")
         label = record.get("label")
         if isinstance(start, (int, float)) and isinstance(end, (int, float)) and isinstance(label, str):
-            out.append(DirectorSectionPayload(start=float(start), end=float(end), label=label))
+            energy = record.get("energy")
+            out.append(
+                DirectorSectionPayload(
+                    start=float(start),
+                    end=float(end),
+                    label=label,
+                    energy=float(energy) if isinstance(energy, (int, float)) else 0.0,
+                )
+            )
     return out or None
 
 
@@ -69,6 +84,13 @@ def _to_payload(run: DirectorRun) -> DirectorRunPayload:
         directorStyle=run.director_style,
         wardrobe=list(run.wardrobe),
         planReview=run.plan_review,
+        aspect=run.aspect,
+        beats=_beats_payload(analysis.get("beats")),
+        lyricsWordCount=(
+            sum(len(str(line.get("text", "")).split()) for line in run.lyrics if isinstance(line, dict))
+            if run.lyrics is not None
+            else None
+        ),
         shots=[
             DirectorShotPayload(
                 index=s.index,
@@ -109,6 +131,7 @@ def route_start_director_run(
         director_style=request.directorStyle,
         wardrobe=request.wardrobe or None,
         plan_review=request.planReview,
+        aspect=request.aspect,
     )
     return DirectorRunResponse(run=_to_payload(run))
 

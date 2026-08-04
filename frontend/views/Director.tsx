@@ -47,13 +47,16 @@ interface DirectorRun {
   tempoBpm: number | null
   songSeconds: number | null
   sectionCount: number | null
-  sections: { start: number; end: number; label: string }[] | null
+  sections: { start: number; end: number; label: string; energy: number }[] | null
   storyboard: boolean
   approval: 'auto' | 'approve'
   treatment: string
   artistName: string
   directorStyle: string
   planReview: boolean
+  aspect: string
+  beats: number[] | null
+  lyricsWordCount: number | null
   shots: DirectorShot[]
 }
 
@@ -106,9 +109,13 @@ export function Director() {
   const [mannequins, setMannequins] = useState<[{ path?: string; jobId?: string }, { path?: string; jobId?: string }, { path?: string; jobId?: string }]>([{}, {}, {}])
   const [redoSelection, setRedoSelection] = useState<Set<number>>(new Set())
   const [previewShot, setPreviewShot] = useState<DirectorShot | null>(null)
+  // #69: which section of the song is being auditioned (click a block to hear it)
+  const [audition, setAudition] = useState<{ start: number; end: number; index: number } | null>(null)
+  const auditionRef = useRef<HTMLAudioElement | null>(null)
   const [planEdits, setPlanEdits] = useState<Record<number, string>>({})
   const [rerollSelection, setRerollSelection] = useState<Set<number>>(new Set())
   const [resolution, setResolution] = useState('720p')
+  const [aspect, setAspect] = useState('16:9')
   const [referencePaths, setReferencePaths] = useState<string[]>([])
   const [run, setRun] = useState<DirectorRun | null>(null)
   const [gpu, setGpu] = useState<{ name: string; vramGb: number } | null>(null)
@@ -212,7 +219,7 @@ export function Director() {
   }, [])
 
   const start = useCallback(async () => {
-    if (!audioPath || !concept.trim() || starting) return
+    if (!audioPath || starting) return
     setStarting(true)
     setStartError(null)
     try {
@@ -225,6 +232,7 @@ export function Director() {
           concept: concept.trim(),
           model,
           resolution,
+          aspect,
           referenceImagePaths: [
             ...referencePaths,
             ...mannequins.map((m) => m.path).filter((p): p is string => Boolean(p)),
@@ -252,7 +260,7 @@ export function Director() {
     } finally {
       setStarting(false)
     }
-  }, [audioPath, concept, model, resolution, referencePaths, mannequins, treatment, artistName, storyboard, approval, imageModel, directorStyle, wardrobe, planReview, starting])
+  }, [audioPath, concept, model, resolution, aspect, referencePaths, mannequins, treatment, artistName, storyboard, approval, imageModel, directorStyle, wardrobe, planReview, starting])
 
   const post = useCallback(async (endpoint: 'cancel' | 'resume') => {
     if (!runIdRef.current) return
@@ -504,12 +512,12 @@ export function Director() {
           </div>
 
           <div>
-            <label className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Concept</label>
+            <label className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Concept — optional</label>
             <textarea
               value={concept}
               onChange={(e) => setConcept(e.target.value)}
               disabled={isActive}
-              placeholder="One line about the video's world — e.g. 'neon-soaked rooftop chase at midnight, chrome and rain'"
+              placeholder="One line about the video's world — or leave blank and the Director drafts one from the song itself"
               className="mt-1.5 w-full h-24 rounded-lg border border-zinc-700 bg-zinc-900 p-2.5 text-sm text-zinc-200 resize-y disabled:opacity-50"
             />
           </div>
@@ -698,6 +706,18 @@ export function Director() {
                 ))}
               </select>
             </div>
+            <div>
+              <label className="text-xs text-zinc-500 uppercase tracking-wider font-semibold">Format</label>
+              <select
+                value={aspect}
+                onChange={(e) => setAspect(e.target.value)}
+                disabled={isActive}
+                className="mt-1.5 w-full rounded-lg border border-zinc-700 bg-zinc-900 px-2 py-2 text-xs text-zinc-200 disabled:opacity-50"
+              >
+                <option value="16:9">16:9 — YouTube / screens</option>
+                <option value="9:16">9:16 — TikTok / Reels / Shorts</option>
+              </select>
+            </div>
           </div>
 
           <div>
@@ -731,7 +751,7 @@ export function Director() {
 
           <button
             onClick={start}
-            disabled={!audioPath || !concept.trim() || starting || isActive}
+            disabled={!audioPath || starting || isActive}
             className="w-full flex items-center justify-center gap-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-zinc-950 font-semibold py-2.5 text-sm transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Play className="h-4 w-4" />
@@ -831,7 +851,92 @@ export function Director() {
                   {run.sectionCount != null && (
                     <span className="px-2 py-1 rounded-md bg-zinc-800 text-zinc-300">{run.sectionCount} sections</span>
                   )}
+                  <span className="px-2 py-1 rounded-md bg-zinc-800 text-zinc-300">
+                    {run.lyricsWordCount != null ? `lyrics: ${run.lyricsWordCount} words` : 'no lyrics detected'}
+                  </span>
                   <span className="px-2 py-1 rounded-md bg-zinc-800 text-zinc-300">{run.shots.length} shots</span>
+                </div>
+              )}
+
+              {/* #69: the song map — sections colored + labeled, energy as height,
+                  click a block to HEAR that part; shots aligned beneath on the
+                  same time scale. The musician finally sees their song. */}
+              {run.sections && run.sections.length > 0 && run.songSeconds != null && run.songSeconds > 0 && (
+                <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] text-zinc-400 font-medium">Song map — click a section to hear it</span>
+                    {audition && (
+                      <button
+                        onClick={() => { auditionRef.current?.pause(); setAudition(null) }}
+                        className="text-[10px] text-amber-300 hover:text-amber-200"
+                      >
+                        ■ stop
+                      </button>
+                    )}
+                  </div>
+                  <div className="relative h-12 flex items-end gap-px">
+                    {run.sections.map((sec, i) => {
+                      const width = ((sec.end - sec.start) / run.songSeconds!) * 100
+                      const isChorus = sec.label.toLowerCase().includes('chorus')
+                      const active = audition?.index === i
+                      return (
+                        <button
+                          key={i}
+                          title={`${sec.label} · ${sec.start.toFixed(0)}–${sec.end.toFixed(0)}s — click to audition`}
+                          onClick={() => {
+                            const el = auditionRef.current
+                            if (!el) return
+                            if (active) { el.pause(); setAudition(null); return }
+                            el.currentTime = sec.start
+                            void el.play()
+                            setAudition({ start: sec.start, end: sec.end, index: i })
+                          }}
+                          className={`relative rounded-t-sm transition-colors ${
+                            active
+                              ? 'bg-amber-400'
+                              : isChorus
+                                ? 'bg-amber-500/70 hover:bg-amber-400/80'
+                                : 'bg-zinc-600/80 hover:bg-zinc-500'
+                          } ${active ? 'animate-pulse' : ''}`}
+                          style={{ width: `${width}%`, height: `${Math.max(20, Math.round(sec.energy * 100))}%` }}
+                        >
+                          {width > 6 && (
+                            <span className="absolute inset-x-0 -bottom-0.5 text-center text-[8px] leading-none text-zinc-950/90 font-semibold truncate px-0.5">
+                              {sec.label}
+                            </span>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {run.shots.length > 0 && (
+                    <div className="relative h-2 mt-1.5 rounded-sm bg-zinc-800/60 overflow-hidden">
+                      {run.shots.map((sh) => (
+                        <div
+                          key={sh.index}
+                          className={`absolute top-0 h-full ${SHOT_COLOR[sh.status].split(' ')[0]}`}
+                          style={{
+                            left: `${(sh.start / run.songSeconds!) * 100}%`,
+                            width: `${Math.max(0.4, ((sh.end - sh.start) / run.songSeconds!) * 100 - 0.15)}%`,
+                          }}
+                          title={`#${sh.index + 1} · ${sh.sectionLabel}`}
+                        />
+                      ))}
+                    </div>
+                  )}
+                  <audio
+                    ref={auditionRef}
+                    src={toImgSrc(run.audioPath)}
+                    onTimeUpdate={(e) => {
+                      const el = e.currentTarget
+                      if (audition && el.currentTime >= audition.end) {
+                        el.pause()
+                        setAudition(null)
+                      }
+                    }}
+                    onEnded={() => setAudition(null)}
+                    className="hidden"
+                  />
                 </div>
               )}
 
