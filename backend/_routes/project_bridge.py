@@ -36,7 +36,11 @@ def route_current_project(
     handler: AppHandler = Depends(get_state_service),
 ) -> ProjectCurrentResponse:
     project, published_at = handler.project_bridge.current()
-    return ProjectCurrentResponse(project=project, publishedAt=published_at)
+    return ProjectCurrentResponse(
+        project=project,
+        publishedAt=published_at,
+        editorLive=handler.project_bridge.is_editor_live(),
+    )
 
 
 @router.get("/transcript", response_model=ProjectTranscriptResponse)

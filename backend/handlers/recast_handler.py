@@ -8,6 +8,7 @@ Gallery and can come back as a take on the source asset).
 
 from __future__ import annotations
 
+import logging
 import shutil
 import subprocess
 import tempfile
@@ -22,6 +23,8 @@ from services.upload_client.upload_client import UploadClient
 
 if TYPE_CHECKING:
     from state.app_state_types import AppState
+
+logger = logging.getLogger(__name__)
 
 _IMAGE_CONTENT_TYPES = {
     ".png": "image/png",
@@ -106,6 +109,16 @@ class RecastHandler:
         if isinstance(trim_start, (int, float)) and isinstance(trim_duration, (int, float)) and trim_duration > 0:
             segment_path = self._extract_segment(video_path, float(trim_start), float(trim_duration))
             video_path = segment_path
+        else:
+            # No trim window: the ENTIRE source file is uploaded and billed per
+            # second. Fine for a clip that IS the take, expensive if it's a short
+            # cut from a long one. Warn so an accidental omission is visible in
+            # logs rather than only on the invoice.
+            logger.warning(
+                "Recast has no trim window — uploading and billing the whole file "
+                "(%s). Pass trimStart+trimDuration to bill only the clip.",
+                video_path,
+            )
 
         try:
             video_file = Path(video_path)

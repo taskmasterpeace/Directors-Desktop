@@ -146,3 +146,65 @@ def test_publish_persists_to_disk_and_reloads(tmp_path: Path):
     project, published_at = reloaded.current()
     assert project == {"id": "persisted"}
     assert published_at is not None
+
+
+# --- #13 publish is defensively copied; editor-live signal -------------------
+
+def test_publish_deep_copies_so_the_caller_cannot_mutate_the_snapshot(tmp_path: Path):
+    from handlers.project_bridge_handler import ProjectBridgeHandler
+
+    handler = ProjectBridgeHandler(persistence_path=tmp_path / "rm.json")
+    project = {"id": "p", "timelines": [{"id": "t", "clips": []}]}
+    handler.publish(project)
+
+    # Mutate the dict we handed in; the stored snapshot must not change.
+    project["timelines"][0]["clips"].append({"id": "sneaky"})  # type: ignore[index]
+    stored, _ = handler.current()
+    assert stored is not None
+    assert stored["timelines"][0]["clips"] == []  # type: ignore[index]
+
+
+def test_editor_live_reflects_snapshot_freshness(tmp_path: Path):
+    from handlers.project_bridge_handler import ProjectBridgeHandler, EDITOR_LIVE_MAX_AGE_SECONDS
+
+    handler = ProjectBridgeHandler(persistence_path=tmp_path / "rm.json")
+    assert handler.is_editor_live() is False  # nothing published yet
+
+    published_at = handler.publish({"id": "p"})
+    assert handler.is_editor_live(now=published_at + 1.0) is True
+    assert handler.is_editor_live(now=published_at + EDITOR_LIVE_MAX_AGE_SECONDS + 1) is False
+
+
+def test_current_route_exposes_editor_live(client):
+    client.post("/api/project/publish", json={"project": {"id": "p"}})
+    body = client.get("/api/project/current").json()
+    assert body["editorLive"] is True
+
+
+# --- #18 action queue is bounded even when nothing ever finishes -------------
+
+def test_action_queue_is_hard_capped_when_the_renderer_never_reports(tmp_path: Path):
+    from handlers.project_bridge_handler import ProjectBridgeHandler, MAX_ACTIONS_HARD
+
+    handler = ProjectBridgeHandler(persistence_path=tmp_path / "rm.json")
+    # Flood far past the hard cap; deliver them all but never report a result.
+    for _ in range(MAX_ACTIONS_HARD + 300):
+        handler.submit_actions([{"kind": "add_marker"}])
+        handler.pending_actions()  # marks them "delivered", never "applied"
+
+    assert len(handler.action_statuses()) <= MAX_ACTIONS_HARD, (
+        "queue must stay bounded even if no action ever finishes"
+    )
+
+
+def test_still_queued_actions_are_shed_last(tmp_path: Path):
+    from handlers.project_bridge_handler import ProjectBridgeHandler, MAX_ACTIONS_HARD
+
+    handler = ProjectBridgeHandler(persistence_path=tmp_path / "rm.json")
+    # A batch of delivered records, then a fresh queued one on top.
+    for _ in range(MAX_ACTIONS_HARD + 50):
+        handler.submit_actions([{"kind": "add_marker"}])
+        handler.pending_actions()
+    fresh = handler.submit_actions([{"kind": "delete_marker"}])[0]
+    # The just-submitted (still queued) action must survive the shedding.
+    assert any(r["id"] == fresh for r in handler.action_statuses())

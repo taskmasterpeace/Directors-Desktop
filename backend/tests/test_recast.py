@@ -140,3 +140,23 @@ def test_recast_validates_files(test_state, tmp_path: Path):
         raise AssertionError("expected HTTPError")
     except HTTPError as e:
         assert e.status_code == 400
+
+
+def test_recast_without_trim_warns_that_it_bills_the_whole_file(test_state, tmp_path: Path, caplog):
+    # #14: no trim window -> the entire source is uploaded and billed per second.
+    # That's correct when the clip IS the take, costly when it's a short cut, so
+    # it must be visible in logs rather than only on the invoice.
+    import logging
+
+    handler = test_state
+    handler.state.app_settings.fal_api_key = "test-fal-key"
+    video, image = _files(tmp_path)
+
+    with caplog.at_level(logging.WARNING):
+        handler.recast.execute(
+            "wan-animate-replace",
+            {"videoPath": video, "characterImagePath": image},  # no trimStart/trimDuration
+        )
+    assert any("whole file" in r.message for r in caplog.records)
+    # The whole file went up — no segment extraction happened.
+    assert handler.fal_upload_client.calls[0]["file_name"] == "scene.mp4"

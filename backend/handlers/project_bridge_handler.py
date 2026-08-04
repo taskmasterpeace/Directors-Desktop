@@ -9,7 +9,9 @@ per-action status. This handler never mutates the project itself.
 
 from __future__ import annotations
 
+import copy
 import json
+import logging
 import os
 import threading
 import time
@@ -17,7 +19,17 @@ import uuid
 from pathlib import Path
 from typing import cast
 
+logger = logging.getLogger(__name__)
+
+# The renderer autosaves roughly once a second while the editor is open. If the
+# newest snapshot is older than this, treat the editor as not live so an agent
+# doesn't edit a stale project it can no longer see the user working in.
+EDITOR_LIVE_MAX_AGE_SECONDS = 5.0
+
 MAX_ACTIONS_KEPT = 200
+# Absolute ceiling regardless of status. Reached only if the renderer stops
+# reporting entirely (editor closed), so crossing it is worth a warning.
+MAX_ACTIONS_HARD = 1000
 
 REPORTABLE_STATUSES = ("applied", "rejected")
 
@@ -71,7 +83,12 @@ class ProjectBridgeHandler:
             # Timestamp inside the lock: overlapping publishes commit in lock
             # order, so publishedAt never moves backwards.
             published_at = time.time()
-            self._snapshot = project
+            # Deep-copy to sever the snapshot from the caller's dict. The route
+            # currently hands over a freshly deserialised body, so aliasing is
+            # latent today — but a future in-process caller mutating what it
+            # published (or a reader mutating current()) would silently corrupt
+            # the mirror. The copy makes the store own its state unconditionally.
+            self._snapshot = copy.deepcopy(project)
             self._published_at = published_at
             try:
                 self._persistence_path.parent.mkdir(parents=True, exist_ok=True)
@@ -88,6 +105,19 @@ class ProjectBridgeHandler:
     def current(self) -> tuple[dict[str, object] | None, float | None]:
         with self._lock:
             return self._snapshot, self._published_at
+
+    def is_editor_live(self, now: float | None = None) -> bool:
+        """Whether the editor is actively publishing (snapshot is fresh).
+
+        The read-model previously exposed only publishedAt, leaving an agent to
+        guess whether the user is still in the editor. A stale snapshot means
+        edits queued through the bridge may never be seen or applied.
+        """
+        with self._lock:
+            if self._published_at is None:
+                return False
+            reference = now if now is not None else time.time()
+            return (reference - self._published_at) < EDITOR_LIVE_MAX_AGE_SECONDS
 
     # ── Derived read-model views ──────────────────────────────────────────
 
@@ -192,6 +222,29 @@ class ProjectBridgeHandler:
                         continue
                     kept.append(record)
                 self._actions = kept
+
+            # Hard ceiling: if the renderer never reports (editor closed mid-run),
+            # nothing is ever "finished", so the finished-only eviction above frees
+            # nothing and the list grew unbounded past MAX_ACTIONS_KEPT. Beyond the
+            # hard cap, shed oldest DELIVERED records (already handed over — a late
+            # report is unlikely) before ever touching still-queued ones.
+            over_hard = len(self._actions) - MAX_ACTIONS_HARD
+            if over_hard > 0:
+                logger.warning(
+                    "Bridge action queue past hard cap (%d) — renderer not reporting; "
+                    "dropping %d oldest delivered/queued records",
+                    MAX_ACTIONS_HARD, over_hard,
+                )
+                for status in ("delivered", "queued"):
+                    if over_hard <= 0:
+                        break
+                    survivors: list[dict[str, object]] = []
+                    for record in self._actions:
+                        if over_hard > 0 and record.get("status") == status:
+                            over_hard -= 1
+                            continue
+                        survivors.append(record)
+                    self._actions = survivors
         return ids
 
     def pending_actions(self) -> list[dict[str, object]]:
