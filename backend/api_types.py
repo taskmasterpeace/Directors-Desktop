@@ -84,6 +84,9 @@ class HealthResponse(BaseModel):
     status: str
     models_loaded: bool
     active_model: str | None
+    # VRAM residency of the active video pipeline: "cold" | "warming" | "warm".
+    # Distinct from models_status[].downloaded, which is only about disk.
+    warmth: str = "cold"
     gpu_info: GpuTelemetry
     sage_attention: bool
     models_status: list[ModelStatusItem]

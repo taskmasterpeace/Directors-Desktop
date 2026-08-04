@@ -1,10 +1,18 @@
 import { useState, useEffect, useCallback } from 'react'
 import { logger } from '../lib/logger'
 import { resetBackendInfo } from '../lib/backend-auth'
+import type { ModelWarmth } from '../lib/generation-cost'
 
 interface BackendStatus {
   connected: boolean
   modelsLoaded: boolean
+  /**
+   * VRAM residency of the active video pipeline — NOT the same as downloaded.
+   * A model on disk still costs ~9 minutes to load, and only one fits at a
+   * time, so the UI prices that in before the user commits.
+   */
+  warmth: ModelWarmth
+  activeModel: string | null
   gpuInfo: {
     name: string
     vram: number
@@ -58,6 +66,8 @@ export function useBackend(): UseBackendReturn {
   const [status, setStatus] = useState<BackendStatus>({
     connected: false,
     modelsLoaded: false,
+    warmth: 'cold',
+    activeModel: null,
     gpuInfo: null,
   })
   const [models, setModels] = useState<ModelStatus[]>([])
@@ -78,6 +88,8 @@ export function useBackend(): UseBackendReturn {
         setStatus({
           connected: true,
           modelsLoaded: data.models_loaded,
+          warmth: (data.warmth as ModelWarmth) ?? 'cold',
+          activeModel: data.active_model ?? null,
           gpuInfo: data.gpu_info,
         })
         setError(null)
