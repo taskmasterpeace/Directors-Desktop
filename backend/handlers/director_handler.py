@@ -12,8 +12,8 @@ analyzing -> generating -> assembling -> complete | error | cancelled
 
 from __future__ import annotations
 
+import logging
 import threading
-import time
 from dataclasses import asdict
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable
@@ -26,6 +26,8 @@ from state.director_store import DirectorRun, DirectorStore
 
 if TYPE_CHECKING:
     from state.job_queue import JobQueue
+
+logger = logging.getLogger(__name__)
 
 _MAX_SHOT_RETRIES = 1
 _STEP_INTERVAL_SECONDS = 1.5
@@ -53,6 +55,9 @@ class DirectorHandler:
         self._fal_key_check = fal_key_check
         self._slot_for_model = slot_for_model
         self._threads: dict[str, threading.Thread] = {}
+        # Set by shutdown() so driving threads stop promptly instead of leaking
+        # into whatever runs next (tests, or a backend restart).
+        self._shutting_down = threading.Event()
         self._cancel_flags: set[str] = set()
         self._lock = threading.Lock()
 
@@ -144,6 +149,16 @@ class DirectorHandler:
                         shot.status = "complete"
                         shot.result_path = job.result_paths[0]
                         continue
+                    if job is None:
+                        # Director jobs are retained precisely so this cannot happen
+                        # (see JobQueue._prune_finished). If it still does, the shot
+                        # was submitted — and possibly billed — but we can no longer
+                        # tell. Say so loudly rather than silently paying twice.
+                        logger.warning(
+                            "Director run %s shot %s: job %s is missing from the queue; "
+                            "resubmitting may incur a second charge",
+                            run.id, shot.index, shot.job_id,
+                        )
                 if shot.status in ("submitted", "error"):
                     shot.status = "pending"
                     shot.job_id = None
@@ -534,8 +549,26 @@ class DirectorHandler:
             self._threads[run_id] = thread
             thread.start()
 
+    def shutdown(self, timeout: float = 5.0) -> None:
+        """Stop every driving thread and wait for them to exit.
+
+        Without this the daemon threads outlive whatever created the handler.
+        In the suite that meant ~16 live director threads per run, all still
+        stepping shared state while later tests executed — the most likely
+        source of the intermittent full-suite failure. Daemon status only
+        saves the process at exit; it does nothing for isolation.
+        """
+        self._shutting_down.set()
+        with self._lock:
+            threads = list(self._threads.values())
+        for thread in threads:
+            if thread.is_alive():
+                thread.join(timeout=timeout)
+        with self._lock:
+            self._threads.clear()
+
     def _drive(self, run_id: str) -> None:
-        while True:
+        while not self._shutting_down.is_set():
             run = self._store.get_run(run_id)
             if run is None or run.is_terminal:
                 return
@@ -546,7 +579,10 @@ class DirectorHandler:
             if run.phase in ("awaiting_approval", "plan_ready"):
                 return  # human's turn — the approve endpoints relaunch the thread
             if run.phase in ("generating", "storyboarding"):
-                time.sleep(_STEP_INTERVAL_SECONDS)
+                # Wait on the event rather than sleeping so shutdown is prompt
+                # instead of blocking for a full step interval per thread.
+                if self._shutting_down.wait(_STEP_INTERVAL_SECONDS):
+                    return
 
     def _is_cancelled(self, run_id: str) -> bool:
         with self._lock:

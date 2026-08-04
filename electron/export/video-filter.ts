@@ -1,4 +1,13 @@
 import type { FlatSegment } from './timeline'
+import type { FontSet } from './fonts'
+
+/**
+ * ffmpeg parses `:` as an option separator and `\` as an escape even inside
+ * quotes, so a Windows font path needs both neutralised.
+ */
+function escapeFontPath(p: string): string {
+  return p.replace(/\\/g, '/').replace(/:/g, '\\\\:')
+}
 
 export interface ExportSubtitle {
   text: string; startTime: number; endTime: number;
@@ -15,9 +24,11 @@ export function buildVideoFilterGraph(
     width: number; height: number; fps: number;
     letterbox?: { ratio: number; color: string; opacity: number };
     subtitles?: ExportSubtitle[];
+    /** Font files per style, resolved by the caller (see ./fonts). */
+    fonts?: FontSet;
   },
 ): { inputs: string[]; filterScript: string } {
-  const { width, height, fps, letterbox, subtitles } = opts
+  const { width, height, fps, letterbox, subtitles, fonts } = opts
   const inputs: string[] = []
   const filterParts: string[] = []
   let idx = 0
@@ -129,7 +140,25 @@ export function buildVideoFilterGraph(
         boxPart = `:box=1:boxcolor=${bgColor}@${bgAlpha}:boxborderw=8`
       }
 
-      const dtFilter = `drawtext=text='${escapedText}':fontsize=${fontSize}:fontcolor=${fontColor}:x=(w-text_w)/2:y=${yExpr}${boxPart}:enable='between(t\\,${sub.startTime.toFixed(3)}\\,${sub.endTime.toFixed(3)})'`
+      // Weight and slant live in the font FILE — drawtext has no bold/italic
+      // switch — so without a resolved file every preset burned in as plain
+      // regular text. When no file is available, thicken the stroke so bold at
+      // least reads as bold instead of silently disappearing.
+      const wantsBold = sub.style.fontWeight === 'bold' || Number(sub.style.fontWeight) >= 600
+      const wantsItalic = !!sub.style.italic
+      const chosenFont = wantsBold && wantsItalic
+        ? fonts?.boldItalic ?? fonts?.bold
+        : wantsBold
+          ? fonts?.bold
+          : wantsItalic
+            ? fonts?.italic
+            : fonts?.regular
+      const fontPart = chosenFont ? `:fontfile='${escapeFontPath(chosenFont)}'` : ''
+      const fauxBold = wantsBold && !chosenFont
+        ? `:borderw=${Math.max(1, Math.round(fontSize / 18))}:bordercolor=${fontColor}`
+        : ''
+
+      const dtFilter = `drawtext=text='${escapedText}':fontsize=${fontSize}:fontcolor=${fontColor}${fontPart}${fauxBold}:x=(w-text_w)/2:y=${yExpr}${boxPart}:enable='between(t\\,${sub.startTime.toFixed(3)}\\,${sub.endTime.toFixed(3)})'`
 
       filterParts.push(`[${lastLabel}]${dtFilter}[${nextLabel}]`)
       lastLabel = nextLabel

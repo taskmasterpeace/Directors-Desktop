@@ -91,6 +91,14 @@ class JobQueue:
         Caller holds self._lock. Never drops queued/running jobs, and never drops
         a finished job that still belongs to a batch with a non-terminal member
         (batch-completion notification still needs it).
+
+        Director jobs are never dropped. ``DirectorHandler.resume`` decides whether
+        a shot still owes work by looking its job up here; if the record is gone,
+        ``get_job`` returns None, the "already paid for" guards fall through, and
+        the shot is resubmitted — charging the user a second time for a render
+        they already bought. A music video is ~45 jobs against a 200 cap, so two
+        or three of them were enough to trigger it. Keeping these records costs a
+        few KB of JSON; losing them costs real money.
         """
         finished = [j for j in self._jobs if j.status in _TERMINAL]
         if len(finished) <= MAX_FINISHED_JOBS:
@@ -102,6 +110,7 @@ class JobQueue:
         droppable = [
             j for j in finished
             if not (j.batch_id and j.batch_id in active_batches)
+            and "director" not in j.tags
         ]
         excess = len(finished) - MAX_FINISHED_JOBS
         to_drop = {id(j) for j in droppable[:excess]}

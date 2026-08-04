@@ -83,6 +83,11 @@ const PRORES_PROFILES = [
 ]
 
 // Generate FCPXML for Premiere / DaVinci
+/** FCPXML wants rational time. Snap to the frame grid so hosts don't re-round. */
+function fmtTime(seconds: number, fps: number): string {
+  return `${Math.round(seconds * fps)}/${fps}s`
+}
+
 function generateFCPXML(
   clips: TimelineClip[],
   tracks: Track[],
@@ -128,14 +133,41 @@ function generateFCPXML(
       const assetId = clip.assetId || clip.id
       const startFrame = Math.round(clip.startTime * fps)
       const durFrames = Math.round(clip.duration * fps)
-      const trimStartFrame = Math.round(clip.trimStart * fps)
+      const trimStart = clip.trimStart
+      const trimStartFrame = Math.round(trimStart * fps)
       const name = clip.asset?.prompt?.slice(0, 60) || clip.importedName || 'Clip'
 
       let clipXml = `            <asset-clip ref="${escapeXml(assetId)}" name="${escapeXml(name)}" offset="${startFrame}/${fps}s" duration="${durFrames}/${fps}s" start="${trimStartFrame}/${fps}s"`
-      if (clip.speed !== 1) {
-        clipXml += ` tcFormat="NDF"`
+
+      // Retime and mute were previously dropped: `speed` only emitted a tcFormat
+      // attribute (which says nothing about rate) and `reversed`/`muted` were
+      // ignored entirely, so the hand-off silently played at 1x, forwards, loud.
+      const speed = clip.speed && clip.speed > 0 ? clip.speed : 1
+      const needsTimeMap = speed !== 1 || clip.reversed
+      const children: string[] = []
+
+      if (needsTimeMap) {
+        // A timeMap maps timeline time -> source time. Source consumed across the
+        // clip is duration * speed; a reversed clip walks that span backwards.
+        const sourceSpan = clip.duration * speed
+        const fromValue = clip.reversed ? trimStart + sourceSpan : trimStart
+        const toValue = clip.reversed ? trimStart : trimStart + sourceSpan
+        children.push(
+          `              <timeMap>`,
+          `                <timept time="0s" value="${fmtTime(fromValue, fps)}" interp="linear" />`,
+          `                <timept time="${fmtTime(clip.duration, fps)}" value="${fmtTime(toValue, fps)}" interp="linear" />`,
+          `              </timeMap>`,
+        )
       }
-      clipXml += ` />`
+      if (clip.muted) {
+        children.push(`              <adjust-volume amount="-96dB" />`)
+      }
+
+      if (children.length === 0) {
+        clipXml += ` />`
+      } else {
+        clipXml += `>\n${children.join('\n')}\n            </asset-clip>`
+      }
       clipElements.push(clipXml)
     }
 
@@ -269,7 +301,9 @@ export function ExportModal({ open, onClose, clips, tracks, timeline, projectNam
       }
 
       setExportProgress(50)
-      const xml = generateFCPXML(clips, tracks, projectName, timeline.name)
+      // F13: this defaulted to 24, so every export at another frame rate handed
+      // Premiere/DaVinci a timeline whose clips landed on the wrong frames.
+      const xml = generateFCPXML(clips, tracks, projectName, timeline.name, settings.fps)
       const result = await window.electronAPI?.saveFile(filePath, xml)
       if (result?.success) {
         setExportProgress(100)

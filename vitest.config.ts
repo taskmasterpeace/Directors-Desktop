@@ -12,7 +12,14 @@ export default defineConfig({
     // The vendored OpenReel core's own tests are NOT run here — only our smoke suite,
     // which proves the alias + deps + engines work inside DD's harness.
     environment: 'node',
-    include: ['frontend/**/*.test.ts', 'vendor/openreel-core/smoke/**/*.test.ts'],
+    // electron/ is included so the main-process export path (ffmpeg filter
+    // building) is covered too — it had no tests, which is how burned-in
+    // captions silently dropped bold/italic for five of six presets.
+    include: [
+      'frontend/**/*.test.ts',
+      'electron/**/*.test.ts',
+      'vendor/openreel-core/smoke/**/*.test.ts',
+    ],
     watch: false,
   },
 })

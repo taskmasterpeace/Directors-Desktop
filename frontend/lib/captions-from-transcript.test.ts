@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { captionsFromWords } from './captions-from-transcript'
+import { captionsFromWords , wordPopCues, WORD_POP_MIN_SECONDS } from './captions-from-transcript'
 
 const w = (text: string, start: number, end: number) => ({ text, start, end })
 
@@ -62,5 +62,49 @@ describe('captionsFromWords', () => {
     for (let i = 0; i < cues.length - 1; i++) {
       expect(cues[i].end).toBeLessThanOrEqual(cues[i + 1].start)
     }
+  })
+})
+
+describe('wordPopCues (F7 — karaoke cue overlap)', () => {
+  it('holds a short word for the minimum when there is room', () => {
+    const cues = wordPopCues([{ text: 'yo', start: 0, end: 0.02 }])
+    expect(cues[0].end).toBeCloseTo(WORD_POP_MIN_SECONDS, 6)
+  })
+
+  it('never runs a cue past the next word — the double-time rap case', () => {
+    // ~10 words/sec: gaps (0.1s) are shorter than the 0.12s floor, so the old
+    // code put two cues on screen at once for 23 of 24 words.
+    const words = Array.from({ length: 24 }, (_, i) => ({
+      text: `w${i}`, start: i * 0.1, end: i * 0.1 + 0.05,
+    }))
+    const cues = wordPopCues(words)
+    for (let i = 0; i < cues.length - 1; i++) {
+      expect(cues[i].end).toBeLessThanOrEqual(cues[i + 1].start + 1e-9)
+    }
+  })
+
+  it('lets the last word use the full minimum — nothing follows it', () => {
+    const cues = wordPopCues([
+      { text: 'a', start: 0, end: 0.05 },
+      { text: 'b', start: 0.1, end: 0.15 },
+    ])
+    expect(cues[1].end).toBeCloseTo(0.1 + WORD_POP_MIN_SECONDS, 6)
+  })
+
+  it('never emits a negative-length cue even when words overlap', () => {
+    const cues = wordPopCues([
+      { text: 'a', start: 0.5, end: 0.9 },
+      { text: 'b', start: 0.4, end: 0.8 }, // out of order / overlapping
+    ])
+    for (const c of cues) expect(c.end).toBeGreaterThanOrEqual(c.start)
+  })
+
+  it('drops whitespace-only tokens and trims the rest', () => {
+    const cues = wordPopCues([
+      { text: '  ', start: 0, end: 0.1 },
+      { text: ' hey ', start: 0.2, end: 0.3 },
+    ])
+    expect(cues).toHaveLength(1)
+    expect(cues[0].text).toBe('hey')
   })
 })

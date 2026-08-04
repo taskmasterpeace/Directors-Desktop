@@ -201,6 +201,40 @@ def test_prune_keeps_running_and_queued_jobs(tmp_path: Path) -> None:
     assert queue.get_job(running.id).status == "running"  # type: ignore[union-attr]
 
 
+def test_director_jobs_survive_pruning(tmp_path: Path) -> None:
+    """F10 — the only proven way this app could overcharge someone.
+
+    DirectorHandler.resume looks a shot's job up to decide whether it still owes
+    work. Once the record was pruned, get_job returned None, the "already paid
+    for" guards fell through, and the shot was resubmitted — billing the user a
+    second time for a render they had already bought. A music video is ~45 jobs
+    against a 200 cap, so a couple of them evicted the earlier ones.
+    """
+    from state.job_queue import MAX_FINISHED_JOBS
+
+    queue = JobQueue(persistence_path=tmp_path / "queue.json")
+    director_jobs = [
+        queue.submit(job_type="video", model="ltx-fast", params={}, slot="gpu",
+                     tags=["director", "run-abc"])
+        for _ in range(45)
+    ]
+    for job in director_jobs:
+        queue.update_job(job.id, status="complete")
+
+    # Enough unrelated finished work to blow well past the cap.
+    for _ in range(MAX_FINISHED_JOBS + 50):
+        job = queue.submit(job_type="video", model="ltx-fast", params={}, slot="gpu")
+        queue.update_job(job.id, status="complete")
+
+    for job in director_jobs:
+        assert queue.get_job(job.id) is not None, (
+            "a pruned director job makes resume() submit a second PAID job"
+        )
+    # Ordinary jobs must still be bounded — the protection is targeted, not a leak.
+    plain = [j for j in queue.get_all_jobs() if "director" not in j.tags]
+    assert len(plain) <= MAX_FINISHED_JOBS
+
+
 def test_running_jobs_reset_to_queued_on_load(tmp_path: Path) -> None:
     path = tmp_path / "queue.json"
     queue1 = JobQueue(persistence_path=path)

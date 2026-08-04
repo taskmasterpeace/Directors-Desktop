@@ -47,11 +47,12 @@ import { AssetContextMenu } from './editor/AssetContextMenu'
 import { TakeContextMenu } from './editor/TakeContextMenu'
 import { ClipPropertiesPanel } from './editor/ClipPropertiesPanel'
 import { TranscriptPanel } from '../components/TranscriptPanel'
-import { rippleDeleteSpan, sourceTimeToTimelineTime } from '../lib/transcript-ripple'
+import { rippleDeleteSpan } from '../lib/transcript-ripple'
+import { timelineDeltaToSource, sourceToTimeline } from '../lib/clip-time'
 import { StoryCastPanel } from './editor/StoryCastPanel'
 import { useAgentActions } from './editor/useAgentActions'
 import { ReplacePersonModal } from './editor/ReplacePersonModal'
-import { captionsFromWords } from '../lib/captions-from-transcript'
+import { captionsFromWords, wordPopCues } from '../lib/captions-from-transcript'
 import { generateFromPrompt } from '../lib/transcript-generate'
 import { copyToAssetFolder } from '../lib/asset-copy'
 import { migrateImageModelId } from '../lib/image-models'
@@ -753,18 +754,18 @@ export function VideoEditor() {
       const srcEnd = clip.trimStart + clip.duration * speed
       const mapped = words
         .filter((w) => w.end > srcStart && w.start < srcEnd)
-        .map((w) => ({
-          text: w.text,
-          start: sourceTimeToTimelineTime(Math.max(w.start, srcStart), clip),
-          end: sourceTimeToTimelineTime(Math.min(w.end, srcEnd), clip),
-        }))
+        .map((w) => {
+          // F12: on a REVERSED clip the source runs backwards, so a word's start
+          // maps to a LATER timeline time than its end. Convert both ends and
+          // re-order, otherwise every cue is mirrored onto the wrong words.
+          const a = sourceToTimeline(Math.max(w.start, srcStart), clip)
+          const b = sourceToTimeline(Math.min(w.end, srcEnd), clip)
+          return { text: w.text, start: Math.min(a, b), end: Math.max(a, b) }
+        })
+        .sort((x, y) => x.start - y.start)
       // #75 karaoke: one cue per WORD so each word pops exactly as it's sung —
       // rendered by the normal per-subtitle pipeline in playback AND export.
-      const cues = opts?.wordPop
-        ? mapped
-            .filter((w) => w.text.trim())
-            .map((w) => ({ text: w.text.trim(), start: w.start, end: Math.max(w.end, w.start + 0.12) }))
-        : captionsFromWords(mapped)
+      const cues = opts?.wordPop ? wordPopCues(mapped) : captionsFromWords(mapped)
       if (cues.length === 0) continue
       runs.push({
         newSubs: cues.map((c, i) => ({
@@ -2022,13 +2023,20 @@ export function VideoEditor() {
         const segStart = bounds[i]
         const segDur = bounds[i + 1] - bounds[i]
         const offset = segStart - clip.startTime
+        // Beat times are TIMELINE seconds; trims are SOURCE seconds. On a clip
+        // whose speed isn't 1 the two differ, and cutting on the raw offset lands
+        // on the wrong frame. See lib/clip-time.ts.
+        const headSource = timelineDeltaToSource(offset, clip)
+        const tailSource = timelineDeltaToSource(clip.duration - (offset + segDur), clip)
         next.push({
           ...clip,
           id: i === 0 ? clip.id : `clip-${Date.now()}-${Math.random().toString(36).slice(2, 9)}-${i}`,
           startTime: segStart,
           duration: segDur,
-          trimStart: clip.trimStart + offset,
-          trimEnd: clip.trimEnd + (clip.duration - (offset + segDur)),
+          // A reversed clip consumes its window from the far end, so the first
+          // timeline segment is the LAST source material.
+          trimStart: clip.reversed ? clip.trimStart + tailSource : clip.trimStart + headSource,
+          trimEnd: clip.reversed ? clip.trimEnd + headSource : clip.trimEnd + tailSource,
           linkedClipIds: undefined,
         })
         produced++

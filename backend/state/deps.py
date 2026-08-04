@@ -2,7 +2,14 @@
 
 from __future__ import annotations
 
-from app_handler import AppHandler
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Type-only: importing app_handler at runtime here closed a cycle
+    # (app_handler -> state -> state.deps -> app_handler) that made the import
+    # succeed or fail depending on which module Python loaded first. Annotations
+    # are strings under `from __future__ import annotations`, so this is enough.
+    from app_handler import AppHandler
 
 _app_handler: AppHandler | None = None
 
