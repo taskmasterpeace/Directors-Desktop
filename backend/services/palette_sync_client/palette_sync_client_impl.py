@@ -6,6 +6,7 @@ import os
 from typing import Any, cast
 
 from services.http_client.http_client import HTTPClient
+from services.palette_sync_client.palette_sync_client import InsufficientCreditsError
 
 _DEFAULT_BASE = "https://directorspal.com"
 _SUPABASE_URL = os.environ.get(
@@ -177,6 +178,13 @@ class PaletteSyncClientImpl:
         payload: dict[str, Any] = {"generation_type": generation_type, "count": count}
         if metadata:
             payload["metadata"] = metadata
+            # Promote the job id to a first-class idempotency key. The deduction
+            # is retried on transient failure (see SyncHandler.deduct_credits);
+            # that is only double-charge-safe if Palette dedupes on this key.
+            # REQUIRED Palette-side contract — tracked in the cross-repo backlog.
+            job_id = metadata.get("job_id")
+            if job_id:
+                payload["idempotency_key"] = job_id
         resp = self._http.post(
             f"{self._base_url}/api/desktop/credits/deduct",
             headers={**self._headers(api_key), "Content-Type": "application/json"},
@@ -185,8 +193,10 @@ class PaletteSyncClientImpl:
         )
         if resp.status_code == 402:
             data = cast(dict[str, Any], resp.json())
-            raise RuntimeError(f"Insufficient credits: balance={data.get('balance_cents')}")
+            raise InsufficientCreditsError(f"Insufficient credits: balance={data.get('balance_cents')}")
         if resp.status_code != 200:
+            # Transient (5xx) or client (4xx) — the retry loop decides. A plain
+            # RuntimeError signals "not permanent like 402".
             raise RuntimeError(f"Credit deduction failed: {resp.status_code}")
         return cast(dict[str, Any], resp.json())
 

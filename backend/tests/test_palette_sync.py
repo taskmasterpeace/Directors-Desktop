@@ -104,3 +104,55 @@ class TestSyncLorasWithConnection:
         assert data["synced"] == 0
 
         fake_services.palette_sync_client.list_loras = original_list
+
+
+class TestDeductIdempotencyAndErrors:
+    """#23 — the deduct request carries an idempotency key so a retry can't
+    double-charge, and 402 maps to a typed permanent error."""
+
+    def _client(self, http):
+        from services.palette_sync_client.palette_sync_client_impl import PaletteSyncClientImpl
+        return PaletteSyncClientImpl(http, base_url="https://dp.test")
+
+    def test_job_id_is_sent_as_an_idempotency_key(self):
+        from tests.fakes.services import FakeHTTPClient, FakeResponse
+
+        http = FakeHTTPClient()
+        http.queue("post", FakeResponse(status_code=200, json_payload={"deducted_cents": 40, "balance_cents": 100}))
+        self._client(http).deduct_credits(
+            api_key="dp_k", generation_type="video_i2v", count=1,
+            metadata={"job_id": "job-xyz", "model": "seedance-2.0"},
+        )
+        payload = http.calls[0].json_payload
+        assert payload is not None
+        assert payload["idempotency_key"] == "job-xyz"
+
+    def test_402_raises_the_typed_insufficient_error(self):
+        from tests.fakes.services import FakeHTTPClient, FakeResponse
+        from services.palette_sync_client.palette_sync_client import InsufficientCreditsError
+
+        http = FakeHTTPClient()
+        http.queue("post", FakeResponse(status_code=402, json_payload={"balance_cents": 3}))
+        try:
+            self._client(http).deduct_credits(
+                api_key="dp_k", generation_type="image", count=1, metadata={"job_id": "j"},
+            )
+            raise AssertionError("expected InsufficientCreditsError")
+        except InsufficientCreditsError:
+            pass
+
+    def test_non_402_error_is_a_plain_runtime_error(self):
+        from tests.fakes.services import FakeHTTPClient, FakeResponse
+        from services.palette_sync_client.palette_sync_client import InsufficientCreditsError
+
+        http = FakeHTTPClient()
+        http.queue("post", FakeResponse(status_code=503, json_payload={}))
+        try:
+            self._client(http).deduct_credits(
+                api_key="dp_k", generation_type="image", count=1, metadata={"job_id": "j"},
+            )
+            raise AssertionError("expected RuntimeError")
+        except InsufficientCreditsError:
+            raise AssertionError("503 must not be treated as insufficient credits")
+        except RuntimeError:
+            pass
