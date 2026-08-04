@@ -73,6 +73,52 @@ export function sourceToTimeline(sourceTime: number, clip: TimeMappedClip): numb
   return clip.startTime + sourceDeltaToTimeline(offset, clip)
 }
 
+/** Trim window for one slice of a segmented clip, in source-media seconds. */
+export interface ClipSegmentTrims {
+  /** Timeline offset (seconds) of this segment's start, relative to the clip. */
+  offset: number
+  /** Timeline duration (seconds) of this segment. */
+  duration: number
+  trimStart: number
+  trimEnd: number
+}
+
+/**
+ * Slice a clip at a set of interior timeline offsets (e.g. beat positions),
+ * returning the trim window for each resulting segment.
+ *
+ * Extracted from Cut-to-Beats so the speed/reverse arithmetic is unit-tested
+ * rather than re-derived inline. `interiorOffsets` are timeline seconds measured
+ * from the clip's start; out-of-range and unsorted values are ignored.
+ */
+export function segmentClipAtOffsets(
+  clip: TimeMappedClip,
+  interiorOffsets: readonly number[],
+): ClipSegmentTrims[] {
+  const eps = 1e-4
+  const cuts = interiorOffsets
+    .filter((o) => o > eps && o < clip.duration - eps)
+    .slice()
+    .sort((a, b) => a - b)
+  const bounds = [0, ...cuts, clip.duration]
+  const out: ClipSegmentTrims[] = []
+  for (let i = 0; i < bounds.length - 1; i++) {
+    const offset = bounds[i]
+    const duration = bounds[i + 1] - offset
+    const head = timelineDeltaToSource(offset, clip)
+    const tail = timelineDeltaToSource(clip.duration - (offset + duration), clip)
+    out.push({
+      offset,
+      duration,
+      // A reversed clip consumes its window from the far end, so the first
+      // timeline segment holds the LAST source material.
+      trimStart: clip.reversed ? clip.trimStart + tail : clip.trimStart + head,
+      trimEnd: clip.reversed ? clip.trimEnd + head : clip.trimEnd + tail,
+    })
+  }
+  return out
+}
+
 /**
  * Split a clip at a timeline offset, returning the trim values for both halves.
  *

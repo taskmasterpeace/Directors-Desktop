@@ -280,3 +280,42 @@ def test_draft_concept_ties_break_alphabetically_for_determinism():
     c2 = draft_concept(120.0, 0.5, ["mango", "zebra", "apple"])
     assert c1 == c2
     assert c1.index("'apple'") < c1.index("'mango'") < c1.index("'zebra'")
+
+
+# --- prompt distinctiveness (F2): the shot-specific clause must LEAD ----------
+
+def test_the_distinguishing_clause_comes_before_the_shared_concept():
+    from server_utils.shot_planner import build_prompt
+
+    concept = "a lone astronaut on a red planet"
+    perf = build_prompt(concept, "chorus", "performance", 0.9,
+                        lyric_line="midnight run", artist_name="NOVA")
+    # The sung line (unique per shot) must appear before the concept (identical
+    # on every shot) — that ordering is the whole point of F2.
+    assert perf.index("midnight run") < perf.index(concept)
+
+    narr = build_prompt(concept, "verse", "broll", 0.4, story_beat="he leaves town")
+    assert narr.index("he leaves town") < narr.index(concept)
+
+
+def test_two_performance_shots_differ_in_their_opening_not_just_the_tail():
+    from server_utils.shot_planner import build_prompt
+
+    a = build_prompt("same concept", "chorus", "performance", 0.9, lyric_line="fire in the sky")
+    b = build_prompt("same concept", "chorus", "performance", 0.9, lyric_line="ice on the road")
+    # Before the fix these differed only in the final clause; now the first 40
+    # characters already diverge.
+    assert a[:40] != b[:40]
+
+
+def test_the_sung_line_lands_near_the_front_not_buried_at_the_tail():
+    # F2's actual property: the distinguishing content is early. The template
+    # prefix ("They sing the words ") is a fixed ~20 chars, so the sung line
+    # itself starts well within the first clause rather than after the concept,
+    # framing and flavor that used to precede it.
+    from server_utils.shot_planner import build_prompt
+
+    lines = ["fire in the sky", "chrome and gold", "run through the rain"]
+    for ln in lines:
+        p = build_prompt("neon city at night, cinematic", "verse", "performance", 0.5, lyric_line=ln)
+        assert p.index(ln) < 25, f"sung line buried at index {p.index(ln)}: {p!r}"
