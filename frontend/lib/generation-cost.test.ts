@@ -123,6 +123,7 @@ describe('batch and model-switch costs', () => {
 
 describe('resolveLocalSize', () => {
   it('mirrors the backend resolution map', () => {
+    expect(resolveLocalSize('480p')).toEqual({ width: 832, height: 448 })
     expect(resolveLocalSize('540p')).toEqual({ width: 960, height: 544 })
     expect(resolveLocalSize('512p')).toEqual({ width: 960, height: 544 })
     expect(resolveLocalSize('720p')).toEqual({ width: 1280, height: 704 })

@@ -123,6 +123,31 @@ class TestGenerate:
         assert call["width"] == 960
         assert call["height"] == 512
 
+    def test_resolution_mapping_480p(self, client, test_state, fake_services, create_fake_model_files):
+        # 480p tier: 832x448 is 64-aligned on both axes, so the pipeline's
+        # round(x/64)*64 passes it through unchanged. (A naive 854x480 or
+        # 864x480 would silently become 896x512 — not 480p at all.)
+        create_fake_model_files()
+        _enable_local_text_encoding(test_state)
+
+        r = client.post("/api/generate", json={**_T2V_JSON, "resolution": "480p"})
+        assert r.status_code == 200
+
+        call = fake_services.fast_video_pipeline.generate_calls[0]
+        assert call["width"] == 832
+        assert call["height"] == 448
+
+    def test_resolution_mapping_480p_portrait(self, client, test_state, fake_services, create_fake_model_files):
+        create_fake_model_files()
+        _enable_local_text_encoding(test_state)
+
+        r = client.post("/api/generate", json={**_T2V_JSON, "resolution": "480p", "aspectRatio": "9:16"})
+        assert r.status_code == 200
+
+        call = fake_services.fast_video_pipeline.generate_calls[0]
+        assert call["width"] == 448
+        assert call["height"] == 832
+
     def test_resolution_mapping_720p(self, client, test_state, fake_services, create_fake_model_files):
         create_fake_model_files()
         _enable_local_text_encoding(test_state)

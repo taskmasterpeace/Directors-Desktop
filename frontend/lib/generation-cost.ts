@@ -50,6 +50,9 @@ export type ModelWarmth = 'cold' | 'warming' | 'warm'
  * this too or every local ETA silently drifts.
  */
 const LOCAL_RESOLUTIONS: Readonly<Record<string, readonly [number, number]>> = {
+  // 64-aligned 480p-class size: the local pipeline rounds dims to /64, so a
+  // literal 854x480 is unreachable; 832x448 is what "480p" really renders.
+  '480p': [832, 448],
   '512p': [960, 544],
   '540p': [960, 544],
   '720p': [1280, 704],

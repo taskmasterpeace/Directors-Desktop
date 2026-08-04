@@ -430,3 +430,10 @@ class TestSettingsDurability:
 
         reloaded = test_state.settings.load_settings(default_app_settings)
         assert reloaded.palette_api_key == secret
+
+
+class TestModelSlotRouting:
+    def test_minimax_h3_routes_to_the_api_slot(self, test_state):
+        # Hosted-only by license (US-excluded open weights): gpu-slotting it would
+        # block local work and imply a local pipeline that must never exist.
+        assert test_state.determine_slot("minimax-h3") == "api"

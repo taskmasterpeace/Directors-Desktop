@@ -396,6 +396,11 @@ class AppHandler:
         always_api_models = {
             "seedance-1.5-pro", "seedance-2.0", "seedance-2.0-fast", "nano-banana-2",
             "wan-animate-replace",
+            # H3 is hosted-only BY LICENSE: the open-weights grant excludes the
+            # United States, so the fal API is the only compliant path. Routing
+            # it to "gpu" would both block the GPU slot and imply a local
+            # pipeline that must never exist in this product.
+            "minimax-h3",
         }
         if model in always_api_models:
             return "api"

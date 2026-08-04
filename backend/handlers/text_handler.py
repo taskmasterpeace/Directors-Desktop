@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from threading import RLock
 from typing import TYPE_CHECKING
 
 from handlers.base import StateHandlerBase, with_state_lock
 from state.app_state_types import AppState, TextEncodingResult
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from runtime_config.runtime_config import RuntimeConfig
@@ -61,6 +64,82 @@ class TextHandler(StateHandlerBase):
         """
         text_encoder_dir = self._config.model_path("text_encoder")
         return text_encoder_dir.exists() and any(text_encoder_dir.iterdir())
+
+    def precompute_local_embeddings(self, pipeline: object, prompt: str) -> bool:
+        """Encode the prompt with the local Gemma encoder BEFORE diffusion runs.
+
+        Post-fork, local Gemma-3-12B is the ONLY text encoder (LTX cloud encoding
+        is policy-dead). Letting the ltx pipeline invoke it mid-``generate()``
+        wedged a 12B model beside the staged 43GB transformer — it got device-split
+        onto the CPU, ground one core for minutes-to-hours per prompt, and surfaced
+        as the notorious "stall at 15%" (diagnosed by stack dump, 2026-08-04).
+
+        Doing the encode here — with the GPU to ourselves, then parking the
+        encoder back on CPU and injecting the embeddings — turns it into a
+        seconds-long one-off. The pipeline then sees ``api_embeddings`` and uses
+        its DummyTextEncoder path, so Gemma never runs during diffusion. Repeat
+        prompts skip Gemma entirely via the prompt cache.
+
+        Returns True when embeddings were injected; False falls back to the old
+        in-pipeline path (e.g. fakes without a ledger), which is no worse than
+        the status quo.
+        """
+        if not self.should_use_local_encoding():
+            return False
+
+        # A stale injection from a previous prompt must never leak into this run.
+        self.clear_api_embeddings()
+
+        cached = self._get_cached_prompt(prompt, False)
+        if cached is not None:
+            self._set_api_embeddings(cached)
+            return True
+
+        # DD's pipeline services (LTXFastVideoPipeline / NF4 / GGUF / A2V) wrap the
+        # raw ltx pipeline at .pipeline; the ledger lives on the inner object.
+        # Resolve through either shape so both wrappers and raw pipelines work.
+        inner = getattr(pipeline, "pipeline", pipeline)
+        ledger = getattr(inner, "model_ledger", None) or getattr(pipeline, "model_ledger", None)
+        if ledger is None or not hasattr(ledger, "text_encoder"):
+            logger.info("No model ledger on %s — in-pipeline text encoding will be used", type(pipeline).__name__)
+            return False
+
+        import torch
+
+        te = self.state.text_encoder
+        try:
+            encoder = ledger.text_encoder()
+            try:
+                output = encoder.forward(prompt)
+            except torch.cuda.OutOfMemoryError:
+                # One retry after a cache flush; if VRAM is genuinely gone, fall
+                # back rather than wedging the job.
+                torch.cuda.empty_cache()
+                output = encoder.forward(prompt)
+            video_context = output[0]
+            audio_context = output[1]
+            result = TextEncodingResult(
+                video_context=video_context.detach(),
+                audio_context=audio_context.detach() if audio_context is not None else None,
+            )
+        except Exception:
+            logger.warning(
+                "Local prompt pre-encode failed; falling back to in-pipeline encoding",
+                exc_info=True,
+            )
+            return False
+        finally:
+            # Park the encoder off the GPU so diffusion gets the whole card.
+            try:
+                if te is not None and te.cached_encoder is not None:
+                    te.cached_encoder.to(torch.device("cpu"))
+                torch.cuda.empty_cache()
+            except Exception:
+                logger.warning("Failed to park the text encoder on CPU", exc_info=True)
+
+        self._cache_prompt(prompt, False, result)
+        self._set_api_embeddings(result)
+        return True
 
     def prepare_text_encoding(self, prompt: str, enhance_prompt: bool) -> None:
         """Validate settings and prepare text embeddings for a generation run.

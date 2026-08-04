@@ -13,6 +13,7 @@ import { ModeTabs, type GenerationMode } from '../components/ModeTabs'
 import { LtxLogo } from '../components/LtxLogo'
 import { ModelStatusDropdown } from '../components/ModelStatusDropdown'
 import { ModelWarmthPill } from '../components/ModelWarmthPill'
+import { QueueTimers } from '../components/QueueTimers'
 import {
   estimateRenderSeconds,
   estimateTotalSeconds,
@@ -166,6 +167,7 @@ export function Playground() {
     cancel,
     reset,
     lastModel,
+    jobs,
   } = useGeneration()
 
   const {
@@ -696,6 +698,9 @@ export function Playground() {
               reservedSeconds={activeReservedSeconds ?? undefined}
             />
           )}
+
+          {/* Palette-style per-job queue timers (queued + running video jobs). */}
+          {mode !== 'text-to-image' && <QueueTimers jobs={jobs} />}
         </div>
       </main>
     </div>
