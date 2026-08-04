@@ -115,6 +115,51 @@ function ProjectCard({ project, onOpen, onDelete, onRename, onSetAssetFolder }: 
 
 export function Home() {
   const { projects, createProject, deleteProject, renameProject, updateProject, openProject, importPaletteMv, openPlayground, openGallery, openCharacters, openReferences, openRecipes, openWildcards, openPromptLibrary, openClipTool, openDirector, setPendingDirectorAudio } = useProjects()
+  // #84: does the stored Palette credential cover generation (dp_ key), or
+  // only credits/sync (browser-session token)?
+  const [keyStep, setKeyStep] = useState<'hidden' | 'needed' | 'done'>('hidden')
+  const [keyInput, setKeyInput] = useState('')
+  const [keyBusy, setKeyBusy] = useState(false)
+  const [keyError, setKeyError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const base = await window.electronAPI.getBackendUrl()
+        const res = await fetch(`${base}/api/sync/status`)
+        if (!res.ok) return
+        const data = (await res.json()) as { connected?: boolean; generationReady?: boolean }
+        if (!cancelled && data.connected && data.generationReady === false) setKeyStep('needed')
+      } catch {
+        /* backend warming up */
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  const submitPaletteKey = async () => {
+    const key = keyInput.trim()
+    if (!key.startsWith('dp_') || keyBusy) return
+    setKeyBusy(true)
+    setKeyError(null)
+    try {
+      const base = await window.electronAPI.getBackendUrl()
+      const res = await fetch(`${base}/api/sync/connect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: key }),
+      })
+      const data = (await res.json()) as { connected?: boolean; error?: string }
+      if (!data.connected) throw new Error(data.error || 'That key was not accepted')
+      setKeyStep('done')
+      setKeyInput('')
+    } catch (e) {
+      setKeyError(e instanceof Error ? e.message : 'Could not connect')
+    } finally {
+      setKeyBusy(false)
+    }
+  }
 
   const [importingMv, setImportingMv] = useState(false)
   const [importMvError, setImportMvError] = useState<string | null>(null)
@@ -623,6 +668,48 @@ export function Home() {
           </div>
         </div>
         
+        {/* #84: one-time step — browser sign-in covers credits/libraries, but
+            generation needs the dp_ API key. Paste once, saved forever. */}
+        {keyStep === 'needed' && (
+          <div className="mx-8 mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-xs text-amber-200">
+                <span className="font-semibold">One more step, once:</span> your sign-in covers credits and libraries —
+                generating images needs your Directors Palette API key. Paste it here one time and it's saved for good.
+              </div>
+              <button
+                onClick={() => void window.electronAPI.openPaletteApiKeyPage()}
+                className="shrink-0 text-xs font-semibold text-amber-300 hover:text-amber-200"
+              >
+                Get my key →
+              </button>
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                type="password"
+                value={keyInput}
+                onChange={(e) => setKeyInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') void submitPaletteKey() }}
+                placeholder="dp_..."
+                className="flex-1 h-8 rounded-lg border border-zinc-700 bg-zinc-950/70 px-2.5 text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-amber-500/60"
+              />
+              <button
+                onClick={() => void submitPaletteKey()}
+                disabled={!keyInput.trim().startsWith('dp_') || keyBusy}
+                className="h-8 px-3 rounded-lg bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-semibold disabled:opacity-40"
+              >
+                {keyBusy ? 'Connecting…' : 'Save forever'}
+              </button>
+            </div>
+            {keyError && <p className="mt-1.5 text-[11px] text-red-400">{keyError}</p>}
+          </div>
+        )}
+        {keyStep === 'done' && (
+          <div className="mx-8 mt-4 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2.5 text-xs text-emerald-300">
+            API key saved — generation is ready. You won't be asked again.
+          </div>
+        )}
+
         {/* #74: cloud-only mode banner */}
         {localStorage.getItem('dd-cloud-only') === '1' && (
           <div className="mx-8 mt-4 flex items-center justify-between rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-2.5">

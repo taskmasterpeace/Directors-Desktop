@@ -92,21 +92,25 @@ class SyncHandler:
 
     def get_status(self) -> dict[str, Any]:
         api_key = self._state.app_settings.palette_api_key
+        # #84: session tokens cover credits/sync, but v2 generation only takes
+        # real dp_ keys — surface which mode we're in so the UI can walk the
+        # user through the ONE missing paste instead of failing per-job.
+        generation_ready = api_key.startswith("dp_")
         if not api_key:
-            return {"connected": False, "user": None}
+            return {"connected": False, "user": None, "generationReady": False}
         if self._cached_user is not None:
-            return {"connected": True, "user": self._cached_user}
+            return {"connected": True, "user": self._cached_user, "generationReady": generation_ready}
         try:
             user = self._client.validate_connection(api_key=api_key)
             self._cached_user = user
-            return {"connected": True, "user": user}
+            return {"connected": True, "user": user, "generationReady": generation_ready}
         except Exception as exc:
             # JWT might be expired — try refreshing
             user = self._try_refresh()
             if user is not None:
-                return {"connected": True, "user": user}
+                return {"connected": True, "user": user, "generationReady": generation_ready}
             self._cached_user = None
-            return {"connected": False, "user": None, "error": str(exc)}
+            return {"connected": False, "user": None, "generationReady": False, "error": str(exc)}
 
     def connect(self, token: str, refresh_token: str | None = None) -> dict[str, Any]:
         """Store an auth token and validate it. Returns status.
