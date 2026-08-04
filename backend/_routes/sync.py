@@ -50,6 +50,14 @@ def sync_login(body: LoginRequest, handler: AppHandler = Depends(get_state_servi
     return result
 
 
+@router.post("/provision-key")
+def sync_provision_key(handler: AppHandler = Depends(get_state_service)) -> dict[str, Any]:
+    result = handler.sync.provision_generation_key()
+    if result.get("ok"):
+        handler.settings.save_settings()
+    return result
+
+
 @router.post("/disconnect")
 def sync_disconnect(handler: AppHandler = Depends(get_state_service)) -> dict[str, Any]:
     result = handler.sync.disconnect()

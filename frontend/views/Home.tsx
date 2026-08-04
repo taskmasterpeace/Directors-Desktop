@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Plus, Folder, FolderOpen, MoreVertical, Trash2, Pencil, Sparkles, Image, UserCircle, ImageIcon, NotebookText, Braces, BookOpen, LogOut, LogIn, Key, Scissors, Clapperboard } from 'lucide-react'
 import { useProjects } from '../contexts/ProjectContext'
 import { useAppSettings } from '../contexts/AppSettingsContext'
@@ -118,9 +118,11 @@ export function Home() {
   // #84: does the stored Palette credential cover generation (dp_ key), or
   // only credits/sync (browser-session token)?
   const [keyStep, setKeyStep] = useState<'hidden' | 'needed' | 'done'>('hidden')
+  const provisionKeyRef = useRef<(() => Promise<void>) | null>(null)
   const [keyInput, setKeyInput] = useState('')
   const [keyBusy, setKeyBusy] = useState(false)
   const [keyError, setKeyError] = useState<string | null>(null)
+  const [showManualKey, setShowManualKey] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -130,13 +132,45 @@ export function Home() {
         const res = await fetch(`${base}/api/sync/status`)
         if (!res.ok) return
         const data = (await res.json()) as { connected?: boolean; generationReady?: boolean }
-        if (!cancelled && data.connected && data.generationReady === false) setKeyStep('needed')
+        if (!cancelled && data.connected && data.generationReady === false) {
+          setKeyStep('needed')
+          void provisionKeyRef.current?.()  // try to finish it before he even reads the panel
+        }
       } catch {
         /* backend warming up */
       }
     })()
     return () => { cancelled = true }
   }, [])
+
+  // The happy path: spend the session we already have on a generation key.
+  // No settings page, no copy-paste. Falls back to the manual field only if
+  // this Palette deployment predates /api/desktop/key.
+  const provisionKey = async () => {
+    if (keyBusy) return
+    setKeyBusy(true)
+    setKeyError(null)
+    try {
+      const base = await window.electronAPI.getBackendUrl()
+      const res = await fetch(`${base}/api/sync/provision-key`, { method: 'POST' })
+      const data = (await res.json()) as { ok?: boolean; error?: string }
+      if (!data.ok) throw new Error(data.error || 'Could not set up generation')
+      setKeyStep('done')
+      setShowManualKey(false)
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Could not set up generation'
+      setKeyError(
+        msg.includes('KEY_PROVISION_UNAVAILABLE')
+          ? "This Directors Palette deployment can't issue keys automatically yet — paste one below."
+          : msg,
+      )
+      setShowManualKey(true)
+    } finally {
+      setKeyBusy(false)
+    }
+  }
+
+  provisionKeyRef.current = provisionKey
 
   const submitPaletteKey = async () => {
     const key = keyInput.trim()
@@ -674,17 +708,26 @@ export function Home() {
           <div className="mx-8 mt-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3">
             <div className="flex items-center justify-between gap-3">
               <div className="text-xs text-amber-200">
-                <span className="font-semibold">One more step, once:</span> your sign-in covers credits and libraries —
-                generating images needs your Directors Palette API key. Paste it here one time and it's saved for good.
+                <span className="font-semibold">Finishing setup:</span> turning your sign-in into a generation key.
+                This happens automatically — you never need to find or paste anything.
               </div>
               <button
-                onClick={() => void window.electronAPI.openPaletteApiKeyPage()}
-                className="shrink-0 text-xs font-semibold text-amber-300 hover:text-amber-200"
+                onClick={() => void provisionKey()}
+                disabled={keyBusy}
+                className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-semibold disabled:opacity-40"
               >
-                Get my key →
+                {keyBusy ? 'Setting up…' : 'Set up generation'}
               </button>
             </div>
-            <div className="mt-2 flex items-center gap-2">
+            {!showManualKey && !keyBusy && (
+              <button
+                onClick={() => setShowManualKey(true)}
+                className="mt-1.5 text-[11px] text-zinc-400 hover:text-zinc-200 underline"
+              >
+                Paste a key manually instead
+              </button>
+            )}
+            <div className={`mt-2 flex items-center gap-2 ${showManualKey ? '' : 'hidden'}`}>
               <input
                 type="password"
                 value={keyInput}
@@ -700,13 +743,19 @@ export function Home() {
               >
                 {keyBusy ? 'Connecting…' : 'Save forever'}
               </button>
+              <button
+                onClick={() => void window.electronAPI.openPaletteApiKeyPage()}
+                className="h-8 px-2 text-[11px] text-amber-300 hover:text-amber-200 whitespace-nowrap"
+              >
+                Where do I get one?
+              </button>
             </div>
             {keyError && <p className="mt-1.5 text-[11px] text-red-400">{keyError}</p>}
           </div>
         )}
         {keyStep === 'done' && (
           <div className="mx-8 mt-4 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-4 py-2.5 text-xs text-emerald-300">
-            API key saved — generation is ready. You won't be asked again.
+            Setup complete — generation is ready. You won't be asked again.
           </div>
         )}
 

@@ -10,6 +10,13 @@ class PaletteSyncClient(Protocol):
         """Validate API key and return user info. Raises on failure."""
         ...
 
+    def provision_desktop_key(self, *, session_token: str) -> str:
+        """Mint this user's dp_ generation key using their session token.
+
+        Raises on failure (including when the Palette deployment predates the
+        endpoint, so callers can fall back to a manual paste)."""
+        ...
+
     def sign_in_with_email(self, *, email: str, password: str) -> dict[str, Any]:
         """Sign in with email/password. Returns access_token, refresh_token, user info."""
         ...

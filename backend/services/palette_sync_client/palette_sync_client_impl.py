@@ -39,6 +39,32 @@ class PaletteSyncClientImpl:
             "name": metadata.get("full_name") or metadata.get("name") or user_data.get("email"),
         }
 
+    def provision_desktop_key(self, *, session_token: str) -> str:
+        """Exchange a browser-sign-in session token for the user's dp_ key.
+
+        Palette's /api/desktop/key authenticates with the same session token
+        the desktop already holds and returns a freshly minted key (revoking
+        any prior desktop key). This is what makes generation work without the
+        user ever visiting a settings page."""
+        resp = self._http.post(
+            f"{self._base_url}/api/desktop/key",
+            headers=self._headers(session_token),
+            json_payload={},
+            timeout=20,
+        )
+        if resp.status_code == 404:
+            raise RuntimeError(
+                "KEY_PROVISION_UNAVAILABLE: this Directors Palette deployment "
+                "does not offer /api/desktop/key yet."
+            )
+        if resp.status_code != 200:
+            raise RuntimeError(f"Key provisioning failed: {resp.status_code}")
+        data = cast("dict[str, Any]", resp.json())
+        key = data.get("key")
+        if not isinstance(key, str) or not key.startswith("dp_"):
+            raise RuntimeError("Key provisioning returned no usable key")
+        return key
+
     def validate_connection(self, *, api_key: str) -> dict[str, Any]:
         if api_key.startswith("dp_"):
             # dp_ API keys must be validated by the Palette app, which has

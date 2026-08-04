@@ -128,6 +128,29 @@ class SyncHandler:
         self._cached_user = user
         return {"connected": True, "user": user}
 
+    def provision_generation_key(self) -> dict[str, Any]:
+        """Upgrade a session-token connection into a generation-ready one.
+
+        Browser/email sign-in yields a Supabase session token: fine for credits
+        and library sync, useless for v2 image generation. Rather than sending
+        the user to hunt for an API key, spend the session token on Palette's
+        /api/desktop/key and store the dp_ key it returns."""
+        token = self._state.app_settings.palette_api_key
+        if not token:
+            return {"ok": False, "error": "Not signed in."}
+        if token.startswith("dp_"):
+            return {"ok": True, "alreadyReady": True}
+        try:
+            key = self._client.provision_desktop_key(session_token=token)
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)}
+        # Keep the session's refresh token: the dp_ key replaces the stored
+        # credential, and losing it would strand the session on expiry.
+        result = self.connect(key)
+        if not result.get("connected"):
+            return {"ok": False, "error": result.get("error", "Key was rejected")}
+        return {"ok": True, "user": result.get("user")}
+
     def login(self, email: str, password: str) -> dict[str, Any]:
         """Sign in with email/password and store the session tokens."""
         try:

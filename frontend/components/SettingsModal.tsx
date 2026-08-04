@@ -42,6 +42,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
   const [loraSyncing, setLoraSyncing] = useState(false)
   const [loraSyncResult, setLoraSyncResult] = useState<string | null>(null)
   const [civitaiApiKeyInput, setCivitaiApiKeyInput] = useState('')
+  const [showByoKeys, setShowByoKeys] = useState(false)
   const [textEncoderStatus, setTextEncoderStatus] = useState<TextEncoderStatus | null>(null)
   const [isDownloading, setIsDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
@@ -698,6 +699,11 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
           {activeTab === 'apiKeys' && (
             <>
               {/* LTX cloud key section removed: this fork never talks to LTX/Lightricks. */}
+              {/* Provider keys are OWNER/DEV mode: end users generate through
+                  Directors Palette points and never need one. Collapsed by
+                  default so the account connection is the whole story. */}
+              {showByoKeys && (
+                <>
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
                   <KeyRound className="h-4 w-4 text-cyan-400" />
@@ -1049,6 +1055,9 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                 </div>
               </div>
 
+                </>
+              )}
+
               {/* Director's Palette Section */}
               <div className="space-y-4 pt-4 border-t border-zinc-800">
                 <div className="flex items-center gap-2">
@@ -1269,6 +1278,20 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       </div>
                     )}
                   </div>
+                )}
+              </div>
+
+              <div className="pt-4 border-t border-zinc-800">
+                <button
+                  onClick={() => setShowByoKeys((v) => !v)}
+                  className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                >
+                  {showByoKeys ? 'Hide' : 'Show'} advanced — bring your own provider keys (Replicate, fal, Gemini, OpenRouter, CivitAI)
+                </button>
+                {!showByoKeys && (
+                  <p className="mt-1 text-[11px] text-zinc-600">
+                    You don't need these. Generation runs on your Directors Palette points.
+                  </p>
                 )}
               </div>
             </>

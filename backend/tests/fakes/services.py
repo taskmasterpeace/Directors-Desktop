@@ -461,6 +461,9 @@ class FakePaletteSyncClient:
         self.validate_calls: list[str] = []
         self.credits_calls: list[str] = []
         self.login_calls: list[tuple[str, str]] = []
+        self.provision_calls: list[str] = []
+        self.provision_error: str | None = None
+        self.provisioned_key: str = "dp_faketestkey0123456789"
         self.raise_on_validate: Exception | None = None
         self.raise_on_login: Exception | None = None
         self.user_info: dict[str, Any] = {"id": "user-123", "email": "test@example.com", "name": "Test User"}
@@ -496,6 +499,12 @@ class FakePaletteSyncClient:
             "refresh_token": "refreshed-refresh-token",
             "user": self.user_info,
         }
+
+    def provision_desktop_key(self, *, session_token: str) -> str:
+        self.provision_calls.append(session_token)
+        if self.provision_error is not None:
+            raise RuntimeError(self.provision_error)
+        return self.provisioned_key
 
     def get_credits(self, *, api_key: str) -> dict[str, Any]:
         self.credits_calls.append(api_key)
