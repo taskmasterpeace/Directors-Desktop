@@ -4,11 +4,11 @@ from state.app_state_types import GpuSlot, VideoPipelineState, VideoPipelineWarm
 from tests.fakes.services import FakeFastVideoPipeline
 
 
-def _set_video_pipeline(state):
+def _set_video_pipeline(state, warmth=VideoPipelineWarmth.COLD):
     state.state.gpu_slot = GpuSlot(
         active_pipeline=VideoPipelineState(
             pipeline=FakeFastVideoPipeline(),
-            warmth=VideoPipelineWarmth.COLD,
+            warmth=warmth,
             is_compiled=False,
         ),
         generation=None,
@@ -31,6 +31,16 @@ class TestHealth:
         assert data["models_loaded"] is True
         assert data["active_model"] == "fast"
         assert data["models_loaded"] is True
+
+    def test_warmth_is_cold_when_nothing_is_resident(self, client):
+        # A model can be fully downloaded and still cost ~9 minutes to load, so
+        # the UI needs residency separately from disk state.
+        assert client.get("/health").json()["warmth"] == "cold"
+
+    def test_warmth_reports_resident_pipeline_state(self, client, test_state):
+        for warmth in (VideoPipelineWarmth.COLD, VideoPipelineWarmth.WARMING, VideoPipelineWarmth.WARM):
+            _set_video_pipeline(test_state, warmth)
+            assert client.get("/health").json()["warmth"] == warmth.value
 
     def test_models_downloaded(self, client, create_fake_model_files):
         create_fake_model_files()

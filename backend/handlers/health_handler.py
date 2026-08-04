@@ -38,12 +38,17 @@ class HealthHandler(StateHandlerBase):
     def get_health(self) -> HealthResponse:
         active_model: str | None = None
         models_loaded = False
+        # Residency, not download state: a model on disk is still a ~9 minute wait
+        # if it is not in VRAM. The UI puts this on the Generate button so the cost
+        # is visible before the user commits, not after.
+        warmth = VideoPipelineWarmth.COLD.value
 
         with self._lock:
             match self.state.gpu_slot:
-                case GpuSlot(active_pipeline=VideoPipelineState(pipeline=pipeline)):
+                case GpuSlot(active_pipeline=VideoPipelineState(pipeline=pipeline, warmth=pipeline_warmth)):
                     active_model = pipeline.pipeline_kind
                     models_loaded = True
+                    warmth = pipeline_warmth.value
                 case _:
                     pass
 
@@ -53,6 +58,7 @@ class HealthHandler(StateHandlerBase):
             status="ok",
             models_loaded=models_loaded,
             active_model=active_model,
+            warmth=warmth,
             gpu_info=GpuTelemetry(**self._gpu_info.get_gpu_info()),
             sage_attention=self._use_sage_attention,
             models_status=[

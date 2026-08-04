@@ -12,6 +12,14 @@ import type { QuickModeKind } from '../lib/shot-creator/quick-modes'
 import { ModeTabs, type GenerationMode } from '../components/ModeTabs'
 import { LtxLogo } from '../components/LtxLogo'
 import { ModelStatusDropdown } from '../components/ModelStatusDropdown'
+import { ModelWarmthPill } from '../components/ModelWarmthPill'
+import {
+  estimateRenderSeconds,
+  estimateTotalSeconds,
+  formatDuration,
+  resolveLocalSize,
+  MODEL_LOAD_SECONDS,
+} from '../lib/generation-cost'
 import { Textarea } from '../components/ui/textarea'
 import { Button } from '../components/ui/button'
 import { useGeneration } from '../hooks/use-generation'
@@ -354,6 +362,31 @@ export function Playground() {
     return credits.pricing.video_t2v
   })()
 
+  /**
+   * Local generation is billed in TIME, not points — and the time is invisible
+   * until you've committed, because a cold model costs ~9 min before a single
+   * frame renders. Cloud models keep showing points instead.
+   *
+   * Orientation is deliberately ignored: portrait measured the same as
+   * landscape, so only the pixel count moves the number.
+   */
+  const localEta = (() => {
+    if (!isVideoMode || forceApiGenerations) return null
+    const model = String(settings.model ?? '')
+    if (model.startsWith('seedance') || model.startsWith('dp-')) return null
+    const { width, height } = resolveLocalSize(
+      settings.videoResolution,
+      settings.aspectRatio === '9:16' ? '9:16' : '16:9',
+    )
+    const render = estimateRenderSeconds(width, height, settings.duration)
+    if (render <= 0) return null
+    return {
+      render,
+      total: estimateTotalSeconds(width, height, settings.duration, status.warmth),
+      cold: status.warmth !== 'warm',
+    }
+  })()
+
   return (
     <div className="h-screen bg-background flex flex-col">
       {/* Header */}
@@ -385,6 +418,15 @@ export function Playground() {
 
           {/* Model Status Dropdown */}
           {!forceApiGenerations && <ModelStatusDropdown />}
+
+          {/* VRAM residency — distinct from the download state above. */}
+          {!forceApiGenerations && (
+            <ModelWarmthPill
+              warmth={status.warmth}
+              activeModel={status.activeModel}
+              gpuInfo={status.gpuInfo}
+            />
+          )}
 
           {/* GPU Info */}
           {status.gpuInfo && (
@@ -597,12 +639,23 @@ export function Playground() {
                   ) : (
                     <>
                       <Sparkles className="h-4 w-4" />
-                      Generate video{estimatedCostCents ? ` (${estimatedCostCents} pts)` : ''}
+                      <span>
+                        Generate video{estimatedCostCents ? ` (${estimatedCostCents} pts)` : ''}
+                        {localEta && ` · ~${formatDuration(localEta.total)}`}
+                      </span>
                     </>
                   )}
                 </Button>
               )}
             </div>
+
+            {/* The load is the surprise, so name it before the click, not after. */}
+            {localEta?.cold && !isBusy && (
+              <p className="mt-2 text-xs text-zinc-500">
+                Model is cold — about {formatDuration(MODEL_LOAD_SECONDS)} to load,
+                then {formatDuration(localEta.render)} to render. Later shots skip the load.
+              </p>
+            )}
           </div>
         </div>
 
