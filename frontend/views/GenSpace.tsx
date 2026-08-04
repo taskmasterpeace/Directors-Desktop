@@ -2106,7 +2106,7 @@ export function GenSpace() {
     if (inputImage) return credits.pricing.video_i2v
     return credits.pricing.video_t2v
   })()
-  const costSuffix = estimatedCostCents ? ` ($${(estimatedCostCents / 100).toFixed(2)})` : ''
+  const costSuffix = estimatedCostCents ? ` (${estimatedCostCents} pts)` : ''
   const promptButtonLabel = isRetakeMode
     ? 'Retake'
     : armedQuickMode

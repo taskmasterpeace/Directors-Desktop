@@ -566,7 +566,7 @@ export function VideoEditor() {
     addClipToTimeline, handleImportFile,
     updateClip, addEffectToClip: _addEffectToClip, removeEffectFromClip, updateEffectOnClip, // EFFECTS HIDDEN: addEffectToClip prefixed
     duplicateClip, splitClipAtPlayhead, removeClip,
-    addCrossDissolve, removeCrossDissolve,
+    addCrossDissolve: _addCrossDissolve, removeCrossDissolve, // DISSOLVE ADD HIDDEN (coach B3): export doesn't render transitions yet
     addTrack, deleteTrack, createAdjustmentLayerAsset, addTextClip,
     handleImportTimeline, handleExportTimelineXml,
   } = useClipOperations({
@@ -2262,7 +2262,7 @@ export function VideoEditor() {
                         }
                       }}
                       disabled={!savingPresetName.trim()}
-                      className="flex-1 px-2 py-1 rounded bg-blue-600 text-white text-[11px] font-medium hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                      className="flex-1 px-2 py-1 rounded bg-amber-500 text-zinc-950 text-[11px] font-medium hover:bg-amber-400 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                     >
                       Save
                     </button>
@@ -2814,7 +2814,7 @@ export function VideoEditor() {
                 onClick={() => setSnapEnabled(!snapEnabled)}
                 className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${
                   snapEnabled
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-amber-500 text-zinc-950'
                     : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
                 }`}
               >
@@ -4407,25 +4407,10 @@ export function VideoEditor() {
                               </div>
                             )}
                           </>
-                        ) : (
-                          <>
-                            {/* No dissolve: show add button on hover (positioned inside the zone) */}
-                            {isHovered && (
-                              <div
-                                className="absolute left-1/2 -translate-x-1/2 top-0 whitespace-nowrap z-40"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <button
-                                  className="px-2 py-1 rounded-lg bg-blue-600/90 border border-blue-500 text-[10px] text-white hover:bg-blue-500 transition-colors shadow-lg flex items-center gap-1"
-                                  onClick={() => addCrossDissolve(cp.leftClip.id, cp.rightClip.id)}
-                                >
-                                  <Film className="h-3 w-3" />
-                                  Dissolve
-                                </button>
-                              </div>
-                            )}
-                          </>
-                        )}
+                        ) : /* Add-dissolve hidden: preview-only dissolve silently
+                             dropped at export (coach B3). The Remove path above stays
+                             so legacy dissolves can still be cleared. Re-enable when
+                             the export pipeline renders transitions. */ null}
                       </div>
                     )
                   })}

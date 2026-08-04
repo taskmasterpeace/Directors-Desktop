@@ -167,6 +167,38 @@ def test_local_model_runs_on_gpu_slot_with_per_shot_audio(test_state, tmp_path: 
         assert "referenceImagePaths" not in job.params
 
 
+def test_local_default_seeds_performance_shots_with_artist_ref(test_state, tmp_path: Path):
+    handler = test_state
+    ref = str(tmp_path / "artist.png")
+    Path(ref).write_bytes(b"fake-png")
+    run = handler.director.start(
+        audio_path=_make_song(tmp_path),
+        concept="keep the face",
+        model="ltx-fast",
+        resolution="720p",
+        reference_image_paths=[ref],
+        artist_name="NOVA",
+        run_thread=False,
+    )
+    handler.director.step(run.id)
+    handler.director.step(run.id)
+    jobs = {j.id: j for j in handler.job_queue.all_jobs() if "director" in j.tags}
+    assert jobs
+    performance_seen = False
+    for shot in run.shots:
+        assert shot.job_id in jobs
+        params = jobs[shot.job_id].params
+        # Local jobs never carry the cloud-style ref list...
+        assert "referenceImagePaths" not in params
+        if shot.shot_type == "performance":
+            performance_seen = True
+            # ...but performance shots are seeded with the artist reference.
+            assert params.get("imagePath") == ref
+        else:
+            assert "imagePath" not in params
+    assert performance_seen, "planner produced no performance shots to verify"
+
+
 def test_shot_phase_and_progress_are_surfaced(test_state, tmp_path: Path):
     handler = test_state
     run = _start(handler, tmp_path)

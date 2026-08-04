@@ -1,5 +1,5 @@
 import React from 'react'
-import { Plus, Gauge, Download, Maximize2, FileUp, FileDown, ZoomOut, ZoomIn } from 'lucide-react' // IC-LORA HIDDEN: removed Sparkles
+import { Gauge, Download, Maximize2, FileUp, FileDown, ZoomOut, ZoomIn } from 'lucide-react' // IC-LORA HIDDEN: removed Sparkles
 import { Button } from '../../components/ui/button'
 import { Tooltip } from '../../components/ui/tooltip'
 import type { TimelineClip, Track, SubtitleClip } from '../../types/project'
@@ -33,10 +33,6 @@ export function TimelineToolbar({
 }: TimelineToolbarProps) {
   return (
     <div className="h-9 bg-zinc-900 border-t border-zinc-800 flex items-center px-3 gap-2 flex-shrink-0">
-      <Button variant="outline" size="sm" className="h-6 border-zinc-700 text-zinc-400 text-[10px] px-2">
-        <Plus className="h-3 w-3 mr-1" />
-        Add Clip
-      </Button>
       
       {selectedClip && (
         <>
@@ -164,7 +160,7 @@ export function TimelineToolbar({
           step={5}
           value={Math.round(zoom * 100)}
           onChange={(e) => { centerOnPlayheadRef.current = true; setZoom(Math.max(getMinZoom(), +(parseInt(e.target.value) / 100).toFixed(2))) }}
-          className="w-28 h-1 accent-blue-500 cursor-pointer"
+          className="w-28 h-1 accent-amber-500 cursor-pointer"
           title={`Zoom: ${Math.round(zoom * 100)}%`}
         />
         <Tooltip content="Zoom in (+)">

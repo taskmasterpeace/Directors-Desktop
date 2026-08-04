@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Download, RefreshCw, ImageIcon, Video, Heart, Pencil, MoreHorizontal } from 'lucide-react'
+import { Download, RefreshCw, ImageIcon, Video, Pencil } from 'lucide-react'
 import { Button } from './ui/button'
 
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
@@ -117,53 +117,35 @@ export function ImageResult({
               }`}
             >
               {/* Top toolbar */}
-              <div className="absolute top-4 left-4 right-4 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-9 w-9 bg-black/50 hover:bg-black/70 text-white rounded-full backdrop-blur-sm"
-                    title="Favorite"
-                  >
-                    <Heart className="h-4 w-4" />
-                  </Button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    onClick={handleDownload}
-                    className="h-9 w-9 bg-black/50 hover:bg-black/70 text-white rounded-full backdrop-blur-sm"
-                    title="Download"
-                  >
-                    <Download className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-9 w-9 bg-black/50 hover:bg-black/70 text-white rounded-full backdrop-blur-sm"
-                    title="More options"
-                  >
-                    <MoreHorizontal className="h-4 w-4" />
-                  </Button>
-                </div>
+              <div className="absolute top-4 left-4 right-4 flex items-center justify-end">
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  onClick={handleDownload}
+                  className="h-9 w-9 bg-black/50 hover:bg-black/70 text-white rounded-full backdrop-blur-sm"
+                  title="Download"
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
               </div>
               
               {/* Center action buttons */}
               <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex items-center gap-3">
-                <Button
-                  variant="ghost"
-                  className="h-10 px-4 bg-black/50 hover:bg-black/70 text-white rounded-full backdrop-blur-sm flex items-center gap-2"
-                  title="Edit image"
-                  onClick={() => imageUrl && onEdit?.(imageUrl)}
-                >
-                  <Pencil className="h-4 w-4" />
-                  <span className="text-sm font-medium">Edit</span>
-                </Button>
+                {onEdit && (
+                  <Button
+                    variant="ghost"
+                    className="h-10 px-4 bg-black/50 hover:bg-black/70 text-white rounded-full backdrop-blur-sm flex items-center gap-2"
+                    title="Edit image"
+                    onClick={() => imageUrl && onEdit(imageUrl)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                    <span className="text-sm font-medium">Edit</span>
+                  </Button>
+                )}
                 
                 <Button
                   onClick={onCreateVideo}
-                  className="h-10 px-4 bg-blue-600 hover:bg-blue-500 text-white rounded-full flex items-center gap-2"
+                  className="h-10 px-4 bg-amber-500 hover:bg-amber-400 text-zinc-950 rounded-full flex items-center gap-2"
                   title="Create video from this image"
                 >
                   <Video className="h-4 w-4" />

@@ -125,8 +125,7 @@ export function LaunchGate({
           logger.error(`Failed to get models path: ${e}`)
         }
 
-        // TODO: Get actual available space
-        setAvailableSpace('1.8 TB')
+        // Real free-space check runs in the installPath effect below.
       } catch (e) {
         logger.error(`Init error: ${e}`)
       }
@@ -136,6 +135,27 @@ export function LaunchGate({
       void fetchLicense()
     }
   }, [showLicenseStep])
+
+  // #B5: honest disk math — query the OS for the target drive's free space.
+  useEffect(() => {
+    if (!installPath) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const info = await window.electronAPI.getDiskSpace(installPath)
+        if (cancelled) return
+        if (info && info.freeBytes > 0) {
+          const gb = info.freeBytes / 1024 ** 3
+          setAvailableSpace(gb >= 1024 ? `${(gb / 1024).toFixed(1)} TB` : `${Math.floor(gb)} GB`)
+        } else {
+          setAvailableSpace('unknown')
+        }
+      } catch {
+        if (!cancelled) setAvailableSpace('unknown')
+      }
+    })()
+    return () => { cancelled = true }
+  }, [installPath])
 
   // Cycle install messages
   useEffect(() => {
@@ -260,7 +280,7 @@ export function LaunchGate({
   return (
     <div className="h-screen flex flex-col" style={{
       background: '#000000',
-      fontFamily: 'Arial, Helvetica, sans-serif',
+      fontFamily: "'Inter', system-ui, sans-serif",
       color: '#ffffff'
     }}>
       {/* Custom Title Bar */}
@@ -305,7 +325,7 @@ export function LaunchGate({
               <circle cx="58" cy="36" r="7" fill="#F39C12"/>
               <circle cx="78" cy="36" r="7" fill="#3498DB"/>
               <circle cx="94" cy="46" r="7" fill="#2ECC71"/>
-              <circle cx="98" cy="66" r="6" fill="#2B61FF"/>
+              <circle cx="98" cy="66" r="6" fill="#F59E0B"/>
               <circle cx="34" cy="62" r="6" fill="#E67E22"/>
               <circle cx="56" cy="80" r="12" fill="#1a1a1a"/>
               <circle cx="56" cy="80" r="9" fill="#111"/>
@@ -373,7 +393,7 @@ export function LaunchGate({
                           fontSize: 13,
                           fontWeight: 600,
                           cursor: 'pointer',
-                          background: 'linear-gradient(125deg, #5B82FF, #1A50E0)',
+                          background: 'linear-gradient(125deg, #F59E0B, #D97706)',
                           border: 'none',
                           color: '#ffffff',
                         }}
@@ -390,7 +410,7 @@ export function LaunchGate({
                       gap: 10
                     }}>
                       <svg width="20" height="20" viewBox="0 0 24 24" style={{ animation: 'spin 1s linear infinite' }}>
-                        <circle cx="12" cy="12" r="10" stroke="#1A50E0" strokeWidth="3" fill="none" strokeDasharray="31.4 31.4" strokeLinecap="round" />
+                        <circle cx="12" cy="12" r="10" stroke="#F59E0B" strokeWidth="3" fill="none" strokeDasharray="31.4 31.4" strokeLinecap="round" />
                       </svg>
                       <span style={{ color: '#a0a0a0', fontSize: 13 }}>Loading license...</span>
                     </div>
@@ -434,7 +454,7 @@ export function LaunchGate({
                     style={{
                       width: 16,
                       height: 16,
-                      accentColor: '#2B61FF',
+                      accentColor: '#F59E0B',
                       cursor: 'pointer',
                       flexShrink: 0
                     }}
@@ -483,7 +503,8 @@ export function LaunchGate({
                   />
                   <button
                     onClick={async () => {
-                      // Would open folder dialog in real implementation
+                      const dir = await window.electronAPI.showOpenDirectoryDialog({ title: 'Choose where the models install' })
+                      if (dir) setInstallPath(dir)
                     }}
                     style={{
                       padding: '10px 28px',
@@ -508,7 +529,7 @@ export function LaunchGate({
                   color: '#a0a0a0',
                   marginTop: 10
                 }}>
-                  <span>Available: <strong style={{ color: '#fff' }}>{availableSpace}</strong></span>
+                  <span>Needs ~30 GB free · Available: <strong style={{ color: '#fff' }}>{availableSpace}</strong></span>
                 </div>
               </div>
 
@@ -614,7 +635,7 @@ export function LaunchGate({
                         fontSize: 13,
                         fontWeight: 600,
                         cursor: 'pointer',
-                        background: 'linear-gradient(125deg, #5B82FF, #1A50E0)',
+                        background: 'linear-gradient(125deg, #F59E0B, #D97706)',
                         border: 'none',
                         color: '#ffffff',
                       }}
@@ -635,7 +656,7 @@ export function LaunchGate({
                   <span style={{ fontSize: 13, fontWeight: 500 }}>
                     {(downloadProgress?.totalProgress || 0) > 85 ? 'Installing...' : 'Downloading...'}
                   </span>
-                  <span style={{ fontSize: 13, color: '#5B82FF', fontWeight: 600 }}>
+                  <span style={{ fontSize: 13, color: '#FBBF24', fontWeight: 600 }}>
                     {Math.round(downloadProgress?.totalProgress || 0)}%
                   </span>
                 </div>
@@ -649,7 +670,7 @@ export function LaunchGate({
                 }}>
                   <div style={{
                     height: '100%',
-                    background: 'linear-gradient(125deg, #5B82FF, #2B61FF, #1A50E0)',
+                    background: 'linear-gradient(125deg, #FBBF24, #F59E0B, #D97706)',
                     backgroundSize: '200% 200%',
                     animation: 'gradientShift 3s ease infinite',
                     borderRadius: 3,
@@ -675,7 +696,7 @@ export function LaunchGate({
                   {/* Speed and ETA */}
                   <div style={{ display: 'flex', gap: 16, marginLeft: 16, flexShrink: 0 }}>
                     {downloadProgress && downloadProgress.speedBytesPerSec > 0 && (
-                      <span style={{ color: '#1A50E0', fontWeight: 500 }}>
+                      <span style={{ color: '#F59E0B', fontWeight: 500 }}>
                         {(downloadProgress.speedBytesPerSec / (1024 * 1024)).toFixed(1)} MB/s
                       </span>
                     )}
@@ -723,7 +744,7 @@ export function LaunchGate({
               <div style={{
                 width: 72,
                 height: 72,
-                background: 'linear-gradient(125deg, #5B82FF, #2B61FF, #1A50E0)',
+                background: 'linear-gradient(125deg, #FBBF24, #F59E0B, #D97706)',
                 borderRadius: '50%',
                 display: 'flex',
                 alignItems: 'center',
@@ -794,7 +815,7 @@ export function LaunchGate({
                   fontSize: 13,
                   fontWeight: 700,
                   cursor: isNextDisabled() ? 'not-allowed' : 'pointer',
-                  background: isNextDisabled() ? '#555' : '#2B61FF',
+                  background: isNextDisabled() ? '#555' : '#F59E0B',
                   border: 'none',
                   color: '#ffffff',
                   transition: 'all 0.2s ease',

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, Image as ImageIcon, Film, Trash2, CloudUpload, Download, X, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
+import { ArrowLeft, Image as ImageIcon, Film, Trash2, Download, X, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
+import { useConfirm } from '../components/ConfirmDialog'
 import { useProjects } from '../contexts/ProjectContext'
 import { LtxLogo } from '../components/LtxLogo'
 import { Button } from '../components/ui/button'
@@ -108,8 +109,9 @@ export function Gallery() {
     void fetchGallery()
   }, [fetchGallery])
 
+  const confirm = useConfirm()
   const handleDelete = async (item: GalleryItem) => {
-    if (!confirm(`Delete "${item.filename}"?`)) return
+    if (!(await confirm({ title: `Delete "${item.filename}"?`, destructive: true }))) return
     try {
       const backendUrl = await window.electronAPI.getBackendUrl()
       const res = await fetch(`${backendUrl}/api/gallery/local/${item.id}`, { method: 'DELETE' })
@@ -163,16 +165,6 @@ export function Gallery() {
             ))}
           </div>
 
-          <Button
-            variant="outline"
-            size="sm"
-            className="border-zinc-700 text-zinc-400 cursor-not-allowed opacity-50"
-            disabled
-            title="Cloud sync not connected"
-          >
-            <CloudUpload className="h-3.5 w-3.5 mr-1.5" />
-            Push to Cloud
-          </Button>
         </div>
       </header>
 

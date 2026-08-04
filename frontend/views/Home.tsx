@@ -507,7 +507,7 @@ export function Home() {
                   <button
                     onClick={() => void handleEmailLogin()}
                     disabled={!loginEmail.trim() || !loginPassword || loginLoading}
-                    className="w-full px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="w-full px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-medium flex items-center justify-center gap-2 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <LogIn className="h-3.5 w-3.5" />
                     {loginLoading ? 'Signing in...' : 'Sign In'}
@@ -533,7 +533,7 @@ export function Home() {
                         <button
                           onClick={handleConnectWithApiKey}
                           disabled={!apiKeyInput.trim()}
-                          className="px-2 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                          className="px-2 py-1.5 rounded-md bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs font-medium disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           Go
                         </button>
@@ -565,7 +565,7 @@ export function Home() {
           <div className="px-3 pb-3 space-y-2">
             <button
               onClick={() => setIsCreating(true)}
-              className="w-full px-3 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium flex items-center justify-center gap-2 transition-colors"
+              className="w-full px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-zinc-950 text-sm font-medium flex items-center justify-center gap-2 transition-colors"
             >
               <Plus className="h-4 w-4" />
               New Project
@@ -635,7 +635,7 @@ export function Home() {
               <p className="text-zinc-500 mb-6">Create your first project to get started</p>
               <Button 
                 onClick={() => setIsCreating(true)}
-                className="bg-blue-600 hover:bg-blue-500"
+                className="bg-amber-500 hover:bg-amber-400 text-zinc-950"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Create Project
@@ -711,7 +711,7 @@ export function Home() {
               <Button
                 onClick={handleCreateProject}
                 disabled={!newProjectName.trim()}
-                className="flex-1 bg-blue-600 hover:bg-blue-500"
+                className="flex-1 bg-amber-500 hover:bg-amber-400 text-zinc-950"
               >
                 Create
               </Button>
@@ -745,7 +745,7 @@ export function Home() {
               <Button
                 onClick={submitRename}
                 disabled={!renameValue.trim()}
-                className="flex-1 bg-blue-600 hover:bg-blue-500"
+                className="flex-1 bg-amber-500 hover:bg-amber-400 text-zinc-950"
               >
                 Save
               </Button>
@@ -791,7 +791,7 @@ export function Home() {
                 <Button
                   onClick={handleSaveAssetFolder}
                   disabled={!assetFolderPath.trim()}
-                  className="flex-1 bg-blue-600 hover:bg-blue-500"
+                  className="flex-1 bg-amber-500 hover:bg-amber-400 text-zinc-950"
                 >
                   Save
                 </Button>

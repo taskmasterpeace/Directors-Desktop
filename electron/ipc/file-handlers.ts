@@ -363,6 +363,25 @@ export function registerFileHandlers(): void {
     }
   })
 
+  ipcMain.handle('get-disk-space', (_event, dirPath: string) => {
+    // Walk up to the nearest existing ancestor so a not-yet-created install
+    // path still reports its drive's free space.
+    try {
+      let probe = path.resolve(dirPath)
+      while (!fs.existsSync(probe)) {
+        const parent = path.dirname(probe)
+        if (parent === probe) break
+        probe = parent
+      }
+      const statfsSync = (fs as unknown as { statfsSync?: (p: string) => { bsize: number; bavail: number } }).statfsSync
+      if (!statfsSync) return null
+      const stats = statfsSync(probe)
+      return { freeBytes: Number(stats.bsize) * Number(stats.bavail) }
+    } catch {
+      return null
+    }
+  })
+
   ipcMain.handle('show-open-directory-dialog', async (_event, options: { title?: string }) => {
     const mainWindow = getMainWindow()
     if (!mainWindow) return null

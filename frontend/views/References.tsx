@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ArrowLeft, Plus, Trash2, ImageIcon, X, CloudDownload } from 'lucide-react'
+import { useConfirm } from '../components/ConfirmDialog'
 import { useProjects } from '../contexts/ProjectContext'
 import { LtxLogo } from '../components/LtxLogo'
 import { Button } from '../components/ui/button'
@@ -86,8 +87,9 @@ export function References() {
     }
   }
 
+  const confirm = useConfirm()
   const handleDelete = async (ref: Reference) => {
-    if (!confirm(`Delete reference "${ref.name}"?`)) return
+    if (!(await confirm({ title: `Delete reference "${ref.name}"?`, destructive: true }))) return
     try {
       const backendUrl = await window.electronAPI.getBackendUrl()
       const res = await fetch(`${backendUrl}/api/library/references/${ref.id}`, { method: 'DELETE' })
@@ -253,7 +255,7 @@ export function References() {
             {syncing ? 'Syncing…' : 'Sync from Palette'}
           </Button>
 
-          <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-500" size="sm">
+          <Button onClick={openCreate} className="bg-amber-500 hover:bg-amber-400 text-zinc-950" size="sm">
             <Plus className="h-3.5 w-3.5 mr-1.5" />
             Add Reference
           </Button>
@@ -285,7 +287,7 @@ export function References() {
             </div>
             <h3 className="text-lg font-medium text-zinc-400 mb-2">No references yet</h3>
             <p className="text-zinc-500 mb-6">Add reference images organized by category</p>
-            <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-500">
+            <Button onClick={openCreate} className="bg-amber-500 hover:bg-amber-400 text-zinc-950">
               <Plus className="h-4 w-4 mr-2" />
               Add Reference
             </Button>
@@ -357,7 +359,7 @@ export function References() {
                       onClick={() => setFormCategory(cat)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors capitalize ${
                         formCategory === cat
-                          ? 'bg-blue-600/20 border-blue-500 text-blue-400'
+                          ? 'bg-amber-500/20 border-amber-500 text-amber-300'
                           : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-600'
                       }`}
                     >
@@ -398,7 +400,7 @@ export function References() {
               <Button
                 onClick={() => void handleSave()}
                 disabled={!formName.trim() || !formImage || saving}
-                className="flex-1 bg-blue-600 hover:bg-blue-500"
+                className="flex-1 bg-amber-500 hover:bg-amber-400 text-zinc-950"
               >
                 {saving ? 'Saving...' : 'Create'}
               </Button>

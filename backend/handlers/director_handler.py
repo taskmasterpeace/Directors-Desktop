@@ -415,6 +415,16 @@ class DirectorHandler:
                     params["audioPath"] = run.audio_path
                     params["audioStartTime"] = round(shot.start, 3)
                     params["audioMaxDuration"] = round(max(0.5, shot.end - shot.start), 3)
+                    if (
+                        not shot.keyframe_path
+                        and run.reference_image_paths
+                        and shot.shot_type == "performance"
+                    ):
+                        # Without a storyboard keyframe the local pipeline has no
+                        # other way to see the artist — seed performance shots
+                        # with the first reference instead of silently dropping
+                        # every ref (the UI promises the look rides every shot).
+                        params["imagePath"] = run.reference_image_paths[0]
                 elif run.reference_image_paths and not shot.keyframe_path:
                     params["referenceImagePaths"] = list(run.reference_image_paths)
                 job = self._job_queue.submit(

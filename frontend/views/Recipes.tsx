@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ArrowLeft, Plus, Trash2, NotebookText, X, RefreshCw } from 'lucide-react'
+import { useConfirm } from '../components/ConfirmDialog'
 import { useProjects } from '../contexts/ProjectContext'
 import { LtxLogo } from '../components/LtxLogo'
 import { Button } from '../components/ui/button'
@@ -162,8 +163,9 @@ export function Recipes() {
     }
   }
 
+  const confirm = useConfirm()
   const handleDelete = async (recipe: Recipe) => {
-    if (!confirm(`Delete recipe "${recipe.name}"?`)) return
+    if (!(await confirm({ title: `Delete recipe "${recipe.name}"?`, destructive: true }))) return
     try {
       const backendUrl = await window.electronAPI.getBackendUrl()
       const res = await fetch(`${backendUrl}/api/library/recipes/${recipe.id}`, { method: 'DELETE' })
@@ -235,7 +237,7 @@ export function Recipes() {
             {syncing ? 'Syncing…' : 'Sync from Palette'}
           </Button>
 
-          <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-500" size="sm">
+          <Button onClick={openCreate} className="bg-amber-500 hover:bg-amber-400 text-zinc-950" size="sm">
             <Plus className="h-3.5 w-3.5 mr-1.5" />
             Add Recipe
           </Button>
@@ -266,7 +268,7 @@ export function Recipes() {
             </div>
             <h3 className="text-lg font-medium text-zinc-400 mb-2">No recipes yet</h3>
             <p className="text-zinc-500 mb-6">Save reusable location, wardrobe, and style snippets for your prompts</p>
-            <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-500">
+            <Button onClick={openCreate} className="bg-amber-500 hover:bg-amber-400 text-zinc-950">
               <Plus className="h-4 w-4 mr-2" />
               Add Recipe
             </Button>
@@ -331,7 +333,7 @@ export function Recipes() {
                       onClick={() => setFormKind(k)}
                       className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors capitalize ${
                         formKind === k
-                          ? 'bg-blue-600/20 border-blue-500 text-blue-400'
+                          ? 'bg-amber-500/20 border-amber-500 text-amber-300'
                           : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-600'
                       }`}
                     >
@@ -364,7 +366,7 @@ export function Recipes() {
               <Button
                 onClick={() => void handleSave()}
                 disabled={!formName.trim() || !formText.trim() || saving}
-                className="flex-1 bg-blue-600 hover:bg-blue-500"
+                className="flex-1 bg-amber-500 hover:bg-amber-400 text-zinc-950"
               >
                 {saving ? 'Saving...' : 'Create'}
               </Button>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { ArrowLeft, Plus, Pencil, Trash2, UserCircle, X } from 'lucide-react'
+import { useConfirm } from '../components/ConfirmDialog'
 import { useProjects } from '../contexts/ProjectContext'
 import { LtxLogo } from '../components/LtxLogo'
 import { Button } from '../components/ui/button'
@@ -103,8 +104,9 @@ export function Characters() {
     }
   }
 
+  const confirm = useConfirm()
   const handleDelete = async (char: Character) => {
-    if (!confirm(`Delete character "${char.name}"?`)) return
+    if (!(await confirm({ title: `Delete character "${char.name}"?`, destructive: true }))) return
     try {
       const backendUrl = await window.electronAPI.getBackendUrl()
       const res = await fetch(`${backendUrl}/api/library/characters/${char.id}`, { method: 'DELETE' })
@@ -144,7 +146,7 @@ export function Characters() {
         <span className="text-zinc-500 text-sm">/</span>
         <h1 className="text-lg font-semibold text-white">Characters</h1>
         <div className="ml-auto">
-          <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-500" size="sm">
+          <Button onClick={openCreate} className="bg-amber-500 hover:bg-amber-400 text-zinc-950" size="sm">
             <Plus className="h-3.5 w-3.5 mr-1.5" />
             Add Character
           </Button>
@@ -171,7 +173,7 @@ export function Characters() {
             </div>
             <h3 className="text-lg font-medium text-zinc-400 mb-2">No characters yet</h3>
             <p className="text-zinc-500 mb-6">Create characters with reference images for consistent generation</p>
-            <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-500">
+            <Button onClick={openCreate} className="bg-amber-500 hover:bg-amber-400 text-zinc-950">
               <Plus className="h-4 w-4 mr-2" />
               Add Character
             </Button>
@@ -190,7 +192,7 @@ export function Characters() {
                       {char.reference_image_paths.slice(0, 4).map((img, i) => (
                         <img
                           key={i}
-                          src={img}
+                          src={toImgSrc(img)}
                           alt={`${char.name} ref ${i + 1}`}
                           className="w-full h-full object-cover"
                         />
@@ -314,7 +316,7 @@ export function Characters() {
               <Button
                 onClick={() => void handleSave()}
                 disabled={!formName.trim() || saving}
-                className="flex-1 bg-blue-600 hover:bg-blue-500"
+                className="flex-1 bg-amber-500 hover:bg-amber-400 text-zinc-950"
               >
                 {saving ? 'Saving...' : editingCharacter ? 'Update' : 'Create'}
               </Button>

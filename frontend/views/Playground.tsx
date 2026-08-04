@@ -370,7 +370,7 @@ export function Playground() {
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-zinc-800/80 border border-zinc-700/50">
               <div className="w-2 h-2 rounded-full bg-emerald-500" />
               <span className="text-xs text-zinc-300 font-medium">
-                ${(credits.balance_cents / 100).toFixed(2)}
+                {credits.balance_cents} pts
               </span>
             </div>
           )}
@@ -574,7 +574,7 @@ export function Playground() {
                 <Button
                   onClick={handleGenerate}
                   disabled={!canGenerate}
-                  className="flex-1 flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white disabled:bg-zinc-700 disabled:text-zinc-500"
+                  className="flex-1 flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-zinc-950 disabled:bg-zinc-700 disabled:text-zinc-500"
                 >
                   {isRetakeMode ? (
                     <>
@@ -584,12 +584,12 @@ export function Playground() {
                   ) : mode === 'text-to-image' ? (
                     <>
                       <ImageIcon className="h-4 w-4" />
-                      Generate image{estimatedCostCents ? ` ($${(estimatedCostCents / 100).toFixed(2)})` : ''}
+                      Generate image{estimatedCostCents ? ` (${estimatedCostCents} pts)` : ''}
                     </>
                   ) : (
                     <>
                       <Sparkles className="h-4 w-4" />
-                      Generate video{estimatedCostCents ? ` ($${(estimatedCostCents / 100).toFixed(2)})` : ''}
+                      Generate video{estimatedCostCents ? ` (${estimatedCostCents} pts)` : ''}
                     </>
                   )}
                 </Button>

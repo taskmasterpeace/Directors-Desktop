@@ -402,7 +402,7 @@ export function ExportModal({ open, onClose, clips, tracks, timeline, projectNam
               </div>
               <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
                 <div 
-                  className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                  className="h-full bg-amber-500 rounded-full transition-all duration-300"
                   style={{ width: `${exportProgress}%` }}
                 />
               </div>
@@ -679,7 +679,7 @@ export function ExportModal({ open, onClose, clips, tracks, timeline, projectNam
               <button
                 onClick={handleExportVideo}
                 disabled={clips.length === 0}
-                className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm flex items-center justify-center gap-2 transition-colors"
+                className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-zinc-950 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm flex items-center justify-center gap-2 transition-colors"
               >
                 <Film className="h-4 w-4" />
                 Export Video

@@ -1,7 +1,7 @@
 import React from 'react'
 import {
   Clipboard, Copy, Scissors, Trash2, Layers, Type, X, RefreshCw,
-  ZoomIn, Film, Eye, FolderOpen, RotateCcw, Volume2, VolumeX,
+  Film, Eye, FolderOpen, RotateCcw, Volume2, VolumeX,
   FlipHorizontal2, FlipVertical2, Link2, Unlink2,
   ChevronLeft, ChevronRight, // IC-LORA HIDDEN: removed Sparkles
   Video, Camera, Image as ImageIcon, Library,
@@ -538,10 +538,6 @@ function SingleClipMenu({
             </div>
           )}
 
-          {isVideo && contextClip.assetId && (
-            <MenuItem icon={ZoomIn} iconClass="text-zinc-500" label="Upscale (2x)"
-              disabled={true} title="Coming Soon!" onClick={() => {}} />
-          )}
           {isImage && (
             <MenuItem icon={Film} iconClass="text-blue-400" label="Image to Video (I2V)"
               disabled={isRegenerating && i2vClipId === contextClip.id}
