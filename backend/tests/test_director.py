@@ -544,3 +544,131 @@ def test_routes_surface(client, test_state, tmp_path: Path):
 
     # The background thread exits promptly once the run is terminal.
     handler.director.status(run_id)
+
+
+# --- Adversarial phase-machine assertions (loop I6) -----------------------
+# The phase machine touches paid work, so its edges matter: a wrong transition
+# resubmits a shot, loses one, or spends after cancel. These pin the edges.
+
+def test_cancel_is_idempotent(test_state, tmp_path: Path):
+    handler = test_state
+    run = _start(handler, tmp_path)
+    handler.director.cancel(run.id)
+    assert run.phase == "cancelled"
+    # A second cancel must not raise or change anything.
+    again = handler.director.cancel(run.id)
+    assert again.phase == "cancelled"
+
+
+def test_cancel_before_any_shot_submits_nothing(test_state, tmp_path: Path):
+    handler = test_state
+    run = _start(handler, tmp_path)  # phase: analyzing
+    handler.director.cancel(run.id)
+    assert run.phase == "cancelled"
+    assert [j for j in handler.job_queue.all_jobs() if "director" in j.tags] == []
+
+
+def test_resuming_a_complete_run_is_a_noop(test_state, tmp_path: Path):
+    handler = test_state
+    run = _start(handler, tmp_path)
+    handler.director.step(run.id)              # -> generating
+    handler.director.step(run.id)              # submit
+    _complete_director_jobs(handler, tmp_path)
+    handler.director.step(run.id)              # -> assembling
+    handler.director.step(run.id)              # -> complete
+    assert run.phase == "complete"
+
+    submitted_before = len([j for j in handler.job_queue.all_jobs() if "director" in j.tags])
+    resumed = handler.director.resume(run.id, run_thread=False)
+    assert resumed.phase == "complete"
+    submitted_after = len([j for j in handler.job_queue.all_jobs() if "director" in j.tags])
+    assert submitted_after == submitted_before, "resume must not resubmit a finished run"
+
+
+def test_resume_keeps_already_completed_shots(test_state, tmp_path: Path):
+    handler = test_state
+    run = _start(handler, tmp_path)
+    handler.director.step(run.id)              # -> generating
+    handler.director.step(run.id)              # submit all
+    # Finish only half of the shots, then error the run out.
+    finished = 0
+    for job in handler.job_queue.all_jobs():
+        if job.status == "queued" and "director" in job.tags and finished < len(run.shots) // 2:
+            clip = tmp_path / f"{job.id}.mp4"
+            clip.write_bytes(b"clip")
+            handler.job_queue.update_job(job.id, status="complete", result_paths=[str(clip)])
+            finished += 1
+    handler.director.step(run.id)              # collect the completed ones
+    done_shots = {s.index for s in run.shots if s.result_path is not None}
+    assert done_shots, "at least one shot should have completed"
+
+    run.phase = "error"
+    resumed = handler.director.resume(run.id, run_thread=False)
+    # Completed shots keep their result; none are thrown back to pending.
+    for shot in resumed.shots:
+        if shot.index in done_shots:
+            assert shot.result_path is not None
+            assert shot.status == "complete"
+
+
+def test_approve_plan_rejects_a_run_not_awaiting_review(test_state, tmp_path: Path):
+    from _routes._errors import HTTPError
+
+    handler = test_state
+    run = _start(handler, tmp_path)  # phase: analyzing, not plan_ready
+    try:
+        handler.director.approve_plan(run.id, run_thread=False)
+        raise AssertionError("expected HTTPError")
+    except HTTPError as e:
+        assert e.status_code == 409
+
+
+def test_reroll_rejects_incomplete_runs_and_bad_indices(test_state, tmp_path: Path):
+    from _routes._errors import HTTPError
+
+    handler = test_state
+    run = _start(handler, tmp_path)
+    try:
+        handler.director.reroll_shots(run.id, [0], run_thread=False)  # not complete
+        raise AssertionError("expected 409")
+    except HTTPError as e:
+        assert e.status_code == 409
+
+    # Drive to complete, then reroll a nonexistent index.
+    handler.director.step(run.id)
+    handler.director.step(run.id)
+    _complete_director_jobs(handler, tmp_path)
+    handler.director.step(run.id)
+    handler.director.step(run.id)
+    assert run.phase == "complete"
+    try:
+        handler.director.reroll_shots(run.id, [9999], run_thread=False)
+        raise AssertionError("expected 400")
+    except HTTPError as e:
+        assert e.status_code == 400
+
+
+def test_operations_on_an_unknown_run_are_404(test_state):
+    from _routes._errors import HTTPError
+
+    handler = test_state
+    for op in (
+        lambda: handler.director.step("nope"),
+        lambda: handler.director.cancel("nope"),
+        lambda: handler.director.resume("nope", run_thread=False),
+        lambda: handler.director.approve_plan("nope", run_thread=False),
+    ):
+        try:
+            op()
+            raise AssertionError("expected 404")
+        except HTTPError as e:
+            assert e.status_code == 404
+
+
+def test_steps_after_cancel_stay_cancelled(test_state, tmp_path: Path):
+    handler = test_state
+    run = _start(handler, tmp_path)
+    handler.director.step(run.id)
+    handler.director.cancel(run.id)
+    for _ in range(3):
+        assert handler.director.step(run.id).phase == "cancelled"

@@ -6,6 +6,7 @@ from server_utils.shot_planner import (
     GEN_MAX_SECONDS,
     GEN_MIN_SECONDS,
     MAX_TOTAL_SHOTS,
+    draft_concept,
     plan_shots,
     quantize_frames_8k1,
     snap_to_grid,
@@ -235,3 +236,47 @@ def test_empty_sections_fall_back_to_single_span():
     shots = plan_shots(analysis, "fallback")
     assert shots
     assert abs(shots[-1].end - 30.0) < 0.01
+
+
+# --- draft_concept ("Surprise me" #72): locked so it stays pure & deterministic ---
+
+def test_draft_concept_is_deterministic():
+    # Same song in -> same concept out. This is the whole promise of "Surprise me".
+    a = draft_concept(120.0, 0.5, ["fire", "fire", "night", "chrome"])
+    b = draft_concept(120.0, 0.5, ["fire", "fire", "night", "chrome"])
+    assert a == b
+
+
+def test_draft_concept_pace_follows_tempo():
+    assert "high-velocity" in draft_concept(140.0, 0.5, [])
+    assert "confident mid-tempo" in draft_concept(110.0, 0.5, [])
+    assert "head-nod groove" in draft_concept(90.0, 0.5, [])
+    assert "slow-burn" in draft_concept(70.0, 0.5, [])
+
+
+def test_draft_concept_mood_follows_energy():
+    assert "peaking hard" in draft_concept(120.0, 0.9, [])
+    assert "building steadily" in draft_concept(120.0, 0.5, [])
+    assert "kept intimate" in draft_concept(120.0, 0.1, [])
+
+
+def test_draft_concept_surfaces_the_top_themes_by_frequency():
+    words = ["money"] * 3 + ["power"] * 2 + ["fame"] * 1 + ["the", "a", "and"]
+    concept = draft_concept(120.0, 0.5, words)
+    assert "'money'" in concept and "'power'" in concept and "'fame'" in concept
+    # Stopwords and sub-3-char tokens never become themes.
+    assert "'the'" not in concept and "'a'" not in concept
+
+
+def test_draft_concept_falls_back_cleanly_with_no_usable_lyrics():
+    concept = draft_concept(120.0, 0.5, ["a", "i", "the"])
+    assert "instrumental visual" in concept
+    assert "themes of" not in concept  # never dangles an empty theme clause
+
+
+def test_draft_concept_ties_break_alphabetically_for_determinism():
+    # Equal counts must resolve stably, or "same song, same concept" is a lie.
+    c1 = draft_concept(120.0, 0.5, ["zebra", "apple", "mango"])
+    c2 = draft_concept(120.0, 0.5, ["mango", "zebra", "apple"])
+    assert c1 == c2
+    assert c1.index("'apple'") < c1.index("'mango'") < c1.index("'zebra'")
