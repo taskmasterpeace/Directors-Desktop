@@ -27,6 +27,11 @@ class SettingsHandler(StateHandlerBase):
     def __init__(self, state: AppState, lock: RLock, settings_file: Path) -> None:
         super().__init__(state, lock)
         self._settings_file = settings_file
+        # Top-level keys the current build's schema doesn't recognise. AppSettings
+        # is extra="ignore", so without carrying these forward an OLDER build would
+        # silently erase settings written by a NEWER one it hadn't learned yet.
+        # We can't validate them, but we can preserve them verbatim.
+        self._preserved_extra: dict[str, object] = {}
 
     @with_state_lock
     def load_settings(self, default_settings: AppSettings) -> AppSettings:
@@ -35,6 +40,12 @@ class SettingsHandler(StateHandlerBase):
                 with open(self._settings_file, "r", encoding="utf-8") as f:
                     payload = json.load(f)
                 migrated = migrate_legacy_settings(ensure_json_object(payload))
+                # Stash any top-level keys the schema doesn't know so save can
+                # write them back untouched (forward-compat across downgrades).
+                known = set(AppSettings.model_fields)
+                self._preserved_extra = {
+                    k: v for k, v in migrated.items() if k not in known
+                }
                 merged = deep_merge_dicts(
                     ensure_json_object(default_settings.model_dump(by_alias=False)),
                     migrated,
@@ -76,6 +87,10 @@ class SettingsHandler(StateHandlerBase):
         tmp = self._settings_file.with_name(f"{self._settings_file.name}.{os.getpid()}.tmp")
         try:
             payload = self.get_settings_snapshot().model_dump(by_alias=False)
+            # Re-attach keys a newer build wrote that this one doesn't understand.
+            # Known keys always win, so this only ever adds; it never overrides.
+            if self._preserved_extra:
+                payload = {**self._preserved_extra, **payload}
             self._settings_file.parent.mkdir(parents=True, exist_ok=True)
             tmp.write_text(json.dumps(payload, indent=2), encoding="utf-8")
             os.replace(tmp, self._settings_file)
