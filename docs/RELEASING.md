@@ -22,7 +22,14 @@ into its own parts keeps the installer small and lets cloud-only users skip the
 
 ## Before you build (one-time on a fresh machine)
 
-Two things bite otherwise — both hit during the first real build.
+**Use PowerShell 7 (`pwsh`) for every build script.** Windows PowerShell 5.1
+turns native stderr (pip/uv/electron-builder progress) into terminating errors
+under the scripts' `$ErrorActionPreference = "Stop"` and aborts mid-build.
+No install rights needed — the portable zip works:
+`https://github.com/PowerShell/PowerShell/releases` → `PowerShell-<ver>-win-x64.zip`,
+extract anywhere, run `pwsh.exe -File scripts/<script>.ps1`.
+
+Two more things bite otherwise — both hit during the first real build.
 
 **1. Point TEMP at a writable folder.** NSIS writes a temp include file and
 re-reads it; when TEMP is the system directory it aborts with
