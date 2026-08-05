@@ -153,8 +153,18 @@ MODELS_DIR = APP_DATA_DIR / "models"
 MODELS_DIR.mkdir(parents=True, exist_ok=True)
 
 PROJECT_ROOT = Path(__file__).parent.parent
-OUTPUTS_DIR = Path(__file__).parent / "outputs"
-OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _resolve_outputs_dir() -> Path:
+    """Packaged builds pass DD_OUTPUTS_DIR (userData/outputs) so renders
+    survive app updates/uninstalls; dev keeps the repo-local default."""
+    env_path = os.environ.get("DD_OUTPUTS_DIR")
+    candidate = Path(env_path) if env_path else Path(__file__).parent / "outputs"
+    candidate.mkdir(parents=True, exist_ok=True)
+    return candidate
+
+
+OUTPUTS_DIR = _resolve_outputs_dir()
 
 logger.info(f"Models directory: {MODELS_DIR}")
 
