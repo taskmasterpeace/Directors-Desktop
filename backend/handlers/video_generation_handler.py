@@ -30,9 +30,7 @@ from state.app_state_types import AppState
 from state.app_settings import should_video_generate_with_ltx_api
 
 REPLICATE_VIDEO_MODELS = {"seedance-1.5-pro"}
-# minimax-h3 is fal-hosted ONLY: its open-weights license excludes the United
-# States, so the hosted API is the sole compliant path for this product.
-FAL_VIDEO_MODELS = {"seedance-2.0", "seedance-2.0-fast", "minimax-h3"}
+FAL_VIDEO_MODELS = {"seedance-2.0", "seedance-2.0-fast"}
 
 if TYPE_CHECKING:
     from runtime_config.runtime_config import RuntimeConfig

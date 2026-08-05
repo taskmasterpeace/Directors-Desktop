@@ -576,14 +576,14 @@ function PromptBar({
   const [isAudioDragOver, setIsAudioDragOver] = useState(false)
   const [isLastFrameDragOver, setIsLastFrameDragOver] = useState(false)
   const isRetake = mode === 'retake'
-  const LOCAL_MAX_DURATION: Record<string, number> = { '540p': 60, '720p': 10, '1080p': 5 }
+  const LOCAL_MAX_DURATION: Record<string, number> = { '480p': 60, '540p': 60, '720p': 10, '1080p': 5 }
   const localMaxDuration = LOCAL_MAX_DURATION[settings.videoResolution] ?? 60
   const videoDurationOptions = shouldVideoGenerateWithLtxApi
     ? [...getAllowedForcedApiDurations(settings.model, settings.videoResolution, settings.fps)]
     : [4, 5, 6, 8, 10, 12, 16, 20, 30, 60].filter(d => d <= localMaxDuration)
   const videoResolutionOptions = shouldVideoGenerateWithLtxApi
     ? (inputAudio ? ['1080p'] : [...FORCED_API_VIDEO_RESOLUTIONS])
-    : ['540p', '720p', '1080p']
+    : ['480p', '540p', '720p', '1080p']
   const videoFpsOptions = shouldVideoGenerateWithLtxApi ? [...FORCED_API_VIDEO_FPS] : [24, 25, 50]
 
   const handleDrop = (e: React.DragEvent) => {
@@ -1174,6 +1174,7 @@ function PromptBar({
                     ]
                   : [
                       { value: 'fast', label: 'LTX 2.3 Fast' },
+                      { value: 'h3-local', label: 'MiniMax H3 (local · native audio)' },
                     ]),
                 { value: 'seedance-1.5-pro', label: `Seedance 1.5 Pro (Replicate)${!hasReplicateApiKey ? ' — needs API key' : ''}`, disabled: !hasReplicateApiKey },
                 { value: 'seedance-2.0', label: `Seedance 2.0 (fal)${!hasFalApiKey ? ' — needs fal key' : ''}`, disabled: !hasFalApiKey },
@@ -1186,6 +1187,7 @@ function PromptBar({
                     {settings.model === 'seedance-1.5-pro' ? 'Seedance 1.5 Pro'
                       : settings.model === 'seedance-2.0' ? 'Seedance 2.0'
                       : settings.model === 'seedance-2.0-fast' ? 'Seedance 2.0 Fast'
+                      : settings.model === 'h3-local' ? 'MiniMax H3'
                       : shouldVideoGenerateWithLtxApi
                         ? (settings.model === 'pro' ? 'LTX-2.3 Pro (API)' : 'LTX-2.3 Fast (API)')
                         : 'LTX 2.3 Fast'}
@@ -1205,6 +1207,7 @@ function PromptBar({
                 'seedance-2.0': 15,
                 'seedance-2.0-fast': 15,
                 'seedance-1.5-pro': 12,
+                'h3-local': 15,
               }
               const isSeedance = settings.model.startsWith('seedance')
               const maxExact =

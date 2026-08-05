@@ -11,7 +11,7 @@ import {
 import { getImageModel, listImageModelGroups } from '../lib/image-models'
 import { useAppSettings } from '../contexts/AppSettingsContext'
 
-export type VideoModel = 'fast' | 'pro' | 'seedance-1.5-pro' | 'seedance-2.0' | 'seedance-2.0-fast' | 'minimax-h3'
+export type VideoModel = 'fast' | 'pro' | 'seedance-1.5-pro' | 'seedance-2.0' | 'seedance-2.0-fast' | 'h3-local'
 
 export interface GenerationSettings {
   model: VideoModel
@@ -103,7 +103,7 @@ export function SettingsPanel({
     'seedance-2.0': 15,
     'seedance-2.0-fast': 15,
     'seedance-1.5-pro': 12,
-    'minimax-h3': 15,
+    'h3-local': 15,
   }
   const maxExactDuration =
     SEEDANCE_MAX[settings.model] ??
@@ -111,7 +111,7 @@ export function SettingsPanel({
       ? (durationOptions.length ? Math.max(...durationOptions) : 20)
       : localMaxDuration)
   // Cloud models floor at 4s (shorter requests generate at the floor, then trim).
-  const seedanceFloor = settings.model.startsWith('seedance') || settings.model === 'minimax-h3' ? 4 : null
+  const seedanceFloor = settings.model.startsWith('seedance') ? 4 : null
   const exactLengthHint =
     seedanceFloor && settings.duration < seedanceFloor
       ? `Generates at the model minimum (${seedanceFloor}s), then trims back to ${settings.duration}s — audio kept.`
@@ -381,7 +381,10 @@ export function SettingsPanel({
         disabled={disabled}
       >
         {!forceApiGenerations && (
-          <option value="fast">LTX 2.3 Fast</option>
+          <>
+            <option value="fast">LTX 2.3 Fast</option>
+            <option value="h3-local">MiniMax H3 (local · native audio)</option>
+          </>
         )}
         {forceApiGenerations && (
           <>
@@ -397,9 +400,6 @@ export function SettingsPanel({
         </option>
         <option value="seedance-2.0-fast" disabled={!hasFalApiKey}>
           Seedance 2.0 Fast (fal){!hasFalApiKey ? ' — needs fal key' : ''}
-        </option>
-        <option value="minimax-h3" disabled={!hasFalApiKey}>
-          MiniMax H3 (fal) — native audio{!hasFalApiKey ? ' — needs fal key' : ''}
         </option>
       </Select>
 

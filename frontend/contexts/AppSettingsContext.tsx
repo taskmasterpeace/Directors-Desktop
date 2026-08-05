@@ -38,6 +38,7 @@ export interface AppSettings {
   hasGeminiApiKey: boolean
   hasOpenrouterApiKey: boolean
   useLocalTextEncoder: boolean
+  useAbliteratedTextEncoder: boolean
   fastModel: FastModelSettings
   proModel: InferenceSettings
   promptCacheSize: number
@@ -63,6 +64,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   hasGeminiApiKey: false,
   hasOpenrouterApiKey: false,
   useLocalTextEncoder: false,
+  useAbliteratedTextEncoder: false,
   fastModel: { useUpscaler: true },
   proModel: { steps: 20, useUpscaler: true },
   promptCacheSize: 1,
@@ -128,6 +130,7 @@ function normalizeAppSettings(data: Partial<AppSettings>): AppSettings {
     hasGeminiApiKey: data.hasGeminiApiKey ?? DEFAULT_APP_SETTINGS.hasGeminiApiKey,
     hasOpenrouterApiKey: data.hasOpenrouterApiKey ?? DEFAULT_APP_SETTINGS.hasOpenrouterApiKey,
     useLocalTextEncoder: data.useLocalTextEncoder ?? DEFAULT_APP_SETTINGS.useLocalTextEncoder,
+    useAbliteratedTextEncoder: data.useAbliteratedTextEncoder ?? DEFAULT_APP_SETTINGS.useAbliteratedTextEncoder,
     fastModel: data.fastModel ?? DEFAULT_APP_SETTINGS.fastModel,
     proModel: data.proModel ?? DEFAULT_APP_SETTINGS.proModel,
     promptCacheSize: data.promptCacheSize ?? DEFAULT_APP_SETTINGS.promptCacheSize,

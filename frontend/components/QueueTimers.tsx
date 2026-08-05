@@ -21,7 +21,6 @@ const MODEL_NAMES: Record<string, string> = {
   'seedance-1.5-pro': 'Seedance 1.5',
   'seedance-2.0': 'Seedance 2.0',
   'seedance-2.0-fast': 'Seedance 2.0 Fast',
-  'minimax-h3': 'MiniMax H3',
 }
 
 function fmt(seconds: number): string {

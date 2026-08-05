@@ -130,7 +130,7 @@ class ModelsHandler(StateHandlerBase):
                     expected_size=spec.expected_size_bytes,
                     required=required,
                     is_folder=spec.is_folder,
-                    optional_reason=optional_reason if model_type == "text_encoder" else None,
+                    optional_reason=optional_reason,
                 )
             )
 

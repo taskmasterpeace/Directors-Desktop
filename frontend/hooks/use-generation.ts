@@ -53,11 +53,14 @@ export const VIDEO_TIME_ESTIMATES: Record<string, Record<string, Record<string, 
     '720p': { '5': 70, '10': 130, '15': 190 },
     '1080p': { '5': 110, '10': 200, '15': 290 },
   },
-  // H3 renders at fal's 768P tier for any request <=768 vertical, 2K for 1080p+.
-  'minimax-h3': {
-    '480p': { '5': 120, '10': 210, '15': 300 },
-    '720p': { '5': 120, '10': 210, '15': 300 },
-    '1080p': { '5': 240, '10': 420, '15': 600 },
+  // Local MiniMax H3 on a 4090, WARM (int8), fitted to the 29-run battery. Cold
+  // adds ~9 min for the first-of-session model load. 1080p maps to H3's 720p
+  // tier under the hood (H3's native-local ceiling here).
+  'h3-local': {
+    '480p': { '5': 120, '10': 390, '15': 780 },
+    '540p': { '5': 180, '10': 570, '15': 1140 },
+    '720p': { '5': 480, '10': 1500, '15': 3120 },
+    '1080p': { '5': 480, '10': 1500, '15': 3120 },
   },
 }
 

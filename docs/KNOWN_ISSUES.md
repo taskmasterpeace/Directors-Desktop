@@ -2,8 +2,8 @@
 
 ## LTX local (on-GPU) generation stalls at ~15% on a 24GB card
 
-**Status:** open, deferred (2026-08-04). Cloud paths (Seedance via Replicate/fal,
-MiniMax H3 via fal) are unaffected and are the recommended way to generate today.
+**Status:** open, deferred (2026-08-04). Cloud paths (Seedance via Replicate/fal)
+are unaffected and are the recommended way to generate today.
 
 **Symptom:** a local `ltx-fast` job reaches `inference` / progress 15 and never
 advances. GPU shows 100% utilization but only ~100W draw (real compute is

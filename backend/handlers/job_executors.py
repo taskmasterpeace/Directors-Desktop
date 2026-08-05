@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import os
+import shutil
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -126,7 +128,11 @@ class GpuJobExecutor:
             if job.type == "image":
                 result = self._execute_image(job)
             elif job.type == "video":
-                result = self._execute_video(job)
+                result = (
+                    self._execute_h3_local(job)
+                    if job.model == "h3-local"
+                    else self._execute_video(job)
+                )
             elif job.type == "long_video":
                 result = self._execute_long_video(job)
             else:
@@ -219,6 +225,77 @@ class GpuJobExecutor:
         if result.video_path is None:
             return []
         return [result.video_path]
+
+    def _execute_h3_local(self, job: QueueJob) -> list[str]:
+        """Render on the local MiniMax H3 engine (gpu slot).
+
+        Phase-1 engine drives the proven ComfyUI graph; swappable behind the
+        H3LocalClient Protocol. Result is copied into outputs_dir so it lands in
+        the Gallery like every other local render.
+        """
+        from services.h3_local_client import (
+            H3_TE_FALLBACK,
+            H3_TE_UNCENSORED,
+            H3_TE_UNCENSORED_NVFP4,
+            ComfyH3LocalClientImpl,
+            h3_dimensions,
+        )
+
+        params = _prepare_video_params(self._handler, job.params)
+        # DD resolution ids -> H3's proven tiers (480p / 544p / 720p).
+        res_map = {"480p": "480p", "512p": "544p", "540p": "544p",
+                   "544p": "544p", "720p": "720p", "1080p": "720p"}
+        h3_res = res_map.get(str(params.get("resolution", "480p")), "480p")
+        aspect = str(params.get("aspectRatio", "16:9"))
+        width, height = h3_dimensions(h3_res, aspect)
+        try:
+            seconds = float(str(params.get("duration", "5")))
+        except ValueError:
+            seconds = 5.0
+        try:
+            seed = int(params.get("seed", 7))
+        except (TypeError, ValueError):
+            seed = 7
+
+        refs = _str_list(params.get("referenceImagePaths"))
+        image_path = str(params.get("imagePath")) if params.get("imagePath") else None
+        reference_image = refs[0] if refs else image_path  # omni-reference (character lock)
+
+        comfy_dir = Path(os.environ.get("DD_COMFY_DIR", r"D:\comfy\ComfyUI_windows_portable"))
+        # Prefer the uncensored Heretic encoder that FITS 24GB (NVFP4), then the
+        # bigger int8 Heretic (works but spills to RAM on 24GB), then the standard
+        # censored encoder as a last resort.
+        te_dir = Path(os.environ.get("DD_H3_TE_DIR", r"D:\models\minimax-h3\text_encoders"))
+        if (te_dir / H3_TE_UNCENSORED_NVFP4).exists():
+            text_encoder = H3_TE_UNCENSORED_NVFP4
+        elif (te_dir / H3_TE_UNCENSORED).exists():
+            text_encoder = H3_TE_UNCENSORED
+        else:
+            text_encoder = H3_TE_FALLBACK
+        client = ComfyH3LocalClientImpl(comfy_dir=comfy_dir, text_encoder=text_encoder)
+
+        def on_phase(phase: str, percent: int) -> None:
+            self._handler.job_queue.update_job(job.id, phase=phase, progress=percent)
+
+        def should_cancel() -> bool:
+            current = self._handler.job_queue.get_job(job.id) or job
+            return current.status == "cancelled"
+
+        out_path = client.generate_video(
+            prompt=str(params.get("prompt", "")),
+            width=width,
+            height=height,
+            seconds=seconds,
+            reference_image_path=reference_image,
+            seed=seed,
+            on_phase=on_phase,
+            should_cancel=should_cancel,
+        )
+
+        dest = self._handler.config.outputs_dir / f"h3_{job.id}.mp4"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(out_path, dest)
+        return [str(dest)]
 
     def _execute_long_video(self, job: QueueJob) -> list[str]:
         params = job.params

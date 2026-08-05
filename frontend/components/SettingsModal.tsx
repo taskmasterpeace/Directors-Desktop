@@ -5,6 +5,7 @@ import { ModelGuideDialog } from './ModelGuideDialog'
 import { useAppSettings, type AppSettings } from '../contexts/AppSettingsContext'
 import { logger } from '../lib/logger'
 import { getImageModel, isPaletteImageModel, listImageModelGroups } from '../lib/image-models'
+import { explainLtxModel, assessGpuFit } from '../lib/ltx-model-info'
 import { ApiKeyHelperRow, LtxApiKeyInput } from './LtxApiKeyInput'
 
 interface TextEncoderStatus {
@@ -490,6 +491,37 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                 </div>
               </div>
 
+              {/* Uncensored (abliterated) text encoder for LTX */}
+              <div className="space-y-3 pt-4 border-t border-zinc-800">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <svg className="h-4 w-4 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 2 2 7v6c0 5 4 8 10 9 6-1 10-4 10-9V7L12 2z" />
+                      </svg>
+                      <label className="text-sm font-medium text-white">Uncensored Text Encoder (LTX)</label>
+                    </div>
+                    <p className="text-xs text-zinc-500 leading-relaxed">
+                      Use the abliterated Gemma-3 encoder for LTX — safety filtering removed, so prompts
+                      are interpreted without content restrictions. Needs the ~24 GB abliterated encoder
+                      (downloads in the background); falls back to the standard encoder until it's present.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => onSettingsChange({ ...settings, useAbliteratedTextEncoder: !settings.useAbliteratedTextEncoder })}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      settings.useAbliteratedTextEncoder ? 'bg-red-500' : 'bg-zinc-700'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                        settings.useAbliteratedTextEncoder ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
               {/* Load on Startup Setting */}
               <div className="space-y-3 pt-4 border-t border-zinc-800">
                 <div className="flex items-start justify-between gap-4">
@@ -791,19 +823,6 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                     </p>
                   </div>
 
-                  <div className="pt-2 border-t border-zinc-700">
-                    <label className="text-xs text-zinc-400 block mb-1.5">Video Model</label>
-                    <select
-                      value={settings.videoModel}
-                      onChange={(e) => updateSettings({ videoModel: e.target.value })}
-                      className="w-full bg-zinc-900 text-white text-sm rounded-lg px-3 py-2 border border-zinc-700 focus:border-blue-500 focus:outline-none"
-                    >
-                      <option value="ltx-fast">LTX Fast</option>
-                      <option value="seedance-1.5-pro">Seedance 1.5 Pro (Replicate)</option>
-                      <option value="seedance-2.0">Seedance 2.0 (fal)</option>
-                      <option value="seedance-2.0-fast">Seedance 2.0 Fast (fal)</option>
-                    </select>
-                  </div>
                 </div>
               </div>
 
@@ -1415,20 +1434,21 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                 </div>
 
                 <p className="text-xs text-zinc-500 leading-relaxed">
-                  Automatically enhances your prompts via the LTX API with rich visual details, sound descriptions,
-                  and motion cues to help generate higher quality videos. Control independently for each generation type.
+                  Automatically enhances your prompts with rich visual details, sound descriptions,
+                  and motion cues to help generate higher quality videos. Runs on your Director's Palette
+                  account (or a Gemini/OpenRouter key). Control independently for each generation type.
                 </p>
 
-                {!settings.hasLtxApiKey ? (
+                {!(settings.hasPaletteApiKey || settings.hasGeminiApiKey || settings.hasOpenrouterApiKey) ? (
                   <div className="space-y-4 mt-2">
                     <div className="bg-amber-500/5 border border-amber-500/20 rounded-lg p-4 space-y-3">
                       <div className="flex items-start gap-2.5">
                         <AlertCircle className="h-4 w-4 text-amber-400 mt-0.5 flex-shrink-0" />
                         <div className="space-y-2">
-                          <p className="text-sm text-amber-300 font-medium">LTX API key required</p>
+                          <p className="text-sm text-amber-300 font-medium">Connect an account to enhance prompts</p>
                           <p className="text-xs text-zinc-400 leading-relaxed">
-                            Prompt enhancement runs server-side on the LTX API. To use this feature, you need to configure
-                            an API key in the API Keys tab.
+                            Prompt enhancement runs on your Director's Palette account. Sign in to Palette
+                            in the API Keys tab (or add a Gemini/OpenRouter key) to use this feature.
                           </p>
                         </div>
                       </div>
@@ -1436,7 +1456,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                         onClick={() => setActiveTab('apiKeys')}
                         className="w-full mt-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors"
                       >
-                        Set API Key
+                        Open API Keys
                       </button>
                     </div>
                   </div>
@@ -1551,6 +1571,48 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                 </select>
                 {videoModels.length === 0 && (
                   <p className="text-xs text-zinc-500">No model files detected. Scan your model folder to find models.</p>
+                )}
+
+                {/* Plain-English explanation of each file + honest GPU-fit check.
+                    Turns the cryptic dev/distilled/lora/upscaler filenames into
+                    something a human can pick from — and flags files too big for
+                    this card (the usual reason local LTX won't load). */}
+                {videoModels.length > 0 && (
+                  <div className="space-y-2 pt-1">
+                    <p className="text-[11px] text-zinc-500">What these files are — and what fits your {gpuInfo?.vram ?? '?'} GB card:</p>
+                    {videoModels.map((m: any) => {
+                      const info = explainLtxModel(String(m.filename ?? m.display_name ?? ''))
+                      const fit = assessGpuFit(Number(m.size_gb ?? 0), gpuInfo?.vram ?? null, info.isGenerator)
+                      const fitColor =
+                        fit.level === 'fits' ? 'text-green-400'
+                          : fit.level === 'tight' ? 'text-amber-400'
+                            : fit.level === 'too-big' ? 'text-red-400'
+                              : 'text-zinc-500'
+                      const isSelected = (m.path ?? m.filename ?? m.name) === settings.selectedVideoModel
+                      return (
+                        <div
+                          key={m.path ?? m.filename ?? m.name}
+                          className={`rounded-lg border p-3 ${isSelected ? 'bg-blue-500/10 border-blue-500/40' : 'bg-zinc-800/40 border-zinc-700/50'}`}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-medium text-white">
+                              {info.label}
+                              {!info.isGenerator && <span className="ml-1.5 text-[10px] text-zinc-500">· add-on</span>}
+                            </span>
+                            <span className="text-[10px] text-zinc-500 font-mono">{m.size_gb} GB</span>
+                          </div>
+                          <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">{info.blurb}</p>
+                          <p className={`text-[11px] mt-1 ${fitColor}`}>{fit.note}</p>
+                        </div>
+                      )
+                    })}
+                    <button
+                      onClick={() => setShowModelGuide(true)}
+                      className="text-[11px] text-blue-400 hover:text-blue-300 underline underline-offset-2"
+                    >
+                      Which model should I download for my card? →
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -1747,7 +1809,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
 
                   {/* Copyright */}
                   <p className="text-center text-xs text-zinc-600">
-                    Copyright © 2026 Lightricks
+                    © 2026 Machine King Labs · built on open-source LTX-Video
                   </p>
                 </div>
               )}
