@@ -128,11 +128,12 @@ class GpuJobExecutor:
             if job.type == "image":
                 result = self._execute_image(job)
             elif job.type == "video":
-                result = (
-                    self._execute_h3_local(job)
-                    if job.model == "h3-local"
-                    else self._execute_video(job)
-                )
+                if job.model == "h3-local":
+                    result = self._execute_h3_local(job)
+                elif job.model == "ltx-comfy":
+                    result = self._execute_ltx_local(job)
+                else:
+                    result = self._execute_video(job)
             elif job.type == "long_video":
                 result = self._execute_long_video(job)
             else:
@@ -293,6 +294,96 @@ class GpuJobExecutor:
         )
 
         dest = self._handler.config.outputs_dir / f"h3_{job.id}.mp4"
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(out_path, dest)
+        return [str(dest)]
+
+    def _execute_ltx_local(self, job: QueueJob) -> list[str]:
+        """Render on the local LTX-2.3 engine (gpu slot) via the ComfyUI blueprint.
+
+        Same shape as _execute_h3_local: drives the shared ComfyUI instance behind
+        the LTXComfyClient Protocol and copies the result into outputs_dir so it
+        lands in the Gallery. Prefers the official fp4-mixed Gemma encoder; falls
+        back to the uncensored Heretic fp8 gemma if the official file isn't present.
+        """
+        from services.ltx_comfy_client import (
+            LTX_CKPT,
+            LTX_CKPT_NVFP4,
+            LTX_TE,
+            LTX_TE_UNCENSORED,
+            ComfyLTXClientImpl,
+            ltx_dimensions,
+        )
+
+        params = _prepare_video_params(self._handler, job.params)
+        # DD resolution ids -> LTX's two /32-aligned tiers (480p / 720p).
+        res_map = {"480p": "480p", "512p": "480p", "540p": "480p",
+                   "544p": "480p", "720p": "720p", "1080p": "720p"}
+        ltx_res = res_map.get(str(params.get("resolution", "480p")), "480p")
+        aspect = str(params.get("aspectRatio", "16:9"))
+        width, height = ltx_dimensions(ltx_res, aspect)
+        try:
+            seconds = float(str(params.get("duration", "5")))
+        except ValueError:
+            seconds = 5.0
+        try:
+            seed = int(params.get("seed", 7))
+        except (TypeError, ValueError):
+            seed = 7
+
+        refs = _str_list(params.get("referenceImagePaths"))
+        image_path = str(params.get("imagePath")) if params.get("imagePath") else None
+        reference_image = refs[0] if refs else image_path  # first-frame conditioning (i2v)
+
+        model_params = _param_dict(params.get("modelParams"))
+        lora_name = str(model_params["ltxLora"]) if model_params.get("ltxLora") else None
+        try:
+            lora_strength = float(cast("Any", model_params.get("ltxLoraStrength", 1.0)))
+        except (TypeError, ValueError):
+            lora_strength = 1.0
+        negative = str(params.get("negativePrompt", "")) if params.get("negativePrompt") else ""
+
+        comfy_dir = Path(os.environ.get("DD_COMFY_DIR", r"D:\comfy\ComfyUI_windows_portable"))
+        ckpt_dir = comfy_dir / "ComfyUI" / "models" / "checkpoints"
+        te_dir = comfy_dir / "ComfyUI" / "models" / "text_encoders"
+        text_encoder = LTX_TE if (te_dir / LTX_TE).exists() else LTX_TE_UNCENSORED
+        # Prefer the nvfp4 checkpoint (the 24GB fit — runs compute-bound with the
+        # engine's --disable-smart-memory Gemma eviction). Fall back to the official
+        # fp8, which renders but block-swaps on 24GB.
+        checkpoint = LTX_CKPT_NVFP4 if (ckpt_dir / LTX_CKPT_NVFP4).exists() else LTX_CKPT
+        # DD's downloaded LTX LoRAs (LTXDesktop models dir) — staged into ComfyUI's
+        # loras dir on demand so the distilled + any extra LoRA resolve by name.
+        lora_src = Path(os.environ.get(
+            "DD_LTX_MODELS_DIR",
+            os.path.join(os.environ.get("LOCALAPPDATA", ""), "LTXDesktop", "models"),
+        ))
+        client = ComfyLTXClientImpl(
+            comfy_dir=comfy_dir, text_encoder=text_encoder, checkpoint=checkpoint,
+            lora_src_dir=lora_src,
+        )
+
+        def on_phase(phase: str, percent: int) -> None:
+            self._handler.job_queue.update_job(job.id, phase=phase, progress=percent)
+
+        def should_cancel() -> bool:
+            current = self._handler.job_queue.get_job(job.id) or job
+            return current.status == "cancelled"
+
+        out_path = client.generate_video(
+            prompt=str(params.get("prompt", "")),
+            width=width,
+            height=height,
+            seconds=seconds,
+            negative_prompt=negative,
+            reference_image_path=reference_image,
+            lora_name=lora_name,
+            lora_strength=lora_strength,
+            seed=seed,
+            on_phase=on_phase,
+            should_cancel=should_cancel,
+        )
+
+        dest = self._handler.config.outputs_dir / f"ltx_{job.id}.mp4"
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(out_path, dest)
         return [str(dest)]

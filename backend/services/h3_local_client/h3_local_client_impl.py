@@ -78,13 +78,46 @@ class ComfyH3LocalClientImpl:
         except Exception:
             return False
 
+    # H3 keeps its ~20GB int8 DiT resident (ComfyUI smart memory ON, --vram-headroom
+    # 2). LTX needs the opposite (--disable-smart-memory to evict Gemma), so the two
+    # engines can't share one ComfyUI. The running policy is recorded in a marker;
+    # a mismatch relaunches ComfyUI with H3's flags. Safe because the gpu slot
+    # serialises jobs — only one engine is ever mid-render.
+    _PROFILE_MARKER = "dd_comfy_profile.txt"
+    _PROFILE_ID = "h3|--vram-headroom 2"
+
+    def _read_profile(self) -> str | None:
+        try:
+            return (self._comfy_dir / self._PROFILE_MARKER).read_text(
+                encoding="utf-8").splitlines()[0]
+        except Exception:
+            return None
+
+    def _kill_comfy(self) -> None:
+        """Kill whatever process serves port 8188 (robust to a missing/stale marker)."""
+        try:
+            out = subprocess.run(["netstat", "-ano"], capture_output=True, text=True, check=False).stdout
+            pids = {ln.split()[-1] for ln in out.splitlines() if ":8188" in ln and "LISTENING" in ln}
+            for pid in pids:
+                subprocess.run(["taskkill", "/F", "/PID", pid], capture_output=True, check=False)
+        except Exception:
+            pass
+
     def _ensure_comfy(self, on_phase: Callable[[str, int], None] | None) -> None:
         if self._comfy_up():
-            return
+            if self._read_profile() == self._PROFILE_ID:
+                return  # already running with H3's memory policy
+            if on_phase:
+                on_phase("loading_model", 1)
+            self._kill_comfy()
+            for _ in range(30):
+                if not self._comfy_up():
+                    break
+                time.sleep(1)
         if on_phase:
             on_phase("loading_model", 2)
         env = {**os.environ, "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True"}
-        subprocess.Popen(
+        proc = subprocess.Popen(
             [
                 str(self._comfy_dir / "python_embeded" / "python.exe"), "-s",
                 str(self._comfy_dir / "ComfyUI" / "main.py"), "--windows-standalone-build",
@@ -95,6 +128,11 @@ class ComfyH3LocalClientImpl:
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
+        try:
+            (self._comfy_dir / self._PROFILE_MARKER).write_text(
+                f"{self._PROFILE_ID}\n{proc.pid}\n", encoding="utf-8")
+        except Exception:
+            pass
         deadline = time.monotonic() + self._startup_timeout_s
         while time.monotonic() < deadline:
             if self._comfy_up():

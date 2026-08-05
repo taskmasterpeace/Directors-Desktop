@@ -17,6 +17,7 @@ import { useConfirm } from '../components/ConfirmDialog'
 import { SaveToLibraryModal, type SaveToLibraryRequest } from '../components/SaveToLibraryModal'
 import { LookPicker } from '../components/LookPicker'
 import { copyToAssetFolder } from '../lib/asset-copy'
+import { LTX_LORAS, getLtxLora } from '../lib/ltx-loras'
 import { fileUrlToPath } from '../lib/url-to-path'
 import { extractVideoFrame } from '../lib/video-frames'
 import {
@@ -508,6 +509,8 @@ function PromptBar({
     audioReferencePaths?: string[]
     videoReferencePaths?: string[]
     imageModelParams?: Record<string, unknown>
+    ltxLora?: string
+    ltxLoraStrength?: number
   }
   onSettingsChange: (settings: any) => void
   shouldVideoGenerateWithLtxApi: boolean
@@ -576,14 +579,14 @@ function PromptBar({
   const [isAudioDragOver, setIsAudioDragOver] = useState(false)
   const [isLastFrameDragOver, setIsLastFrameDragOver] = useState(false)
   const isRetake = mode === 'retake'
-  const LOCAL_MAX_DURATION: Record<string, number> = { '480p': 60, '540p': 60, '720p': 10, '1080p': 5 }
+  const LOCAL_MAX_DURATION: Record<string, number> = { '480p': 60, '720p': 15 }
   const localMaxDuration = LOCAL_MAX_DURATION[settings.videoResolution] ?? 60
   const videoDurationOptions = shouldVideoGenerateWithLtxApi
     ? [...getAllowedForcedApiDurations(settings.model, settings.videoResolution, settings.fps)]
     : [4, 5, 6, 8, 10, 12, 16, 20, 30, 60].filter(d => d <= localMaxDuration)
   const videoResolutionOptions = shouldVideoGenerateWithLtxApi
     ? (inputAudio ? ['1080p'] : [...FORCED_API_VIDEO_RESOLUTIONS])
-    : ['480p', '540p', '720p', '1080p']
+    : ['480p', '720p']
   const videoFpsOptions = shouldVideoGenerateWithLtxApi ? [...FORCED_API_VIDEO_FPS] : [24, 25, 50]
 
   const handleDrop = (e: React.DragEvent) => {
@@ -1173,8 +1176,8 @@ function PromptBar({
                       { value: 'pro', label: 'LTX-2.3 Pro (API)' },
                     ]
                   : [
-                      { value: 'fast', label: 'LTX 2.3 Fast' },
                       { value: 'h3-local', label: 'MiniMax H3 (local · native audio)' },
+                      { value: 'ltx-comfy', label: 'LTX 2.3 (local)' },
                     ]),
                 { value: 'seedance-1.5-pro', label: `Seedance 1.5 Pro (Replicate)${!hasReplicateApiKey ? ' — needs API key' : ''}`, disabled: !hasReplicateApiKey },
                 { value: 'seedance-2.0', label: `Seedance 2.0 (fal)${!hasFalApiKey ? ' — needs fal key' : ''}`, disabled: !hasFalApiKey },
@@ -1188,6 +1191,7 @@ function PromptBar({
                       : settings.model === 'seedance-2.0' ? 'Seedance 2.0'
                       : settings.model === 'seedance-2.0-fast' ? 'Seedance 2.0 Fast'
                       : settings.model === 'h3-local' ? 'MiniMax H3'
+                      : settings.model === 'ltx-comfy' ? 'LTX 2.3 (local)'
                       : shouldVideoGenerateWithLtxApi
                         ? (settings.model === 'pro' ? 'LTX-2.3 Pro (API)' : 'LTX-2.3 Fast (API)')
                         : 'LTX 2.3 Fast'}
@@ -1196,8 +1200,28 @@ function PromptBar({
               }
             />
 
+            {/* Local LTX-2.3 LoRA (style / IC-LoRA / object removal), stacked on
+                the always-on distilled LoRA. A missing (e.g. gated) pick no-ops. */}
+            {settings.model === 'ltx-comfy' && (
+              <>
+                <div className="w-px h-4 bg-zinc-700 mx-0.5" />
+                <SettingsDropdown
+                  title="LORA"
+                  value={settings.ltxLora ?? ''}
+                  onChange={(v) => onSettingsChange({ ...settings, ltxLora: v || undefined, ltxLoraStrength: getLtxLora(v)?.defaultStrength ?? 1.0 })}
+                  options={[
+                    { value: '', label: 'None — base LTX' },
+                    ...LTX_LORAS.map(l => ({ value: l.id, label: `${l.label}${l.gated ? ' (needs HF access)' : ''}` })),
+                  ]}
+                  trigger={
+                    <span className="text-zinc-300 font-medium">{getLtxLora(settings.ltxLora)?.label ?? 'No LoRA'}</span>
+                  }
+                />
+              </>
+            )}
+
             <div className="w-px h-4 bg-zinc-700 mx-0.5" />
-            
+
             {/* Duration — preset chips + an exact-to-the-second stepper, right here
                 instead of only in the Playground. Seedance 2.0 caps at 15s, 1.5 Pro
                 at 12s; sub-4s requests generate at the model floor and are trimmed
@@ -1208,6 +1232,7 @@ function PromptBar({
                 'seedance-2.0-fast': 15,
                 'seedance-1.5-pro': 12,
                 'h3-local': 15,
+                'ltx-comfy': 15,
               }
               const isSeedance = settings.model.startsWith('seedance')
               const maxExact =
@@ -1422,9 +1447,9 @@ const gallerySizeClasses: Record<GallerySize, string> = {
 }
 
 const DEFAULT_VIDEO_SETTINGS = {
-  model: 'fast',
+  model: 'h3-local',
   duration: 5,
-  videoResolution: '540p',
+  videoResolution: '480p',
   fps: 24,
   aspectRatio: '16:9',
   imageResolution: '1080p',
@@ -1440,6 +1465,9 @@ type GenSpaceSettings = typeof DEFAULT_VIDEO_SETTINGS & {
   videoReferencePaths?: string[]
   /** Per-image-model settings (gpt quality, camera angle …) — see lib/image-models.ts */
   imageModelParams?: Record<string, unknown>
+  /** Local LTX-2.3 LoRA (ComfyUI lora_name) stacked on the distilled LoRA, + strength. */
+  ltxLora?: string
+  ltxLoraStrength?: number
 }
 
 export function GenSpace() {

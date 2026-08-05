@@ -10,8 +10,9 @@ import {
 } from '../lib/api-video-options'
 import { getImageModel, listImageModelGroups } from '../lib/image-models'
 import { useAppSettings } from '../contexts/AppSettingsContext'
+import { LtxLoraPicker } from './LtxLoraPicker'
 
-export type VideoModel = 'fast' | 'pro' | 'seedance-1.5-pro' | 'seedance-2.0' | 'seedance-2.0-fast' | 'h3-local'
+export type VideoModel = 'fast' | 'pro' | 'seedance-1.5-pro' | 'seedance-2.0' | 'seedance-2.0-fast' | 'h3-local' | 'ltx-comfy'
 
 export interface GenerationSettings {
   model: VideoModel
@@ -42,6 +43,10 @@ export interface GenerationSettings {
   videoReferencePaths?: string[]
   // Exact-length promise: trim the output back to exactly `duration` seconds.
   exactDuration?: boolean
+  // Local LTX-2.3 (ComfyUI) LoRA stacked on the always-on distilled speed LoRA:
+  // a ComfyUI lora_name (relative to the loras dir) + its strength.
+  ltxLora?: string
+  ltxLoraStrength?: number
 }
 
 interface SettingsPanelProps {
@@ -71,7 +76,7 @@ export function SettingsPanel({
   // Playground stays in lockstep with every other surface.
   const { settings: appSettings, saveImageModel } = useAppSettings()
   const imageModelConfig = getImageModel(appSettings.imageModel)
-  const LOCAL_MAX_DURATION: Record<string, number> = { '480p': 60, '540p': 60, '720p': 10, '1080p': 5 }
+  const LOCAL_MAX_DURATION: Record<string, number> = { '480p': 60, '720p': 15 }
 
   const handleChange = (key: keyof GenerationSettings, value: string | number | boolean) => {
     const nextSettings = { ...settings, [key]: value } as GenerationSettings
@@ -104,6 +109,7 @@ export function SettingsPanel({
     'seedance-2.0-fast': 15,
     'seedance-1.5-pro': 12,
     'h3-local': 15,
+    'ltx-comfy': 15,
   }
   const maxExactDuration =
     SEEDANCE_MAX[settings.model] ??
@@ -118,7 +124,7 @@ export function SettingsPanel({
       : 'Generates at the nearest supported length, then trims to the exact second — audio kept.'
   const resolutionOptions = forceApiGenerations
     ? (hasAudio ? ['1080p'] : [...FORCED_API_VIDEO_RESOLUTIONS])
-    : ['1080p', '720p', '540p', '480p']
+    : ['480p', '720p']
   const fpsOptions = forceApiGenerations ? [...FORCED_API_VIDEO_FPS] : [24, 25, 50]
 
   // Image mode settings
@@ -382,8 +388,8 @@ export function SettingsPanel({
       >
         {!forceApiGenerations && (
           <>
-            <option value="fast">LTX 2.3 Fast</option>
             <option value="h3-local">MiniMax H3 (local · native audio)</option>
+            <option value="ltx-comfy">LTX 2.3 (local)</option>
           </>
         )}
         {forceApiGenerations && (
@@ -402,6 +408,16 @@ export function SettingsPanel({
           Seedance 2.0 Fast (fal){!hasFalApiKey ? ' — needs fal key' : ''}
         </option>
       </Select>
+
+      {/* Local LTX-2.3 LoRA (style / IC-LoRA / object removal) */}
+      {settings.model === 'ltx-comfy' && (
+        <LtxLoraPicker
+          value={settings.ltxLora}
+          strength={settings.ltxLoraStrength}
+          onChange={(id, str) => onSettingsChange({ ...settings, ltxLora: id, ltxLoraStrength: str })}
+          disabled={disabled}
+        />
+      )}
 
       {/* Duration, Resolution, FPS Row */}
       <div className="grid grid-cols-3 gap-3">

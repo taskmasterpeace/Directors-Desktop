@@ -32,6 +32,7 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   'seedance-2.0': 'Seedance 2.0',
   'seedance-2.0-fast': 'Seedance 2.0 Fast',
   'h3-local': 'MiniMax H3',
+  'ltx-comfy': 'LTX 2.3 (local)',
 }
 
 export function VideoPlayer({ videoUrl, videoPath, videoResolution, isGenerating, progress, statusMessage, elapsedSeconds, estimatedSeconds, modelName, onExtendVideo, reservedSeconds }: VideoPlayerProps) {

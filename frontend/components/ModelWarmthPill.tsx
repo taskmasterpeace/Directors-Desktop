@@ -18,6 +18,9 @@ interface ModelWarmthPillProps {
   gpuInfo: GpuInfo | null
   /** Estimated render seconds for the CURRENT spec, so "hot" can quote a real next-shot cost. */
   nextShotSeconds?: number
+  /** Local ComfyUI engine (H3 / LTX): DD doesn't track ComfyUI's VRAM residency, so
+   *  show an honest "local · GPU" state instead of a misleading cold/hot warmth. */
+  localEngine?: boolean
   className?: string
 }
 
@@ -34,11 +37,17 @@ export function ModelWarmthPill({
   activeModel,
   gpuInfo,
   nextShotSeconds,
+  localEngine = false,
   className = '',
 }: ModelWarmthPillProps) {
   const [open, setOpen] = useState(false)
 
   const tone = useMemo(() => {
+    // Local ComfyUI engines run outside DD's own pipeline, so warmth is unknown —
+    // present an honest neutral "local" state rather than a misleading cold/hot.
+    if (localEngine) {
+      return { dot: 'bg-emerald-500', text: 'text-emerald-400', label: 'local' }
+    }
     switch (warmth) {
       case 'warm':
         // Semantic green — kept distinct from the app's amber accent so state
@@ -49,9 +58,10 @@ export function ModelWarmthPill({
       default:
         return { dot: 'bg-zinc-500', text: 'text-zinc-400', label: 'cold' }
     }
-  }, [warmth])
+  }, [warmth, localEngine])
 
   const detail = useMemo(() => {
+    if (localEngine) return 'runs on your GPU'
     if (warmth === 'warm') {
       return nextShotSeconds && nextShotSeconds > 0
         ? `next shot ${formatDuration(nextShotSeconds)}`
@@ -59,7 +69,7 @@ export function ModelWarmthPill({
     }
     if (warmth === 'warming') return 'loading into VRAM'
     return `~${formatDuration(MODEL_LOAD_SECONDS)} to first shot`
-  }, [warmth, nextShotSeconds])
+  }, [warmth, nextShotSeconds, localEngine])
 
   const usedGb = gpuInfo ? gpuInfo.vramUsed / 1024 : 0
   const totalGb = gpuInfo ? gpuInfo.vram / 1024 : 0

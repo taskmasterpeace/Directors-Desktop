@@ -29,10 +29,46 @@ class LTXTextEncoder:
         self.ltx_api_base_url = ltx_api_base_url
         self._model_ledger_patched = False
         self._encode_text_patched = False
+        # When True, the patched loader keeps the 12B Gemma encoder in system RAM
+        # (no fp8, no move to GPU) so the caller can encode on CPU — the only way
+        # a 24GB encoder doesn't thrash a 24GB card. Set around a CPU pre-encode.
+        self._cpu_encode = False
 
     def install_patches(self, state_getter: Callable[[], AppState]) -> None:
         self._install_model_ledger_patch(state_getter)
         self._install_encode_text_patch(state_getter)
+
+    def _build_fp8_text_encoder(self, ledger: object, original: Callable[..., object]) -> object:
+        """Build Gemma with the ledger's fp8 quantization applied, mirroring
+        ModelLedger.transformer(). The stock text_encoder() skips this, so on a
+        24GB card the 24GB bf16 encoder loads full and thrashes; applying the
+        fp8 policy shrinks it to ~13GB so it fits. Falls back to the plain
+        encoder if there's no quantization policy or anything goes wrong."""
+        quant = getattr(ledger, "quantization", None)
+        builder = getattr(ledger, "text_encoder_builder", None)
+        if quant is None or builder is None:
+            return original(ledger)
+        try:
+            from dataclasses import replace as _dc_replace
+            from ltx_core.loader.sd_ops import SDOps as _SDOps  # pyright: ignore[reportMissingImports]
+
+            sd_ops = builder.model_sd_ops
+            quant_sd_ops = getattr(quant, "sd_ops", None)
+            if quant_sd_ops is not None:
+                sd_ops = _SDOps(
+                    name=f"te_fp8_{sd_ops.name}",
+                    mapping=(*sd_ops.mapping, *quant_sd_ops.mapping),
+                )
+            fp8_builder = _dc_replace(
+                builder,
+                module_ops=(*builder.module_ops, *quant.module_ops),
+                model_sd_ops=sd_ops,
+            )
+            target_device = ledger._target_device()  # type: ignore[attr-defined]  # noqa: SLF001
+            return fp8_builder.build(device=target_device).eval()
+        except Exception:
+            logger.warning("fp8 text-encoder build failed; using full-precision encoder", exc_info=True)
+            return original(ledger)
 
     def _install_model_ledger_patch(self, state_getter: Callable[[], AppState]) -> None:
         if self._model_ledger_patched:
@@ -45,24 +81,6 @@ class LTXTextEncoder:
             original_text_encoder = ModelLedger.text_encoder
             original_cleanup_memory = ltx_utils.cleanup_memory
 
-            def _quantize_linear_weights_fp8(module: object) -> None:
-                """Cast all Linear weights to float8_e4m3fn and patch forward to upcast."""
-                for child in module.modules():  # type: ignore[union-attr]
-                    if not isinstance(child, torch.nn.Linear):
-                        continue
-                    child.weight.data = child.weight.data.to(torch.float8_e4m3fn)
-                    if child.bias is not None:  # pyright: ignore[reportUnnecessaryComparison]
-                        child.bias.data = child.bias.data.to(torch.float8_e4m3fn)
-
-                    def _make_upcast_forward(lin: torch.nn.Linear) -> Callable[..., torch.Tensor]:
-                        def _fwd(x: torch.Tensor, **kw: object) -> torch.Tensor:
-                            w = lin.weight.to(x.dtype)
-                            b = lin.bias.to(x.dtype) if lin.bias is not None else None  # pyright: ignore[reportUnnecessaryComparison]
-                            return torch.nn.functional.linear(x, w, b)
-                        return _fwd
-
-                    child.forward = _make_upcast_forward(child)  # type: ignore[assignment]
-
             def patched_text_encoder(self_model_ledger: ModelLedger) -> object:
                 state = state_getter()
                 te_state = state.text_encoder
@@ -73,24 +91,22 @@ class LTXTextEncoder:
                     return DummyTextEncoder()
 
                 if te_state.cached_encoder is not None:
-                    try:
-                        te_state.cached_encoder.to(self.device)
-                        sync_device(self.device)
-                    except Exception:
-                        logger.warning("Failed to move cached text encoder to %s", self.device, exc_info=True)
+                    if not self._cpu_encode:
+                        try:
+                            te_state.cached_encoder.to(self.device)
+                            sync_device(self.device)
+                        except Exception:
+                            logger.warning("Failed to move cached text encoder to %s", self.device, exc_info=True)
                     return te_state.cached_encoder
 
-                saved_device = self_model_ledger.device
-                self_model_ledger.device = torch.device("cpu")
-                try:
-                    te_state.cached_encoder = cast(
-                        CachedTextEncoder, original_text_encoder(self_model_ledger)
-                    )
-                finally:
-                    self_model_ledger.device = saved_device
-
-                _quantize_linear_weights_fp8(te_state.cached_encoder)
-
+                # Load Gemma with the SAME fp8 quantization the transformer uses.
+                # ModelLedger.transformer() appends ledger.quantization's
+                # module_ops (fp8_cast -> UPCAST_DURING_INFERENCE) + sd_ops at
+                # build; the stock text_encoder() does NOT, so the 24GB bf16 Gemma
+                # loads at full size and thrashes a 24GB card (the "stall at 15%").
+                # Applying the same policy here loads Gemma as fp8 (~13GB) -> fits.
+                encoder = self._build_fp8_text_encoder(self_model_ledger, original_text_encoder)
+                te_state.cached_encoder = cast(CachedTextEncoder, encoder)
                 te_state.cached_encoder.to(self.device)
                 sync_device(self.device)
                 return te_state.cached_encoder

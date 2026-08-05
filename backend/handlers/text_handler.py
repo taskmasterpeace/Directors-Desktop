@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from threading import RLock
 from typing import TYPE_CHECKING
 
@@ -107,17 +108,25 @@ class TextHandler(StateHandlerBase):
         import torch
 
         te = self.state.text_encoder
+        service = te.service if te is not None else None
+        device = getattr(service, "device", None)
+        # The real fix for the 24GB card is a PRE-QUANTIZED encoder (fp8 ~14.5GB /
+        # fp4 ~9.75GB) that fits the GPU — the stock 24GB bf16 Gemma is the
+        # 32GB-card build and thrashes. With a fitting fp8 encoder we encode on
+        # the GPU normally (fp8 matmuls don't work on CPU). The CPU-encode path
+        # (_cpu_encode) stays available as a fallback for the oversized bf16
+        # encoder but is off by default. Point DD_GEMMA_ROOT at the fp8 folder.
+        force_cpu = os.environ.get("DD_CPU_TEXT_ENCODE") == "1"
+        if service is not None and force_cpu:
+            setattr(service, "_cpu_encode", True)
         try:
             encoder = ledger.text_encoder()
-            try:
-                output = encoder.forward(prompt)
-            except torch.cuda.OutOfMemoryError:
-                # One retry after a cache flush; if VRAM is genuinely gone, fall
-                # back rather than wedging the job.
-                torch.cuda.empty_cache()
-                output = encoder.forward(prompt)
+            output = encoder.forward(prompt)
             video_context = output[0]
             audio_context = output[1]
+            if device is not None and force_cpu:
+                video_context = video_context.to(device)
+                audio_context = audio_context.to(device) if audio_context is not None else None
             result = TextEncodingResult(
                 video_context=video_context.detach(),
                 audio_context=audio_context.detach() if audio_context is not None else None,
@@ -129,13 +138,14 @@ class TextHandler(StateHandlerBase):
             )
             return False
         finally:
-            # Park the encoder off the GPU so diffusion gets the whole card.
+            if service is not None:
+                setattr(service, "_cpu_encode", False)
+            # The encoder stays cached in RAM (reused next prompt); just release
+            # any transient GPU scratch so diffusion gets the whole card.
             try:
-                if te is not None and te.cached_encoder is not None:
-                    te.cached_encoder.to(torch.device("cpu"))
                 torch.cuda.empty_cache()
             except Exception:
-                logger.warning("Failed to park the text encoder on CPU", exc_info=True)
+                logger.warning("Failed to clear CUDA cache after pre-encode", exc_info=True)
 
         self._cache_prompt(prompt, False, result)
         self._set_api_embeddings(result)
@@ -169,6 +179,14 @@ class TextHandler(StateHandlerBase):
     def resolve_gemma_root(self) -> str | None:
         if not self.should_use_local_encoding():
             return None
+        # Escape hatch for a custom/quantized Gemma folder (e.g. an fp8/fp4 build
+        # that fits a 24GB card — the stock 24GB bf16 encoder is the 32GB-card
+        # version and thrashes). Point DD_GEMMA_ROOT at a folder holding the
+        # weights + config/tokenizer files.
+        import os
+        override = os.environ.get("DD_GEMMA_ROOT")
+        if override and os.path.isdir(override):
+            return override
         settings = self.state.app_settings.model_copy(deep=True)
         if settings.use_abliterated_text_encoder:
             abliterated_dir = self._config.model_path("text_encoder_abliterated")

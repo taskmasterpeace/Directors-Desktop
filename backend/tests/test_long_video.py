@@ -472,14 +472,9 @@ class TestDurationOptionsConsistency:
         assert duration_pattern in gs_src, "GenSpace.tsx missing updated duration options"
         assert duration_pattern in sp_src, "SettingsPanel.tsx missing updated duration options"
 
-        # Both should have 540p: 60
-        assert "'540p': 60" in gs_src, "GenSpace.tsx LOCAL_MAX_DURATION for 540p should be 60"
-        assert "'540p': 60" in sp_src, "SettingsPanel.tsx LOCAL_MAX_DURATION for 540p should be 60"
-
-        # Both should have 720p: 10
-        assert "'720p': 10" in gs_src
-        assert "'720p': 10" in sp_src
-
-        # Both should have 1080p: 5
-        assert "'1080p': 5" in gs_src
-        assert "'1080p': 5" in sp_src
+        # Local generation ships only the two benchmarked tiers (480p, 720p);
+        # 540p/1080p were dropped. Both files must carry the SAME LOCAL_MAX_DURATION
+        # map so the two video surfaces never drift apart.
+        local_max = "LOCAL_MAX_DURATION: Record<string, number> = { '480p': 60, '720p': 15 }"
+        assert local_max in gs_src, "GenSpace.tsx LOCAL_MAX_DURATION drifted from the 480p/720p tiers"
+        assert local_max in sp_src, "SettingsPanel.tsx LOCAL_MAX_DURATION drifted from the 480p/720p tiers"

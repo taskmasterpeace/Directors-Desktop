@@ -1,34 +1,44 @@
 # Known Issues
 
-## LTX local (on-GPU) generation stalls at ~15% on a 24GB card
+## LTX-2.3 local generation — RESOLVED via the ComfyUI engine (2026-08-05)
 
-**Status:** open, deferred (2026-08-04). Cloud paths (Seedance via Replicate/fal)
-are unaffected and are the recommended way to generate today.
+**Status:** resolved. LTX-2.3 now renders locally on a 24GB 4090 through the
+ComfyUI-based engine (`backend/services/ltx_comfy_client/`). The old on-GPU path
+through DD's compiled `ltx_pipelines` (model id `ltx-fast`) is superseded by the
+`ltx-comfy` engine and is no longer the local LTX route.
 
-**Symptom:** a local `ltx-fast` job reaches `inference` / progress 15 and never
-advances. GPU shows 100% utilization but only ~100W draw (real compute is
-~340–390W) — the classic Windows shared-memory-fallback thrash.
+**What was wrong before:** a local `ltx-fast` job stalled at ~15% — GPU at 100%
+util but only ~100W draw (real compute is ~340–390W), the classic Windows
+shared-memory-fallback thrash. Root cause: the 12B Gemma-3 text encoder overflowed
+the 24GB card beside the transformer and spilled to system RAM over PCIe.
+`ltx_pipelines` couldn't fp8-quantize its text encoder (the fp8 policy is
+transformer-specific), so no code change in that library fixed it.
 
-**Root cause (confirmed by live py-spy stack dump):** the local Gemma-3-12B text
-encoder overflows the 24GB card — on its own, or beside the already-staged
-transformer — and spills into system RAM over PCIe, running orders of magnitude
-slower. The process sits in `base_encoder.py` `precompute()` (the Gemma forward)
-with one CPU core pinned and VRAM at ~23.6/24GB, ~0.5GB free.
+**The fix (exactly the eviction this doc predicted):** drive the native ComfyUI
+LTX-2.3 blueprint instead. Two things made it work fast on 24GB:
+1. **nvfp4 checkpoint** (`ltx-2.3-22b-dev-nvfp4`) — the fp8 build's DiT is ~22GB
+   (22B params) and can't leave room for the encoder; nvfp4 is the 24GB-oriented
+   quant.
+2. **`--disable-smart-memory`** — ComfyUI evicts the ~8GB Gemma after text-encode
+   (GPU encode, fast), so the DiT gets the whole card and runs **compute-bound**
+   (measured ~127s cold / ~34s warm for a 2s 480p clip, GPU at ~300–345W) instead
+   of block-swapping (~350–630s at any flag with Gemma resident).
 
-**Ruled out:** model files are byte-complete (safetensors header vs on-disk size
-verified); SageAttention (A/B-tested with `USE_SAGE_ATTENTION=0` — stalled
-identically); the prompt enhancer (disabled — no change). This is a text-encoder
-VRAM-coexistence problem, consistent with the earlier `ea1ae4d` "text encoder
-VRAM OOM" fix — a known-fragile area.
+Text-encoding on CPU also frees the card but is far too slow (~350s to encode the
+12B Gemma), so GPU-encode + eviction is the shipped config.
 
-**Partial work already landed:** `TextHandler.precompute_local_embeddings()`
-moves the encode to its own up-front phase (`encoding_prompt`) with embedding
-injection, so the encode is isolated and correctly labeled rather than hidden
-inside diffusion. It does NOT resolve the stall.
+**Speed reality:** LTX-2.3 is a 22B model, so even fixed it is minutes-scale and
+notably slower than H3 (108s/5s). `--disable-smart-memory` reloads the checkpoint
+each render. **H3 remains the recommended fast local engine**; LTX-local is the
+slower alternative for when its look is wanted. Cloud (Seedance) stays the fast
+cloud path.
 
-**The remaining fix (when someone picks this up):** evict the transformer from
-VRAM while the Gemma encode runs, then reload it for diffusion. This frees the
-room the 12B encoder needs. Cost: a transformer reload (~30–60s) per generation,
-so it wants a keep-warm / cache path to stay reasonable. Alternatively, chase the
-transformers-version memory regression directly (the March 2026 benchmark ran
-this path fine, per `docs/gpu-optimization-results.md`).
+**Model switching:** H3 (keeps its 20GB DiT resident) and LTX (evicts Gemma) need
+opposite ComfyUI memory policies and can't share one instance. Both clients record
+the running policy in `<comfy>/dd_comfy_profile.txt` and relaunch ComfyUI under
+their own profile on a mismatch (~11s), reusing instantly when it matches. Only
+one runs at a time (gpu slot), so this is collision-free. Verified end-to-end.
+
+**Object-removal IC-LoRAs:** Union-Control (depth/pose/edge) is downloaded and
+usable. Clean-Plate and In-Outpainting are **gated HuggingFace repos** — they need
+the user to accept each model's license and provide an HF token before download.

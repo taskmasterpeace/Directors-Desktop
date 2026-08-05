@@ -73,18 +73,25 @@ def test_preencode_injects_embeddings_and_runs_gemma_once(test_state):
     assert injected.video_context.shape[-1] == 4096
 
 
-def test_preencode_parks_the_encoder_back_on_cpu(test_state):
+def test_preencode_encodes_on_cpu_without_moving_the_encoder_to_gpu(test_state):
+    """The 24GB Gemma encoder must never be moved onto a 24GB card — it encodes
+    in system RAM and only the small embeddings go to the GPU. (The old design
+    moved it to the GPU then parked it back; even loaded alone it pinned the card
+    at ~24GB and thrashed — the stall.)"""
     _install_local_encoder(test_state)
     pipeline = FakePipelineWithLedger()
-    # The park targets state.text_encoder.cached_encoder — wire our fake there
-    # the way the ledger patch would have.
-    _te_state(test_state).cached_encoder = pipeline.model_ledger._encoder  # type: ignore[assignment]
 
-    test_state.text.precompute_local_embeddings(pipeline, "park me")
+    ok = test_state.text.precompute_local_embeddings(pipeline, "cpu encode")
 
-    assert "cpu" in pipeline.model_ledger._encoder.devices, (
-        "diffusion needs the whole card — the encoder must be parked on CPU"
+    assert ok is True
+    encoder = pipeline.model_ledger._encoder
+    assert encoder.forward_calls == ["cpu encode"], "the encode must run"
+    assert not any("cuda" in d for d in encoder.devices), (
+        "the 12B encoder must stay on CPU — a 24GB encoder on a 24GB card thrashes"
     )
+    assert _te_state(test_state).api_embeddings is not None
+    # the CPU-encode flag is set only for the duration and reset afterwards
+    assert getattr(test_state.state.text_encoder.service, "_cpu_encode", False) is False
 
 
 def test_repeat_prompt_skips_gemma_via_the_cache(test_state):

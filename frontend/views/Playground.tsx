@@ -38,9 +38,9 @@ import { sanitizeForcedApiVideoSettings } from '../lib/api-video-options'
 import { RetakePanel } from '../components/RetakePanel'
 
 const DEFAULT_SETTINGS: GenerationSettings = {
-  model: 'fast',
+  model: 'h3-local',
   duration: 5,
-  videoResolution: '540p',
+  videoResolution: '480p',
   fps: 24,
   audio: true,
   cameraMotion: 'none',
@@ -359,9 +359,14 @@ export function Playground() {
     if (!credits.pricing) return null
     if (mode === 'text-to-image') return credits.pricing.image
     const m = settings.model as string
-    if (m.startsWith('seedance')) return credits.pricing.video_seedance
-    if (selectedImage || mode === 'image-to-video') return credits.pricing.video_i2v
-    return credits.pricing.video_t2v
+    // ONLY cloud video (seedance) costs points. Local models — LTX and MiniMax
+    // H3 (local) — run on your own GPU and are billed in TIME, never points.
+    if (m.startsWith('seedance')) {
+      return (selectedImage || mode === 'image-to-video')
+        ? credits.pricing.video_i2v
+        : credits.pricing.video_seedance
+    }
+    return null
   })()
 
   /**
@@ -421,11 +426,18 @@ export function Playground() {
           {/* Model Status Dropdown */}
           {!forceApiGenerations && <ModelStatusDropdown />}
 
-          {/* VRAM residency — distinct from the download state above. */}
+          {/* VRAM residency — distinct from the download state above. Local
+              ComfyUI engines (H3, LTX) run outside DD's own pipeline, so DD's
+              warmth signal doesn't apply — show the engine name + a neutral cold. */}
           {!forceApiGenerations && (
             <ModelWarmthPill
               warmth={status.warmth}
-              activeModel={status.activeModel}
+              localEngine={settings.model === 'h3-local' || settings.model === 'ltx-comfy'}
+              activeModel={
+                settings.model === 'h3-local' ? 'MiniMax H3 (local)'
+                  : settings.model === 'ltx-comfy' ? 'LTX 2.3 (local)'
+                  : status.activeModel
+              }
               gpuInfo={status.gpuInfo}
             />
           )}

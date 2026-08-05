@@ -62,6 +62,16 @@ export const VIDEO_TIME_ESTIMATES: Record<string, Record<string, Record<string, 
     '720p': { '5': 480, '10': 1500, '15': 3120 },
     '1080p': { '5': 480, '10': 1500, '15': 3120 },
   },
+  // Local LTX-2.3 (ComfyUI, nvfp4, distilled 8-step) on a 4090. Anchored to a
+  // measured 2s/480p render (~127s incl. checkpoint load). LTX-2.3 is a 22B model:
+  // even with the DiT running compute-bound, the per-render checkpoint reload
+  // (--disable-smart-memory evicts it to free the card) makes it minutes-scale and
+  // notably slower than H3 — H3 stays the fast local engine.
+  'ltx-comfy': {
+    '480p': { '5': 220, '10': 400, '15': 580 },
+    '720p': { '5': 400, '10': 750, '15': 1100 },
+    '1080p': { '5': 400, '10': 750, '15': 1100 },
+  },
 }
 
 export function getEstimatedSeconds(job: QueueJob): number | null {
@@ -469,6 +479,10 @@ export function useGeneration(): UseGenerationReturn {
             ...(isSeedance2 && settings.videoReferencePaths?.length ? { videoReferencePaths: settings.videoReferencePaths } : {}),
             ...(settings.exactDuration ? { exactDuration: true } : {}),
             ...(settings.loraPath ? { loraPath: settings.loraPath, loraWeight: settings.loraWeight ?? 1.0 } : {}),
+            // Local LTX-2.3 (ComfyUI) LoRA: stacked on the always-on distilled LoRA.
+            ...(settings.model === 'ltx-comfy' && settings.ltxLora
+              ? { modelParams: { ltxLora: settings.ltxLora, ltxLoraStrength: settings.ltxLoraStrength ?? 1.0 } }
+              : {}),
           }
 
       const response = await fetch(`${backendUrl}/api/queue/submit`, {
