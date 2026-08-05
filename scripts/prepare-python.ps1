@@ -57,16 +57,19 @@ Write-Host "`nStep 2: Generating requirements.txt from uv.lock..." -ForegroundCo
 
 $RequirementsFile = Join-Path $BackendDir "requirements-dist.txt"
 
-# Export pinned deps, excluding the project itself (--no-emit-project)
-& uv export --frozen --no-hashes --no-editable --no-emit-project `
+# Export pinned deps, excluding the project itself (--no-emit-project).
+# Write the file explicitly as UTF-8 without BOM: under Windows PowerShell 5.1
+# a plain `>` redirect emits UTF-16/BOM, which uv/pip cannot parse.
+$ExportedDeps = & uv export --frozen --no-hashes --no-editable --no-emit-project `
     --no-header --no-annotate `
-    --project $BackendDir `
-    > $RequirementsFile
+    --project $BackendDir
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "ERROR: uv export failed!" -ForegroundColor Red
     exit 1
 }
+
+[System.IO.File]::WriteAllLines($RequirementsFile, $ExportedDeps)
 
 $DepCount = (Get-Content $RequirementsFile | Where-Object { $_ -match "^\S" }).Count
 Write-Host "Exported $DepCount dependencies from uv.lock" -ForegroundColor Green
@@ -211,9 +214,9 @@ Get-ChildItem -Path (Join-Path $OutputPath "Lib\site-packages") -Directory -Filt
 Get-ChildItem -Path $OutputPath -Recurse -Directory -Filter "__pycache__" | Remove-Item -Recurse -Force
 Get-ChildItem -Path $OutputPath -Filter "*.pyc" | Remove-Item -Force
 
-# Clean up temp directory and generated requirements file
+# Clean up temp directory (the requirements file is still needed below for the
+# deps hash — it is deleted after the hash is written)
 Remove-Item -Recurse -Force $TempDir
-Remove-Item -Force $RequirementsFile -ErrorAction SilentlyContinue
 
 # ============================================================
 # Step 9: Verify
@@ -257,6 +260,7 @@ $TestScript | & $PythonExe -
 $DepsHash = (Get-FileHash -Path $RequirementsFile -Algorithm SHA256).Hash.ToLower()
 Set-Content -Path (Join-Path $OutputPath "deps-hash.txt") -Value $DepsHash -NoNewline -Encoding utf8
 Set-Content -Path (Join-Path $ProjectDir "python-deps-hash.txt") -Value $DepsHash -NoNewline -Encoding utf8
+Remove-Item -Force $RequirementsFile -ErrorAction SilentlyContinue
 Write-Host "Wrote deps hash: $DepsHash" -ForegroundColor Green
 
 # Calculate size
