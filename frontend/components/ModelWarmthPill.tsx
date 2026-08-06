@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Flame, Snowflake, Loader2, ChevronDown } from 'lucide-react'
 import {
   MODEL_LOAD_SECONDS,
   formatDuration,
   type ModelWarmth,
 } from '../lib/generation-cost'
+import { LOCAL_COMFY_ENGINES } from '../hooks/use-generation'
 
 interface GpuInfo {
   name: string
@@ -18,10 +19,18 @@ interface ModelWarmthPillProps {
   gpuInfo: GpuInfo | null
   /** Estimated render seconds for the CURRENT spec, so "hot" can quote a real next-shot cost. */
   nextShotSeconds?: number
-  /** Local ComfyUI engine (H3 / LTX): DD doesn't track ComfyUI's VRAM residency, so
-   *  show an honest "local · GPU" state instead of a misleading cold/hot warmth. */
-  localEngine?: boolean
+  /** Local ComfyUI engine profile the SELECTED model needs ("h3" / "ltx").
+   *  The pill polls /health for the shared engine's real residency and shows an
+   *  honest hot/cold — a cold engine used to read as loaded-and-ready, and a
+   *  "5 minute" render would take 11. */
+  expectedProfile?: string
   className?: string
+}
+
+/** Cold-load display minutes per engine (measured 2026-08-05). */
+function coldLoadMinutes(profile: string): number {
+  const entry = Object.values(LOCAL_COMFY_ENGINES).find(e => e.profile === profile)
+  return Math.round((entry?.coldLoadSeconds ?? 360) / 60)
 }
 
 /**
@@ -37,16 +46,48 @@ export function ModelWarmthPill({
   activeModel,
   gpuInfo,
   nextShotSeconds,
-  localEngine = false,
+  expectedProfile,
   className = '',
 }: ModelWarmthPillProps) {
   const [open, setOpen] = useState(false)
+  // Real residency of the shared local ComfyUI engine, from /health.
+  // null = unknown (backend hasn't answered yet).
+  const [comfy, setComfy] = useState<{ running: boolean; profile: string | null } | null>(null)
+
+  useEffect(() => {
+    if (!expectedProfile) return
+    let dead = false
+    const tick = async () => {
+      try {
+        const backendUrl = await window.electronAPI.getBackendUrl()
+        const res = await fetch(`${backendUrl}/health`)
+        if (!res.ok) return
+        const h = (await res.json()) as { comfy_running?: boolean; comfy_profile?: string | null }
+        if (!dead) setComfy({ running: !!h.comfy_running, profile: h.comfy_profile ?? null })
+      } catch {
+        // backend unreachable — leave the last reading
+      }
+    }
+    void tick()
+    const interval = setInterval(() => void tick(), 20000)
+    return () => {
+      dead = true
+      clearInterval(interval)
+    }
+  }, [expectedProfile])
+
+  const engineWarm = expectedProfile
+    ? comfy !== null && comfy.running && comfy.profile === expectedProfile
+    : false
 
   const tone = useMemo(() => {
-    // Local ComfyUI engines run outside DD's own pipeline, so warmth is unknown —
-    // present an honest neutral "local" state rather than a misleading cold/hot.
-    if (localEngine) {
-      return { dot: 'bg-emerald-500', text: 'text-emerald-400', label: 'local' }
+    if (expectedProfile) {
+      if (comfy === null) {
+        return { dot: 'bg-zinc-500', text: 'text-zinc-400', label: 'local' }
+      }
+      return engineWarm
+        ? { dot: 'bg-emerald-500', text: 'text-emerald-400', label: 'hot' }
+        : { dot: 'bg-zinc-500', text: 'text-zinc-400', label: 'cold' }
     }
     switch (warmth) {
       case 'warm':
@@ -58,10 +99,15 @@ export function ModelWarmthPill({
       default:
         return { dot: 'bg-zinc-500', text: 'text-zinc-400', label: 'cold' }
     }
-  }, [warmth, localEngine])
+  }, [warmth, expectedProfile, comfy, engineWarm])
 
   const detail = useMemo(() => {
-    if (localEngine) return 'runs on your GPU'
+    if (expectedProfile) {
+      if (comfy === null) return 'runs on your GPU'
+      return engineWarm
+        ? 'engine running — next render skips the load'
+        : `first render loads the model (~${coldLoadMinutes(expectedProfile)} min)`
+    }
     if (warmth === 'warm') {
       return nextShotSeconds && nextShotSeconds > 0
         ? `next shot ${formatDuration(nextShotSeconds)}`
@@ -69,13 +115,15 @@ export function ModelWarmthPill({
     }
     if (warmth === 'warming') return 'loading into VRAM'
     return `~${formatDuration(MODEL_LOAD_SECONDS)} to first shot`
-  }, [warmth, nextShotSeconds, localEngine])
+  }, [warmth, nextShotSeconds, expectedProfile, comfy, engineWarm])
 
   const usedGb = gpuInfo ? gpuInfo.vramUsed / 1024 : 0
   const totalGb = gpuInfo ? gpuInfo.vram / 1024 : 0
   const usedPct = totalGb > 0 ? Math.min(100, (usedGb / totalGb) * 100) : 0
 
-  const Icon = warmth === 'warm' ? Flame : warmth === 'warming' ? Loader2 : Snowflake
+  const Icon = expectedProfile
+    ? (engineWarm ? Flame : Snowflake)
+    : warmth === 'warm' ? Flame : warmth === 'warming' ? Loader2 : Snowflake
 
   return (
     <div className={`relative ${className}`}>

@@ -1,5 +1,16 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
-import { Play, Pause, Download, RefreshCw, RotateCcw, Volume2, VolumeX, Maximize2, FastForward } from 'lucide-react'
+import { Play, Pause, Download, RotateCcw, Volume2, VolumeX, Maximize2, FastForward } from 'lucide-react'
+import { ClapperboardSpinner } from './ClapperboardSpinner'
+
+/** Friendly labels for the model line under the clapperboard. */
+const VIDEO_MODEL_LABELS: Record<string, string> = {
+  'h3-local': 'MiniMax H3 · local',
+  'ltx-comfy': 'LTX-2.3 · local',
+  'ltx-fast': 'LTX-2 Fast · local',
+  'fast': 'LTX-2 Fast · local',
+  'seedance-2.0': 'Seedance 2.0',
+  'seedance-1.5-pro': 'Seedance 1.5 Pro',
+}
 import { Button } from './ui/button'
 import { logger } from '../lib/logger'
 import { extractVideoFrame } from '../lib/video-frames'
@@ -17,6 +28,8 @@ interface VideoPlayerProps {
   onExtendVideo?: (frameUrl: string, framePath: string) => void
   /** Exact-length mode: the seconds reserved for this generation (shown as a placeholder). */
   reservedSeconds?: number
+  /** True when this render pays a local-engine cold load — shows the honesty note. */
+  coldStart?: boolean
 }
 
 function formatTime(seconds: number): string {
@@ -35,7 +48,7 @@ const MODEL_DISPLAY_NAMES: Record<string, string> = {
   'ltx-comfy': 'LTX 2.3 (local)',
 }
 
-export function VideoPlayer({ videoUrl, videoPath, videoResolution, isGenerating, progress, statusMessage, elapsedSeconds, estimatedSeconds, modelName, onExtendVideo, reservedSeconds }: VideoPlayerProps) {
+export function VideoPlayer({ videoUrl, videoPath, videoResolution, isGenerating, statusMessage, elapsedSeconds, estimatedSeconds, modelName, onExtendVideo, reservedSeconds, coldStart }: VideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const progressRef = useRef<HTMLDivElement>(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -302,43 +315,22 @@ export function VideoPlayer({ videoUrl, videoPath, videoResolution, isGenerating
       <div className="flex-1 bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden flex items-center justify-center relative min-h-[400px]">
         {isGenerating ? (
           <div className="flex flex-col items-center justify-center p-8 text-center">
-            <RefreshCw className="h-12 w-12 text-primary animate-spin mb-4" />
-            <p className="text-lg font-medium text-foreground mb-2">
-              Generating Video...
-            </p>
-            <p className="text-sm text-muted-foreground mb-4">
-              {statusMessage}
-            </p>
+            {/* The Directors Palette clapperboard — board, animated clapper,
+                countdown, and the personal-average marker — instead of the old
+                generic spinning arrows. */}
+            <ClapperboardSpinner
+              estimatedSeconds={estimatedSeconds ?? 60}
+              startedAt={elapsedSeconds != null ? Date.now() - elapsedSeconds * 1000 : undefined}
+              displayName={modelName ? (VIDEO_MODEL_LABELS[modelName] ?? modelName) : 'Rendering'}
+              model={modelName ?? undefined}
+              statusMessage={statusMessage}
+              note={coldStart ? 'First render loads the model into VRAM — later ones are much faster' : undefined}
+            />
             {reservedSeconds != null && (
-              <span className="mb-4 inline-flex items-center gap-1.5 rounded-md border border-blue-500/40 bg-blue-500/10 px-2.5 py-1 text-xs font-medium text-blue-400">
+              <span className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-xs font-medium text-amber-400">
                 Reserving exactly {reservedSeconds}s
               </span>
             )}
-            <div className="w-64">
-              {/* Time-based progress bar when estimate available, otherwise use backend progress */}
-              <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-primary transition-all duration-300"
-                  style={{ width: `${estimatedSeconds && elapsedSeconds ? Math.min((elapsedSeconds / estimatedSeconds) * 100, 95) : progress}%` }}
-                />
-              </div>
-              <div className="flex justify-between items-center mt-2">
-                <p className="text-xs text-muted-foreground">
-                  {elapsedSeconds != null && elapsedSeconds > 0
-                    ? `Elapsed: ${formatTime(elapsedSeconds)}`
-                    : `${Math.round(progress)}% complete`
-                  }
-                </p>
-                {estimatedSeconds != null && elapsedSeconds != null && elapsedSeconds > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    {estimatedSeconds > elapsedSeconds
-                      ? `~${formatTime(estimatedSeconds - elapsedSeconds)} left`
-                      : 'Finishing up...'
-                    }
-                  </p>
-                )}
-              </div>
-            </div>
           </div>
         ) : videoUrl ? (
           <div className="w-full h-full flex flex-col">

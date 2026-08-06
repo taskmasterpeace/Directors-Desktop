@@ -5,11 +5,15 @@ import {
   Clock, Monitor, ChevronUp, Scissors, Music,
   ChevronLeft, ChevronRight, Copy, Check, Wand2,
   FastForward, Frame, SlidersHorizontal, Pencil, Grid3X3
-, UserPlus, Images } from 'lucide-react'
+, UserPlus, Images, FileX } from 'lucide-react'
 import { useProjects } from '../contexts/ProjectContext'
 import type { GenSpaceRetakeSource } from '../contexts/ProjectContext'
 import { useAppSettings } from '../contexts/AppSettingsContext'
 import { useGeneration } from '../hooks/use-generation'
+import { ClapperboardSpinner } from '../components/ClapperboardSpinner'
+
+/** Video engines that run on the user's own GPU — free, never points-priced. */
+const LOCAL_VIDEO_MODELS = new Set(['h3-local', 'ltx-comfy', 'ltx-fast', 'fast'])
 import { useRetake } from '../hooks/use-retake'
 import type { Asset } from '../types/project'
 import { GenerationErrorDialog } from '../components/GenerationErrorDialog'
@@ -120,6 +124,9 @@ function AssetCard({
   const [isHovered, setIsHovered] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [isMuted, setIsMuted] = useState(true)
+  // The source file no longer exists on disk (moved/deleted) — say so instead
+  // of rendering a silent blank card the user can't interpret.
+  const [mediaMissing, setMediaMissing] = useState(false)
   const isFavorite = asset.favorite || false
 
   useEffect(() => {
@@ -165,17 +172,25 @@ function AssetCard({
       draggable={asset.type === 'image'}
       onDragStart={(e) => asset.type === 'image' && onDragStart(e, asset)}
     >
-      {asset.type === 'video' ? (
-        <video 
+      {mediaMissing ? (
+        <div className="w-full aspect-video flex flex-col items-center justify-center gap-1 bg-zinc-900 border border-dashed border-zinc-700 text-center px-3">
+          <FileX className="h-6 w-6 text-zinc-500" />
+          <span className="text-xs font-medium text-zinc-400">Missing file</span>
+          <span className="text-[10px] text-zinc-600 break-all line-clamp-2">{asset.path}</span>
+          <span className="text-[10px] text-zinc-500">Moved or deleted — right-click to remove</span>
+        </div>
+      ) : asset.type === 'video' ? (
+        <video
           ref={videoRef}
-          src={asset.url} 
+          src={asset.url}
           className="w-full aspect-video object-contain"
           muted={isMuted}
           loop
           onTimeUpdate={handleTimeUpdate}
+          onError={() => setMediaMissing(true)}
         />
       ) : (
-        <img src={asset.url} alt="" className="w-full aspect-video object-contain" />
+        <img src={asset.url} alt="" className="w-full aspect-video object-contain" onError={() => setMediaMissing(true)} />
       )}
       
       {/* Favorite heart - always visible when favorited */}
@@ -1519,7 +1534,6 @@ export function GenSpace() {
     generateImage,
     editImage,
     isGenerating,
-    progress,
     statusMessage,
     elapsedSeconds,
     estimatedSeconds,
@@ -1528,6 +1542,8 @@ export function GenSpace() {
     imageUrls,
     error,
     reset,
+    activeModel,
+    coldStart,
   } = useGeneration()
 
   const {
@@ -2133,15 +2149,21 @@ export function GenSpace() {
     : armedQuickMode
       ? attachedImagePhotos.length > 0 // the recipe brings its own prompt
       : !!prompt.trim()
+  // Local engines render on the user's own GPU — never bill or display points
+  // for them (Robert hit "Generate (10 pts)" on MiniMax H3 local).
+  const isLocalVideo =
+    mode !== 'image' && !editSourceImage && LOCAL_VIDEO_MODELS.has(String(settings.model))
   const estimatedCostCents = (() => {
-    if (!credits.pricing || isRetakeMode) return null
+    if (!credits.pricing || isRetakeMode || isLocalVideo) return null
     if (mode === 'image') return credits.pricing.image
     if (editSourceImage) return credits.pricing.image_edit
     if (String(settings.model).startsWith('seedance')) return credits.pricing.video_seedance
     if (inputImage) return credits.pricing.video_i2v
     return credits.pricing.video_t2v
   })()
-  const costSuffix = estimatedCostCents ? ` (${estimatedCostCents} pts)` : ''
+  const costSuffix = isLocalVideo
+    ? ' · free (local)'
+    : estimatedCostCents ? ` (${estimatedCostCents} pts)` : ''
   const promptButtonLabel = isRetakeMode
     ? 'Retake'
     : armedQuickMode
@@ -2296,32 +2318,25 @@ export function GenSpace() {
               )}
               {isGenerating && (
                 <div className="relative rounded-xl overflow-hidden bg-zinc-800 aspect-video">
+                  {/* Directors Palette clapperboard — the same board + countdown +
+                      personal-average marker as the web app, replacing the old
+                      generic blue ring. */}
                   <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <div className="relative w-16 h-16 mb-3">
-                      <div className="absolute inset-0 rounded-full border-2 border-blue-500/30" />
-                      <div className="absolute inset-0 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
-                      <div className="absolute inset-2 rounded-full bg-zinc-800 flex items-center justify-center">
-                        <Sparkles className="h-6 w-6 text-blue-400" />
-                      </div>
-                    </div>
-                    <p className="text-sm text-zinc-400">{statusMessage || 'Generating...'}</p>
-                    {mode === 'image' && (() => {
-                      const m = getImageModel(appSettings.imageModel)
-                      return m.estimatedSeconds ? (
-                        <p className="text-[11px] text-zinc-500 mt-0.5">{m.icon} {m.displayName} · ~{m.estimatedSeconds}s typical</p>
-                      ) : null
-                    })()}
-                    <div className="w-32 h-1 bg-zinc-700 rounded-full mt-2 overflow-hidden">
-                      {/* Drive the bar from the backend's real per-job progress, not
-                          elapsed/estimated time (which freezes at 95% on long jobs). */}
-                      <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${Math.max(progress, 2)}%` }} />
-                    </div>
-                    <p className="text-xs text-zinc-500 mt-1">
-                      {elapsedSeconds > 0
-                        ? `${Math.floor(elapsedSeconds / 60)}:${String(elapsedSeconds % 60).padStart(2, '0')}${estimatedSeconds && estimatedSeconds > elapsedSeconds ? ` / ~${Math.floor(estimatedSeconds / 60)}:${String(Math.floor(estimatedSeconds % 60)).padStart(2, '0')}` : ''}`
-                        : progress > 0 ? `${Math.round(progress)}%` : 'Starting...'
+                    <ClapperboardSpinner
+                      estimatedSeconds={
+                        estimatedSeconds
+                          ?? (mode === 'image' ? getImageModel(appSettings.imageModel).estimatedSeconds ?? 30 : 60)
                       }
-                    </p>
+                      startedAt={elapsedSeconds > 0 ? Date.now() - elapsedSeconds * 1000 : undefined}
+                      displayName={
+                        mode === 'image'
+                          ? getImageModel(appSettings.imageModel).displayName
+                          : (activeModel ?? 'Rendering')
+                      }
+                      model={mode === 'image' ? appSettings.imageModel : (activeModel ?? undefined)}
+                      statusMessage={statusMessage || 'Generating...'}
+                      note={coldStart ? 'First render loads the model — later ones are much faster' : undefined}
+                    />
                   </div>
                 </div>
               )}

@@ -366,8 +366,9 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
         onClick={onClose}
       />
 
-      {/* Modal */}
-      <div className="relative bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-xl mx-4">
+      {/* Modal — wide enough that all six tabs fit on one row; the tab strip
+          scrolls horizontally instead of wrapping ("distorted") on narrow windows. */}
+      <div className="relative bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[88vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
           <div className="flex items-center gap-2">
@@ -385,14 +386,14 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-zinc-800">
+        <div className="flex border-b border-zinc-800 overflow-x-auto">
           {tabs.map((tab) => {
             const Icon = tab.icon
             return (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium transition-colors ${
+                className={`flex shrink-0 items-center gap-2 px-3.5 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
                   activeTab === tab.id
                     ? 'text-white border-b-2 border-blue-500 -mb-px'
                     : 'text-zinc-400 hover:text-white'
@@ -441,7 +442,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                         <span className="text-sm font-medium text-white">Local Encoder</span>
                       </div>
                       <p className="text-xs text-zinc-400 mt-1">
-                        Run on your computer (~23 seconds). Requires 25 GB download.
+                        Runs on your GPU (~23 seconds per prompt). ~{textEncoderStatus?.expected_size_gb || 8} GB download.
                       </p>
                     </div>
                     <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${

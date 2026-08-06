@@ -1,18 +1,13 @@
 import { useState } from 'react'
-import { Download, RefreshCw, ImageIcon, Video, Pencil } from 'lucide-react'
+import { Download, ImageIcon, Video, Pencil } from 'lucide-react'
 import { Button } from './ui/button'
+import { ClapperboardSpinner } from './ClapperboardSpinner'
 
 const MODEL_DISPLAY_NAMES: Record<string, string> = {
   'flux-dev': 'FLUX.1 Dev',
   'flux-klein-9b': 'FLUX.2 Klein 9B',
   'z-image-turbo': 'Z-Image Turbo',
   'nano-banana-2': 'Nano Banana 2',
-}
-
-function formatTime(seconds: number): string {
-  const mins = Math.floor(seconds / 60)
-  const secs = Math.floor(seconds % 60)
-  return `${mins}:${secs.toString().padStart(2, '0')}`
 }
 
 interface ImageResultProps {
@@ -30,7 +25,6 @@ interface ImageResultProps {
 export function ImageResult({
   imageUrl,
   isGenerating,
-  progress,
   statusMessage,
   elapsedSeconds,
   estimatedSeconds,
@@ -60,34 +54,14 @@ export function ImageResult({
       <div className="flex-1 bg-zinc-900 rounded-lg border border-zinc-800 overflow-hidden flex items-center justify-center relative min-h-[400px]">
         {isGenerating ? (
           <div className="flex flex-col items-center justify-center p-8 text-center">
-            <RefreshCw className="h-12 w-12 text-primary animate-spin mb-4" />
-            <p className="text-lg font-medium text-foreground mb-2">
-              {statusMessage || 'Generating Image...'}
-            </p>
-            <div className="w-64">
-              <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-primary transition-all duration-300"
-                  style={{ width: `${Math.max(progress, 2)}%` }}
-                />
-              </div>
-              <div className="flex justify-between items-center mt-2">
-                <p className="text-xs text-muted-foreground">
-                  {elapsedSeconds != null && elapsedSeconds > 0
-                    ? `Elapsed: ${formatTime(elapsedSeconds)}`
-                    : progress > 0 ? `${Math.round(progress)}%` : 'Starting...'
-                  }
-                </p>
-                {estimatedSeconds != null && elapsedSeconds != null && elapsedSeconds > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    {estimatedSeconds > elapsedSeconds
-                      ? `~${formatTime(estimatedSeconds - elapsedSeconds)} left`
-                      : 'Finishing up...'
-                    }
-                  </p>
-                )}
-              </div>
-            </div>
+            {/* Directors Palette clapperboard instead of the generic arrows. */}
+            <ClapperboardSpinner
+              estimatedSeconds={estimatedSeconds ?? 30}
+              startedAt={elapsedSeconds != null ? Date.now() - elapsedSeconds * 1000 : undefined}
+              displayName={modelName ? (MODEL_DISPLAY_NAMES[modelName] ?? modelName) : 'Generating image'}
+              model={modelName ?? undefined}
+              statusMessage={statusMessage || 'Generating Image...'}
+            />
           </div>
         ) : imageUrl ? (
           <div 

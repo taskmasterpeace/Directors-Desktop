@@ -167,6 +167,8 @@ export function Playground() {
     cancel,
     reset,
     lastModel,
+    activeModel,
+    coldStart,
     jobs,
   } = useGeneration()
 
@@ -426,13 +428,17 @@ export function Playground() {
           {/* Model Status Dropdown */}
           {!forceApiGenerations && <ModelStatusDropdown />}
 
-          {/* VRAM residency — distinct from the download state above. Local
-              ComfyUI engines (H3, LTX) run outside DD's own pipeline, so DD's
-              warmth signal doesn't apply — show the engine name + a neutral cold. */}
+          {/* VRAM residency — distinct from the download state above. For the
+              local ComfyUI engines (H3, LTX) the pill polls the shared engine's
+              REAL residency so a cold model never reads as loaded-and-ready. */}
           {!forceApiGenerations && (
             <ModelWarmthPill
               warmth={status.warmth}
-              localEngine={settings.model === 'h3-local' || settings.model === 'ltx-comfy'}
+              expectedProfile={
+                settings.model === 'h3-local' ? 'h3'
+                  : settings.model === 'ltx-comfy' ? 'ltx'
+                  : undefined
+              }
               activeModel={
                 settings.model === 'h3-local' ? 'MiniMax H3 (local)'
                   : settings.model === 'ltx-comfy' ? 'LTX 2.3 (local)'
@@ -705,9 +711,10 @@ export function Playground() {
               statusMessage={statusMessage}
               elapsedSeconds={elapsedSeconds}
               estimatedSeconds={estimatedSeconds}
-              modelName={lastModel}
+              modelName={activeModel ?? lastModel}
               onExtendVideo={handleExtendVideo}
               reservedSeconds={activeReservedSeconds ?? undefined}
+              coldStart={coldStart}
             />
           )}
 

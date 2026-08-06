@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import type { GenerationSettings } from '../components/SettingsPanel'
 import { useAppSettings } from '../contexts/AppSettingsContext'
 import { migrateImageModelId } from '../lib/image-models'
+import { recordModelTiming } from '../lib/model-timing'
 
 export interface QueueJob {
   id: string
@@ -33,6 +34,10 @@ interface GenerationState {
   error: string | null
   jobs: QueueJob[]
   lastModel: string | null
+  /** Model id of the job currently in flight (null when idle). */
+  activeModel: string | null
+  /** True when this render pays a local-engine cold load (model not resident). */
+  coldStart: boolean
 }
 
 // Estimated generation times (seconds) based on benchmark data
@@ -62,23 +67,52 @@ export const VIDEO_TIME_ESTIMATES: Record<string, Record<string, Record<string, 
     '720p': { '5': 480, '10': 1500, '15': 3120 },
     '1080p': { '5': 480, '10': 1500, '15': 3120 },
   },
-  // Local LTX-2.3 (ComfyUI, nvfp4, distilled 8-step) on a 4090. Anchored to a
-  // measured 2s/480p render (~127s incl. checkpoint load). LTX-2.3 is a 22B model:
-  // even with the DiT running compute-bound, the per-render checkpoint reload
-  // (--disable-smart-memory evicts it to free the card) makes it minutes-scale and
-  // notably slower than H3 — H3 stays the fast local engine.
+  // Local LTX-2.3 (ComfyUI, nvfp4, distilled 8-step) on a 4090, WARM.
+  // Recalibrated 2026-08-05 from the measured 10s matrix: warm 480p 10s clips
+  // ran 90–100s with or without a reference. The first-of-session render pays
+  // the cold load instead (see LOCAL_COMFY_ENGINES.coldLoadSeconds).
   'ltx-comfy': {
-    '480p': { '5': 220, '10': 400, '15': 580 },
-    '720p': { '5': 400, '10': 750, '15': 1100 },
-    '1080p': { '5': 400, '10': 750, '15': 1100 },
+    '480p': { '2': 60, '5': 80, '10': 100, '15': 140 },
+    '720p': { '5': 240, '10': 420, '15': 650 },
+    '1080p': { '5': 240, '10': 420, '15': 650 },
   },
 }
 
-export function getEstimatedSeconds(job: QueueJob): number | null {
+/**
+ * The local ComfyUI engines share one instance on :8188; /health reports which
+ * profile is up (comfy_running + comfy_profile). A render on the matching
+ * engine is WARM; anything else pays a measured multi-minute cold load that
+ * the estimates table deliberately excludes.
+ * Cold loads measured 2026-08-05: H3 +~5.5min (661s cold vs 340s warm),
+ * LTX +~15min (1012s cold vs 90s warm).
+ */
+export const LOCAL_COMFY_ENGINES: Record<string, { profile: string; coldLoadSeconds: number }> = {
+  'h3-local': { profile: 'h3', coldLoadSeconds: 330 },
+  'ltx-comfy': { profile: 'ltx', coldLoadSeconds: 900 },
+}
+
+export interface ComfyEngineStatus {
+  running: boolean
+  profile: string | null
+}
+
+/** True when the job's engine will render warm given the current comfy state. */
+export function isComfyWarmFor(model: string, comfy: ComfyEngineStatus | null | undefined): boolean {
+  const engine = LOCAL_COMFY_ENGINES[model]
+  if (!engine) return true // not a local comfy engine — no cold-load concept here
+  return !!comfy && comfy.running && comfy.profile === engine.profile
+}
+
+export function getEstimatedSeconds(job: QueueJob, comfy?: ComfyEngineStatus | null): number | null {
   const params = job.params
   const resolution = (params.resolution as string) || '512p'
   const duration = String(params.duration || '2')
   const model = (params.model as string) || job.model || 'ltx-fast'
+  // A cold local comfy engine pays the model load on top of the warm estimate.
+  const engine = LOCAL_COMFY_ENGINES[model]
+  const coldExtra = engine && comfy !== undefined && !isComfyWarmFor(model, comfy)
+    ? engine.coldLoadSeconds
+    : 0
 
   // Try model-specific estimates first, then fall back to ltx-fast
   const modelEstimates = VIDEO_TIME_ESTIMATES[model] || VIDEO_TIME_ESTIMATES['ltx-fast']
@@ -87,7 +121,7 @@ export function getEstimatedSeconds(job: QueueJob): number | null {
   if (!byDuration) return null
 
   // Find exact match or interpolate from nearest lower
-  if (byDuration[duration]) return byDuration[duration]
+  if (byDuration[duration]) return byDuration[duration] + coldExtra
   const durations = Object.keys(byDuration).map(Number).sort((a, b) => a - b)
   const dur = Number(duration)
   // Find bracketing values for simple interpolation
@@ -96,11 +130,11 @@ export function getEstimatedSeconds(job: QueueJob): number | null {
     if (d <= dur) lower = d
     if (d >= dur && upper === durations[durations.length - 1]) upper = d
   }
-  if (dur <= lower) return byDuration[String(lower)]
-  if (dur >= upper) return byDuration[String(upper)]
+  if (dur <= lower) return byDuration[String(lower)] + coldExtra
+  if (dur >= upper) return byDuration[String(upper)] + coldExtra
   // Linear interpolation
   const ratio = (dur - lower) / (upper - lower)
-  return Math.round(byDuration[String(lower)] + ratio * (byDuration[String(upper)] - byDuration[String(lower)]))
+  return Math.round(byDuration[String(lower)] + ratio * (byDuration[String(upper)] - byDuration[String(lower)])) + coldExtra
 }
 
 interface UseGenerationReturn extends GenerationState {
@@ -238,12 +272,29 @@ export function useGeneration(): UseGenerationReturn {
     error: null,
     jobs: [],
     lastModel: null,
+    activeModel: null,
+    coldStart: false,
   })
 
   // Track the most recently submitted job ID for cancel
   const activeJobIdRef = useRef<string | null>(null)
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const startedAtRef = useRef<number | null>(null)
+  // Last-known local ComfyUI engine state (from /health) — drives cold-load
+  // honesty in the ETA and the "first render loads the model" note.
+  const comfyRef = useRef<ComfyEngineStatus | null>(null)
+
+  const refreshComfyState = useCallback(async () => {
+    try {
+      const backendUrl = await window.electronAPI.getBackendUrl()
+      const res = await fetch(`${backendUrl}/health`)
+      if (!res.ok) return
+      const h = (await res.json()) as { comfy_running?: boolean; comfy_profile?: string | null }
+      comfyRef.current = { running: !!h.comfy_running, profile: h.comfy_profile ?? null }
+    } catch {
+      // keep the previous reading — comfy state is a UX nicety, never fatal
+    }
+  }, [])
   // Consecutive poll failures — used to detect a dead backend instead of
   // spinning forever in "Generating…".
   const pollFailuresRef = useRef(0)
@@ -333,10 +384,14 @@ export function useGeneration(): UseGenerationReturn {
 
           // Compute estimated total time for video jobs
           if ((activeJob.type === 'video' || activeJob.type === 'long_video') && next.estimatedSeconds === null) {
-            next.estimatedSeconds = getEstimatedSeconds(activeJob)
+            next.estimatedSeconds = getEstimatedSeconds(activeJob, comfyRef.current)
           }
 
           if (activeJob.status === 'complete') {
+            // Feed the personal-average marker: how long this model ACTUALLY took.
+            if (startedAtRef.current) {
+              recordModelTiming(activeJob.model, Date.now() - startedAtRef.current)
+            }
             next.isGenerating = hasRunning
             next.progress = 100
             next.statusMessage = 'Complete!'
@@ -386,6 +441,44 @@ export function useGeneration(): UseGenerationReturn {
     return () => stopPolling()
   }, [stopPolling])
 
+  // Re-attach to a still-running job after navigation/remount. Without this,
+  // leaving the view orphaned the render: the backend kept going but the UI
+  // forgot it, and the user couldn't tell whether anything was still running.
+  const reattachTriedRef = useRef(false)
+  useEffect(() => {
+    if (reattachTriedRef.current) return
+    reattachTriedRef.current = true
+    void (async () => {
+      try {
+        const backendUrl = await window.electronAPI.getBackendUrl()
+        const res = await fetch(`${backendUrl}/api/queue/status`)
+        if (!res.ok) return
+        const data = (await res.json()) as { jobs?: QueueJob[] }
+        const jobs = Array.isArray(data.jobs) ? data.jobs : []
+        const active = jobs
+          .filter(j => j.status === 'queued' || j.status === 'running')
+          .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0]
+        if (!active || activeJobIdRef.current) return
+        await refreshComfyState()
+        activeJobIdRef.current = active.id
+        const startedMs = Date.parse(active.created_at)
+        startedAtRef.current = Number.isFinite(startedMs) ? startedMs : Date.now()
+        setState(prev => ({
+          ...prev,
+          isGenerating: true,
+          activeModel: active.model,
+          coldStart: !isComfyWarmFor(active.model, comfyRef.current),
+          statusMessage: getPhaseMessage(active.phase),
+          estimatedSeconds: getEstimatedSeconds(active, comfyRef.current),
+          error: null,
+        }))
+        startPolling()
+      } catch {
+        // backend not up yet — normal during app boot
+      }
+    })()
+  }, [startPolling, refreshComfyState])
+
   const generate = useCallback(async (
     prompt: string,
     imagePath: string | null,
@@ -429,6 +522,10 @@ export function useGeneration(): UseGenerationReturn {
         : 'Generating video...'
 
     startedAtRef.current = null
+    // Fresh comfy-engine reading so the ETA and cold-start note are honest for
+    // THIS render, not a stale idea of what was loaded earlier.
+    await refreshComfyState()
+    const coldStart = !isComfyWarmFor(settings.model, comfyRef.current)
     setState(prev => ({
       ...prev,
       isGenerating: true,
@@ -441,6 +538,8 @@ export function useGeneration(): UseGenerationReturn {
       imageUrl: null,
       imageUrls: [],
       error: null,
+      activeModel: settings.model,
+      coldStart,
     }))
 
     try {
@@ -510,7 +609,7 @@ export function useGeneration(): UseGenerationReturn {
         error: error instanceof Error ? error.message : 'Unknown error',
       }))
     }
-  }, [appSettings.hasReplicateApiKey, appSettings.hasFalApiKey, startPolling])
+  }, [appSettings.hasReplicateApiKey, appSettings.hasFalApiKey, startPolling, refreshComfyState])
 
   const cancel = useCallback(async () => {
     const jobId = activeJobIdRef.current
@@ -590,6 +689,8 @@ export function useGeneration(): UseGenerationReturn {
       imageUrl: null,
       imageUrls: [],
       error: null,
+      activeModel: settings.imageModel ?? null,
+      coldStart: false,
     }))
 
     try {
@@ -736,6 +837,8 @@ export function useGeneration(): UseGenerationReturn {
       error: null,
       jobs: [],
       lastModel: null,
+      activeModel: null,
+      coldStart: false,
     })
   }, [])
 

@@ -10,6 +10,7 @@ from handlers.base import StateHandlerBase, with_state_lock
 from handlers.models_handler import ModelsHandler
 from handlers.pipelines_handler import PipelinesHandler
 from logging_policy import log_background_exception
+from server_utils.comfy_engine_state import get_comfy_engine_state
 from services.interfaces import GpuInfo
 from state.app_state_types import AppState, GpuSlot, StartupError, StartupLoading, StartupPending, StartupReady, VideoPipelineState, VideoPipelineWarmth
 
@@ -53,12 +54,15 @@ class HealthHandler(StateHandlerBase):
                     pass
 
         files = self._models.refresh_available_files()
+        comfy = get_comfy_engine_state()
 
         return HealthResponse(
             status="ok",
             models_loaded=models_loaded,
             active_model=active_model,
             warmth=warmth,
+            comfy_running=comfy.running,
+            comfy_profile=comfy.profile,
             gpu_info=GpuTelemetry(**self._gpu_info.get_gpu_info()),
             sage_attention=self._use_sage_attention,
             models_status=[

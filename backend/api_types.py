@@ -87,6 +87,12 @@ class HealthResponse(BaseModel):
     # VRAM residency of the active video pipeline: "cold" | "warming" | "warm".
     # Distinct from models_status[].downloaded, which is only about disk.
     warmth: str = "cold"
+    # Local ComfyUI engine residency (H3 / LTX share one instance on :8188).
+    # comfy_profile = which engine launched the running instance ("h3"/"ltx"),
+    # None when nothing is up. Lets the UI say honestly whether the next local
+    # render pays the multi-minute cold load.
+    comfy_running: bool = False
+    comfy_profile: str | None = None
     gpu_info: GpuTelemetry
     sage_attention: bool
     models_status: list[ModelStatusItem]
