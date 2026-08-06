@@ -74,8 +74,10 @@ export function PlaygroundQueueStrip({ onEditJob }: PlaygroundQueueStripProps) {
     .reverse()
   // A dead render must say so where the user is looking — failed jobs used to
   // vanish from this strip entirely (only running/queued/complete rendered).
+  // The backend's terminal literal is "error" (job_queue.py Literal), NOT
+  // "failed" — nolc(8) shipped with the wrong string and never fired.
   const failed = videoJobs
-    .filter(j => j.status === 'failed' && !dismissed.has(j.id))
+    .filter(j => j.status === 'error' && !dismissed.has(j.id))
     .slice(-2)
     .reverse()
 
