@@ -26,7 +26,8 @@ live in the installed app at the next installer swap.
 | 17 | **"Try again" in the Enhance Director error strip.** If the phase-1 analyze call died (backend hiccup, LLM timeout) the modal showed an error over an EMPTY panel and the only recovery was close-and-reopen. Phase-2 errors already recovered (directions stay clickable); phase 1 now does too. | ~20 | `ea1329d` |
 
 | 18 | **Aspect ratio on queue-strip rows** ("10s · 480p · 9:16"). Duration/resolution were already there, but a 16:9 and a 9:16 take of the same prompt were indistinguishable in the queue — and portrait-vs-landscape matrixing is exactly how this app gets tested. | 1 | `3b7f16c` |
-| 19 | **Prompt helper advertises Ctrl+Enter** — row 16 added the binding; nothing told you it exists. (Considered the Keyboard Shortcuts modal first — wrong venue: that's the EDITOR's remap registry, and this binding isn't remappable.) Helper now carries all three tips tight: @, Ctrl+Enter, detail wins. | 1 | (this commit) |
+| 19 | **Prompt helper advertises Ctrl+Enter** — row 16 added the binding; nothing told you it exists. (Considered the Keyboard Shortcuts modal first — wrong venue: that's the EDITOR's remap registry, and this binding isn't remappable.) Helper now carries all three tips tight: @, Ctrl+Enter, detail wins. | 1 | `03dd8a8` |
+| 20 | **Live render badge on Home's Playground nav** — pulsing amber dot + count while jobs run/queue (5s self-poll, hidden when idle; hover says "N rendering · M queued"). Home is where you land coming back to the app, and it said nothing about renders in flight — the original "I don't know if it's still going" scenario. | ~35 | (this commit) |
 
 ## Follow-up: the full de-blue sweep (spun off from rows 2 & 10)
 

@@ -117,6 +117,30 @@ export function Home() {
   const { projects, createProject, deleteProject, renameProject, updateProject, openProject, importPaletteMv, openPlayground, openGallery, openCharacters, openReferences, openRecipes, openWildcards, openPromptLibrary, openClipTool, openDirector, setPendingDirectorAudio } = useProjects()
   // #84: does the stored Palette credential cover generation (dp_ key), or
   // only credits/sync (browser-session token)?
+  // Live queue count for the Playground nav badge — Home is where you land
+  // coming back to the app, and it said nothing about renders in flight.
+  const [queueLive, setQueueLive] = useState({ running: 0, queued: 0 })
+  useEffect(() => {
+    let dead = false
+    const tick = async () => {
+      try {
+        const base = await window.electronAPI.getBackendUrl()
+        const res = await fetch(`${base}/api/queue/status`)
+        if (!res.ok) return
+        const data = (await res.json()) as { jobs?: { type: string; status: string }[] }
+        if (dead || !Array.isArray(data.jobs)) return
+        const vids = data.jobs.filter(j => j.type === 'video' || j.type === 'long_video')
+        setQueueLive({
+          running: vids.filter(j => j.status === 'running').length,
+          queued: vids.filter(j => j.status === 'queued').length,
+        })
+      } catch { /* backend warming up */ }
+    }
+    void tick()
+    const iv = setInterval(() => void tick(), 5000)
+    return () => { dead = true; clearInterval(iv) }
+  }, [])
+
   const [keyStep, setKeyStep] = useState<'hidden' | 'needed' | 'done'>('hidden')
   const provisionKeyRef = useRef<(() => Promise<void>) | null>(null)
   const [keyInput, setKeyInput] = useState('')
@@ -422,6 +446,15 @@ export function Home() {
             >
               <Sparkles className="h-4 w-4" />
               Playground
+              {queueLive.running + queueLive.queued > 0 && (
+                <span
+                  className="ml-auto flex items-center gap-1.5 text-[10px] font-medium text-amber-300"
+                  title={`${queueLive.running} rendering · ${queueLive.queued} queued`}
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                  {queueLive.running + queueLive.queued}
+                </span>
+              )}
             </button>
           </div>
 
