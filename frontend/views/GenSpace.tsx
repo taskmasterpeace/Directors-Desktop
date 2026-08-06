@@ -1,11 +1,11 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import {
   Download, Image, Video, X,
   Heart, Film, Volume2, VolumeX, Sparkles,
   Clock, Monitor, ChevronUp, Scissors, Music,
   ChevronLeft, ChevronRight, Copy, Check, Wand2,
   FastForward, Frame, SlidersHorizontal, Pencil, Grid3X3
-, UserPlus, Images, FileX } from 'lucide-react'
+, UserPlus, Images, FileX, FolderInput } from 'lucide-react'
 import { useProjects } from '../contexts/ProjectContext'
 import type { GenSpaceRetakeSource } from '../contexts/ProjectContext'
 import { useAppSettings } from '../contexts/AppSettingsContext'
@@ -107,7 +107,9 @@ function AssetCard({
   onRetake,
   onExtendVideo,
   onToggleFavorite,
-  onSaveToLibrary
+  onSaveToLibrary,
+  bins = [],
+  onSetBin,
 }: {
   asset: Asset
   onDelete: () => void
@@ -119,6 +121,10 @@ function AssetCard({
   onExtendVideo?: (asset: Asset) => void
   onToggleFavorite?: () => void
   onSaveToLibrary?: (asset: Asset, kind: 'character' | 'reference') => void
+  /** Existing folder names, for the move-to-folder menu. */
+  bins?: string[]
+  /** Move this asset into a folder (null = out of any folder). */
+  onSetBin?: (bin: string | null) => void
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [isHovered, setIsHovered] = useState(false)
@@ -127,6 +133,8 @@ function AssetCard({
   // The source file no longer exists on disk (moved/deleted) — say so instead
   // of rendering a silent blank card the user can't interpret.
   const [mediaMissing, setMediaMissing] = useState(false)
+  const [showBinMenu, setShowBinMenu] = useState(false)
+  const [newBinName, setNewBinName] = useState('')
   const isFavorite = asset.favorite || false
 
   useEffect(() => {
@@ -202,6 +210,60 @@ function AssetCard({
         >
           <Heart className="h-3.5 w-3.5 fill-current" />
         </button>
+      )}
+
+      {/* Folder (Phase 4): quiet badge when filed; hover button opens the
+          move-to-folder menu. Same Asset.bin the editor's bin view groups by. */}
+      {onSetBin && asset.bin && !isHovered && !showBinMenu && (
+        <span className="absolute bottom-2 left-2 px-1.5 py-0.5 rounded bg-black/50 text-[10px] text-zinc-300 z-10 flex items-center gap-1">
+          <FolderInput className="h-3 w-3" />
+          {asset.bin}
+        </span>
+      )}
+      {onSetBin && (isHovered || showBinMenu) && (
+        <div className="absolute bottom-2 left-2 z-20" onClick={e => e.stopPropagation()}>
+          <button
+            aria-label="Move to folder"
+            title={asset.bin ? `Folder: ${asset.bin}` : 'Move to folder'}
+            onClick={() => setShowBinMenu(v => !v)}
+            className="p-1.5 rounded bg-black/60 hover:bg-amber-500/80 transition-colors"
+          >
+            <FolderInput className="h-3.5 w-3.5 text-white" />
+          </button>
+          {showBinMenu && (
+            <div className="absolute bottom-8 left-0 bg-zinc-800 border border-zinc-700 rounded-md p-1.5 min-w-[160px] shadow-xl z-30">
+              <button
+                onClick={() => { onSetBin(null); setShowBinMenu(false) }}
+                className="w-full text-left px-2 py-1.5 rounded text-xs text-zinc-300 hover:bg-zinc-700"
+              >
+                No folder{!asset.bin && ' ✓'}
+              </button>
+              {bins.map(b => (
+                <button
+                  key={b}
+                  onClick={() => { onSetBin(b); setShowBinMenu(false) }}
+                  className="w-full text-left px-2 py-1.5 rounded text-xs text-zinc-300 hover:bg-zinc-700"
+                >
+                  {b}{asset.bin === b && ' ✓'}
+                </button>
+              ))}
+              <input
+                value={newBinName}
+                onChange={e => setNewBinName(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter' && newBinName.trim()) {
+                    onSetBin(newBinName.trim())
+                    setNewBinName('')
+                    setShowBinMenu(false)
+                  }
+                  if (e.key === 'Escape') setShowBinMenu(false)
+                }}
+                placeholder="New folder…"
+                className="mt-1 w-full px-2 py-1.5 rounded bg-zinc-900 border border-zinc-700 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-amber-500/60"
+              />
+            </div>
+          )}
+        </div>
       )}
       
       {/* Hover overlay */}
@@ -1486,7 +1548,7 @@ type GenSpaceSettings = typeof DEFAULT_VIDEO_SETTINGS & {
 }
 
 export function GenSpace() {
-  const { currentProject, currentProjectId, addAsset, addTakeToAsset, deleteAsset, toggleFavorite, genSpaceEditImageUrl, setGenSpaceEditImageUrl, genSpaceEditMode, setGenSpaceEditMode, genSpaceAudioUrl, setGenSpaceAudioUrl, genSpaceRetakeSource, setGenSpaceRetakeSource, setPendingRetakeUpdate, pendingReferenceImage, setPendingReferenceImage } = useProjects()
+  const { currentProject, currentProjectId, addAsset, addTakeToAsset, deleteAsset, updateAsset, toggleFavorite, genSpaceEditImageUrl, setGenSpaceEditImageUrl, genSpaceEditMode, setGenSpaceEditMode, genSpaceAudioUrl, setGenSpaceAudioUrl, genSpaceRetakeSource, setGenSpaceRetakeSource, setPendingRetakeUpdate, pendingReferenceImage, setPendingReferenceImage } = useProjects()
   const confirm = useConfirm()
   const { shouldVideoGenerateWithLtxApi, forceApiGenerations, settings: appSettings, credits } = useAppSettings()
   const [mode, setMode] = useState<'image' | 'video' | 'retake'>('video')
@@ -1666,6 +1728,97 @@ export function GenSpace() {
   const [lastPrompt, setLastPrompt] = useState('')
   
   const assetSavePath = currentProject?.assetSavePath
+
+  // Ownership label for every job this Gen Space submits — lets the adopt
+  // sweep (below) and the Gallery know which project a render belongs to.
+  const projectTags = useMemo(
+    () => (currentProjectId ? { tags: [`project:${currentProjectId}`] } : undefined),
+    [currentProjectId],
+  )
+
+  // ---- Adopt-on-return (project management Phase 1) ----------------------
+  // A render that completes while this project's Gen Space is CLOSED used to
+  // exist only in the global Gallery — the project never learned about it.
+  // Jobs are tagged project:<id> at submit; on mount we sweep completed jobs
+  // under this project's tag into the asset grid. A localStorage ledger of
+  // handled job ids keeps user deletions deleted (no resurrection).
+  const adoptSweepDoneRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (!currentProjectId || adoptSweepDoneRef.current === currentProjectId) return
+    adoptSweepDoneRef.current = currentProjectId
+    const ledgerKey = `dd-adopted-jobs-v1:${currentProjectId}`
+    const toFileUrl = (p: string) => {
+      const n = p.replace(/\\/g, '/')
+      return n.startsWith('/') ? `file://${n}` : `file:///${n}`
+    }
+    void (async () => {
+      try {
+        const backendUrl = await window.electronAPI.getBackendUrl()
+        const res = await fetch(`${backendUrl}/api/queue/status`)
+        if (!res.ok) return
+        const data = (await res.json()) as { jobs?: Array<{
+          id: string; type: string; model: string; status: string; tags: string[]
+          result_paths: string[]; params: Record<string, unknown>
+        }> }
+        const jobs = Array.isArray(data.jobs) ? data.jobs : []
+        let ledger: string[] = []
+        try {
+          const parsed: unknown = JSON.parse(localStorage.getItem(ledgerKey) ?? '[]')
+          if (Array.isArray(parsed)) ledger = parsed.filter((x): x is string => typeof x === 'string')
+        } catch { /* fresh ledger */ }
+        const known = new Set(ledger)
+        const assetPaths = new Set((currentProject?.assets ?? []).map(a => a.path))
+        const tag = `project:${currentProjectId}`
+        const candidates = jobs.filter(j =>
+          j.status === 'complete' && (j.tags ?? []).includes(tag) && !known.has(j.id))
+        let adopted = 0
+        for (const job of candidates) {
+          for (const p of job.result_paths ?? []) {
+            if (assetPaths.has(p)) continue
+            try {
+              const { path: finalPath, url: finalUrl } = await copyToAssetFolder(p, toFileUrl(p), assetSavePath)
+              if (assetPaths.has(finalPath)) continue
+              const jp = job.params
+              const promptText = typeof jp.prompt === 'string' ? jp.prompt : ''
+              addAsset(currentProjectId, {
+                type: job.type === 'image' ? 'image' : 'video',
+                path: finalPath,
+                url: finalUrl,
+                prompt: promptText,
+                resolution: typeof jp.resolution === 'string' ? jp.resolution : '480p',
+                // The grid only shows assets WITH generationParams — a bare
+                // adopt would be invisible in Gen Space (visible in the editor).
+                generationParams: {
+                  mode: job.type === 'image' ? 'text-to-image' : 'text-to-video',
+                  prompt: promptText,
+                  model: String(job.model ?? 'fast'),
+                  duration: Number(jp.duration ?? 5) || 5,
+                  resolution: typeof jp.resolution === 'string' ? jp.resolution : '480p',
+                  fps: 24,
+                  audio: false,
+                  cameraMotion: 'none',
+                  imageAspectRatio: typeof jp.aspectRatio === 'string' ? jp.aspectRatio : '16:9',
+                  imageSteps: 4,
+                },
+                takes: [{ url: finalUrl, path: finalPath, createdAt: Date.now() }],
+                activeTakeIndex: 0,
+              })
+              assetPaths.add(finalPath)
+              assetPaths.add(p)
+              adopted++
+            } catch (err) {
+              logger.error(`Failed to adopt render ${p}: ${err}`)
+            }
+          }
+          known.add(job.id)
+        }
+        if (adopted > 0) logger.info(`Adopted ${adopted} render(s) that completed while away`)
+        localStorage.setItem(ledgerKey, JSON.stringify([...known].slice(-200)))
+      } catch {
+        // backend not up yet — the next visit sweeps again
+      }
+    })()
+  }, [currentProjectId, currentProject?.assets, addAsset, assetSavePath])
 
   // When video generation completes, add to project assets
   useEffect(() => {
@@ -2046,11 +2199,11 @@ export function GenSpace() {
         // Armed quick mode always GENERATES the sheet from the attached photo(s)
         // — it must never fall into img2img edit just because the photo arrived
         // via the edit slot.
-        generateImage(dynamicPromptOverride ?? quickPrompt, imageSettings)
+        generateImage(dynamicPromptOverride ?? quickPrompt, imageSettings, projectTags)
       } else if (editSourceImage) {
-        editImage(prompt, editSourceImage.path, imageSettings, editStrength)
+        editImage(prompt, editSourceImage.path, imageSettings, editStrength, projectTags)
       } else {
-        generateImage(dynamicPromptOverride ?? quickPrompt, imageSettings)
+        generateImage(dynamicPromptOverride ?? quickPrompt, imageSettings, projectTags)
       }
     } else {
       // Generate video (t2v if no image/audio, i2v if image, a2v if audio)
@@ -2083,10 +2236,11 @@ export function GenSpace() {
         },
         audioPath,
         lastFramePath,
+        projectTags,
       )
     }
   }
-  
+
   const handleDelete = async (assetId: string) => {
     if (!currentProjectId) return
     const ok = await confirm({
@@ -2187,7 +2341,85 @@ export function GenSpace() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [showSizeMenu])
 
-  const filteredAssets = showFavorites ? assets.filter(a => a.favorite) : assets
+  // ---- Folders / bins (project management Phase 4) ----------------------
+  // Asset.bin is the SAME field the Video Editor's bin view groups by, so a
+  // folder made here is a folder there. Bins exist on assets (no empty bins).
+  const [binFilter, setBinFilter] = useState<string>('all')
+  const [renamingBin, setRenamingBin] = useState<{ from: string; value: string } | null>(null)
+  const bins = useMemo(
+    () => [...new Set(assets.map(a => a.bin).filter((b): b is string => !!b))].sort(),
+    [assets],
+  )
+  useEffect(() => {
+    // A dissolved/renamed bin can leave the filter pointing nowhere — snap back.
+    if (binFilter !== 'all' && !bins.includes(binFilter)) setBinFilter('all')
+  }, [bins, binFilter])
+  const setAssetBin = useCallback((assetId: string, bin: string | null) => {
+    if (!currentProjectId) return
+    updateAsset(currentProjectId, assetId, { bin: bin ?? undefined })
+  }, [currentProjectId, updateAsset])
+  const renameBin = useCallback((from: string, to: string) => {
+    const name = to.trim()
+    if (!currentProjectId || !name || name === from) { setRenamingBin(null); return }
+    for (const a of currentProject?.assets ?? []) {
+      if (a.bin === from) updateAsset(currentProjectId, a.id, { bin: name })
+    }
+    setRenamingBin(null)
+    setBinFilter(prev => (prev === from ? name : prev))
+  }, [currentProjectId, currentProject?.assets, updateAsset])
+  const dissolveBin = useCallback(async (bin: string) => {
+    if (!currentProjectId) return
+    const ok = await confirm({
+      title: `Dissolve folder "${bin}"?`,
+      message: 'Its renders stay in the project — they just leave the folder.',
+      confirmLabel: 'Dissolve',
+    })
+    if (!ok) return
+    for (const a of currentProject?.assets ?? []) {
+      if (a.bin === bin) updateAsset(currentProjectId, a.id, { bin: undefined })
+    }
+  }, [currentProjectId, currentProject?.assets, updateAsset, confirm])
+
+  const favoriteFiltered = showFavorites ? assets.filter(a => a.favorite) : assets
+  const filteredAssets = binFilter === 'all'
+    ? favoriteFiltered
+    : favoriteFiltered.filter(a => a.bin === binFilter)
+
+  // ---- Project truths + dead-entry cleanup (project management Phase 3) ----
+  const lastRenderAt = useMemo(
+    () => assets.reduce((m, a) => Math.max(m, a.createdAt ?? 0), 0),
+    [assets],
+  )
+  const [fileCheck, setFileCheck] = useState<null | { checking: boolean; missing: string[] }>(null)
+  const runFileCheck = useCallback(async () => {
+    setFileCheck({ checking: true, missing: [] })
+    const missing: string[] = []
+    for (const a of currentProject?.assets ?? []) {
+      const src = a.path
+        ? (() => { const n = a.path.replace(/\\/g, '/'); return n.startsWith('/') ? `file://${n}` : `file:///${n}` })()
+        : a.url
+      if (!src || !src.startsWith('file:')) continue
+      try {
+        const res = await fetch(src, { method: 'HEAD' })
+        if (!res.ok) missing.push(a.id)
+      } catch {
+        missing.push(a.id)
+      }
+    }
+    setFileCheck({ checking: false, missing })
+  }, [currentProject?.assets])
+  const cleanupMissing = useCallback(async () => {
+    if (!currentProjectId || !fileCheck || fileCheck.missing.length === 0) return
+    const n = fileCheck.missing.length
+    const ok = await confirm({
+      title: `Remove ${n} dead ${n === 1 ? 'entry' : 'entries'}?`,
+      message: 'These entries point at files that no longer exist on disk. Only the project entries are removed — nothing on disk is touched.',
+      confirmLabel: 'Remove',
+    })
+    if (!ok) return
+    for (const id of fileCheck.missing) deleteAsset(currentProjectId, id)
+    setFileCheck(null)
+  }, [currentProjectId, fileCheck, confirm, deleteAsset])
   const favoriteCount = assets.filter(a => a.favorite).length
 
   // Navigation for the asset preview modal
@@ -2247,7 +2479,35 @@ export function GenSpace() {
       {mode !== 'retake' && (assets.length > 0 || isGenerating) && (
         <div className="absolute inset-x-0 top-0 bottom-[160px] flex flex-col px-4 pt-4">
           {/* Top bar */}
-          <div className="flex items-center justify-end pb-2 gap-2">
+          <div className="flex items-center justify-between pb-2 gap-2">
+            {/* Project truths: how many renders, how fresh, are the files real */}
+            <div className="flex items-center gap-2 text-xs text-zinc-500 min-w-0">
+              <span className="whitespace-nowrap">{assets.length} {assets.length === 1 ? 'render' : 'renders'}</span>
+              {lastRenderAt > 0 && (
+                <span className="whitespace-nowrap">· last {new Date(lastRenderAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+              )}
+              {fileCheck === null ? (
+                <button
+                  onClick={() => void runFileCheck()}
+                  className="whitespace-nowrap px-2 py-0.5 rounded border border-zinc-800 text-zinc-500 hover:text-white hover:border-zinc-600 transition-colors"
+                >
+                  Check files
+                </button>
+              ) : fileCheck.checking ? (
+                <span>checking…</span>
+              ) : fileCheck.missing.length === 0 ? (
+                <span className="text-emerald-500 whitespace-nowrap">all files present</span>
+              ) : (
+                <button
+                  onClick={() => void cleanupMissing()}
+                  className="whitespace-nowrap px-2 py-0.5 rounded border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-colors"
+                >
+                  Remove {fileCheck.missing.length} dead {fileCheck.missing.length === 1 ? 'entry' : 'entries'}
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
             <button
               onClick={() => setShowFavorites(!showFavorites)}
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
@@ -2308,7 +2568,67 @@ export function GenSpace() {
                 </div>
               )}
             </div>
+            </div>
           </div>
+
+          {/* Folder chips (Phase 4) — same bins the editor groups by.
+              Click = filter · double-click = rename · × = dissolve. */}
+          {bins.length > 0 && (
+            <div className="flex items-center gap-1.5 pb-2 flex-wrap">
+              <button
+                onClick={() => setBinFilter('all')}
+                className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                  binFilter === 'all'
+                    ? 'bg-amber-500/15 border-amber-500/50 text-amber-300'
+                    : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-600'
+                }`}
+              >
+                All
+              </button>
+              {bins.map(b => (
+                renamingBin?.from === b ? (
+                  <input
+                    key={b}
+                    autoFocus
+                    value={renamingBin.value}
+                    onChange={e => setRenamingBin({ from: b, value: e.target.value })}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') renameBin(b, renamingBin.value)
+                      if (e.key === 'Escape') setRenamingBin(null)
+                    }}
+                    onBlur={() => renameBin(b, renamingBin.value)}
+                    className="px-2.5 py-1 rounded-full text-xs bg-zinc-900 border border-amber-500/50 text-white w-32 focus:outline-none"
+                  />
+                ) : (
+                  <span key={b} className="group/bin relative inline-flex">
+                    <button
+                      onClick={() => setBinFilter(b)}
+                      onDoubleClick={() => setRenamingBin({ from: b, value: b })}
+                      title="Click to filter · double-click to rename"
+                      className={`pl-2.5 pr-6 py-1 rounded-full text-xs font-medium border transition-colors ${
+                        binFilter === b
+                          ? 'bg-amber-500/15 border-amber-500/50 text-amber-300'
+                          : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-600'
+                      }`}
+                    >
+                      {b}
+                      <span className="ml-1.5 text-zinc-600">
+                        {assets.filter(a => a.bin === b).length}
+                      </span>
+                    </button>
+                    <button
+                      aria-label={`Dissolve folder ${b}`}
+                      title="Dissolve folder (renders stay in the project)"
+                      onClick={() => void dissolveBin(b)}
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 rounded-full items-center justify-center text-zinc-600 hover:text-red-400 hidden group-hover/bin:flex"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                )
+              ))}
+            </div>
+          )}
 
           {/* Assets grid — fills remaining space, scrollable */}
           <div className="overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable] flex-1">
@@ -2353,6 +2673,8 @@ export function GenSpace() {
                   onExtendVideo={handleExtendVideo}
                   onToggleFavorite={() => currentProjectId && toggleFavorite(currentProjectId, asset.id)}
                   onSaveToLibrary={(a, kind) => setSaveToLibrary({ kind, imagePath: a.path, suggestedName: suggestLibraryName(a.prompt) })}
+                  bins={bins}
+                  onSetBin={(bin) => setAssetBin(asset.id, bin)}
                 />
               ))}
             </div>

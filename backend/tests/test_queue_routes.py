@@ -25,6 +25,36 @@ def test_submit_image_job(client):
     assert resp.json()["status"] == "queued"
 
 
+def test_submit_carries_ownership_tags(client):
+    """Surfaces tag jobs with their owner (project:<id> / playground) so
+    completed renders can be adopted after navigation and grouped in the
+    Gallery. Tags must round-trip through submit -> status."""
+    resp = client.post("/api/queue/submit", json={
+        "type": "video",
+        "model": "ltx-fast",
+        "params": {"prompt": "tagged"},
+        "tags": ["project:abc123"],
+    })
+    assert resp.status_code == 200
+    job_id = resp.json()["id"]
+
+    status = client.get("/api/queue/status")
+    job = next(j for j in status.json()["jobs"] if j["id"] == job_id)
+    assert job["tags"] == ["project:abc123"]
+
+
+def test_submit_without_tags_defaults_empty(client):
+    resp = client.post("/api/queue/submit", json={
+        "type": "video",
+        "model": "ltx-fast",
+        "params": {"prompt": "untagged"},
+    })
+    job_id = resp.json()["id"]
+    status = client.get("/api/queue/status")
+    job = next(j for j in status.json()["jobs"] if j["id"] == job_id)
+    assert job["tags"] == []
+
+
 def test_get_queue_status(client):
     client.post("/api/queue/submit", json={
         "type": "video",

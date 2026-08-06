@@ -1,8 +1,10 @@
 # Project management for generations — where renders live, and who owns them
 
-*Status: PLAN (approved direction from Robert's 2026-08-05 session: "we need some type
-of thing… figure out how we're gonna do project management"). Nothing here is built
-except where marked shipped.*
+*Status: **ALL FOUR PHASES SHIPPED** same day (Robert: "do all phases"). One
+substitution: Phase 4's drag-to-folder shipped as a per-card move-to-folder
+menu (dragging is already claimed by the drag-out-to-references flow). The
+session-vs-generation-key split surfaced during verification is tracked as a
+separate follow-up, not part of this plan.*
 
 ## The map today (verified in code, 2026-08-05)
 

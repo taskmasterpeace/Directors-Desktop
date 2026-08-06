@@ -426,6 +426,11 @@ class QueueSubmitRequest(BaseModel):
     type: Literal["video", "image", "long_video"]
     model: str
     params: dict[str, object] = {}
+    # Ownership labels, e.g. ["project:<id>"] from Gen Space or ["playground"].
+    # Lets surfaces adopt completed jobs after navigation and lets the Gallery
+    # group renders by the project that made them (the Director already tags
+    # its jobs ["director", run_id] via JobQueue.submit directly).
+    tags: list[str] = []
 
 
 # --- Batch Generation Types ---

@@ -22,6 +22,7 @@ def route_queue_submit(
         model=req.model,
         params={k: v for k, v in req.params.items()},
         slot=slot,
+        tags=req.tags or None,
     )
     return QueueSubmitResponse(id=job.id, status=job.status)
 

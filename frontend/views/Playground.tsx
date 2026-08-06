@@ -37,6 +37,9 @@ import { fileUrlToPath } from '../lib/url-to-path'
 import { sanitizeForcedApiVideoSettings } from '../lib/api-video-options'
 import { RetakePanel } from '../components/RetakePanel'
 
+/** Ownership label for queue jobs from this surface (Gallery grouping). */
+const PLAYGROUND_TAGS = { tags: ['playground'] }
+
 const DEFAULT_SETTINGS: GenerationSettings = {
   model: 'h3-local',
   duration: 5,
@@ -262,11 +265,11 @@ export function Playground() {
           imageAspectRatio: applied.imageAspectRatio,
           imageModelParams: applied.imageModelParams,
           referenceImagePaths: applied.referenceImagePaths,
-        })
+        }, PLAYGROUND_TAGS)
         return
       }
       if (!prompt.trim()) return
-      generateImage(prompt, settings)
+      generateImage(prompt, settings, PLAYGROUND_TAGS)
     } else {
       const effectiveVideoSettings = shouldVideoGenerateWithLtxApi
         ? sanitizeForcedApiVideoSettings(settings)
@@ -289,7 +292,7 @@ export function Playground() {
       const audioPath = selectedAudio ? fileUrlToPath(selectedAudio) : null
       if (audioPath) effectiveVideoSettings.model = 'pro'
       setActiveReservedSeconds(settings.exactDuration ? settings.duration : null)
-      generate(prompt, imagePath, effectiveVideoSettings, audioPath, lastFramePath)
+      generate(prompt, imagePath, effectiveVideoSettings, audioPath, lastFramePath, PLAYGROUND_TAGS)
     }
   }
   

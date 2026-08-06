@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, Image as ImageIcon, Film, Trash2, Download, X, ChevronLeft, ChevronRight, Sparkles , UserPlus, Images } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { ArrowLeft, Image as ImageIcon, Film, Trash2, Download, X, ChevronLeft, ChevronRight, Sparkles , UserPlus, Images, FolderInput, Check } from 'lucide-react'
 import { useConfirm } from '../components/ConfirmDialog'
 import { SaveToLibraryModal, type SaveToLibraryRequest } from '../components/SaveToLibraryModal'
 import { useProjects } from '../contexts/ProjectContext'
@@ -60,8 +60,15 @@ function suggestFromFilename(filename: string): string {
 }
 
 export function Gallery() {
-  const { goHome, setPendingAnimateImage, openPlayground , setPendingRemix } = useProjects()
+  const { goHome, setPendingAnimateImage, openPlayground , setPendingRemix, projects, addAsset } = useProjects()
   const [filter, setFilter] = useState<FilterType>('all')
+  // Ownership (project management Phase 2): queue jobs carry tags like
+  // "project:<id>" / "playground" / "director"; matching a gallery file back
+  // to its job by filename tells us which surface made it.
+  const [ownership, setOwnership] = useState<Record<string, string[]>>({})
+  const [ownerFilter, setOwnerFilter] = useState<string>('all')
+  const [sendItem, setSendItem] = useState<GalleryItem | null>(null)
+  const [sentIds, setSentIds] = useState<Set<string>>(new Set())
   const [items, setItems] = useState<GalleryItem[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
@@ -117,6 +124,85 @@ export function Gallery() {
     void fetchGallery()
   }, [fetchGallery])
 
+  // Build filename -> tags from the queue history (jobs record result paths).
+  useEffect(() => {
+    void (async () => {
+      try {
+        const url = backendUrl || await window.electronAPI.getBackendUrl()
+        const res = await fetch(`${url}/api/queue/status`)
+        if (!res.ok) return
+        const data = (await res.json()) as { jobs?: Array<{ tags?: string[]; result_paths?: string[] }> }
+        const map: Record<string, string[]> = {}
+        for (const j of data.jobs ?? []) {
+          if (!j.tags?.length) continue
+          for (const p of j.result_paths ?? []) {
+            const base = String(p).split(/[\\/]/).pop()
+            if (base) map[base] = j.tags
+          }
+        }
+        setOwnership(map)
+      } catch {
+        // queue unavailable — ownership chips simply stay hidden
+      }
+    })()
+  }, [backendUrl])
+
+  /** Which surface made this file: 'playground' | 'director' | a project id | null. */
+  const ownerOf = useCallback((item: GalleryItem): string | null => {
+    const tags = ownership[item.filename]
+    if (!tags) return null
+    if (tags.includes('playground')) return 'playground'
+    const proj = tags.find(t => t.startsWith('project:'))
+    if (proj) return proj.slice('project:'.length)
+    if (tags.includes('director')) return 'director'
+    return null
+  }, [ownership])
+
+  const projectName = useCallback(
+    (id: string) => projects.find(p => p.id === id)?.name ?? null,
+    [projects],
+  )
+
+  /** Owner chips actually worth showing: only buckets with at least one item. */
+  const ownerChips = useMemo(() => {
+    const owners = new Set(items.map(i => ownerOf(i)).filter((o): o is string => !!o))
+    const chips: { value: string; label: string }[] = [{ value: 'all', label: 'All' }]
+    if (owners.has('playground')) chips.push({ value: 'playground', label: 'Playground' })
+    if (owners.has('director')) chips.push({ value: 'director', label: 'Director' })
+    for (const o of owners) {
+      if (o === 'playground' || o === 'director') continue
+      const name = projectName(o)
+      if (name) chips.push({ value: o, label: name })
+    }
+    return chips
+  }, [items, ownerOf, projectName])
+
+  /** File an existing render into a project's assets (the file never moves). */
+  const sendToProject = useCallback((item: GalleryItem, projectId: string) => {
+    addAsset(projectId, {
+      type: item.type,
+      path: item.path,
+      url: pathToFileUrl(item.path),
+      prompt: item.prompt ?? '',
+      resolution: '480p',
+      // Gen Space's grid only lists assets with generationParams.
+      generationParams: {
+        mode: item.type === 'image' ? 'text-to-image' : 'text-to-video',
+        prompt: item.prompt ?? '',
+        model: item.model_name ?? 'unknown',
+        duration: 5,
+        resolution: '480p',
+        fps: 24,
+        audio: false,
+        cameraMotion: 'none',
+      },
+      takes: [{ url: pathToFileUrl(item.path), path: item.path, createdAt: Date.now() }],
+      activeTakeIndex: 0,
+    })
+    setSentIds(prev => new Set(prev).add(item.id))
+    setSendItem(null)
+  }, [addAsset])
+
   const confirm = useConfirm()
   const [saveToLibrary, setSaveToLibrary] = useState<SaveToLibraryRequest | null>(null)
   const [query, setQuery] = useState('')
@@ -146,6 +232,7 @@ export function Gallery() {
   const q = query.trim().toLowerCase()
   const visibleItems = items.filter(
     (i) =>
+      (ownerFilter === 'all' || ownerOf(i) === ownerFilter) &&
       (modelFilter === 'all' || i.model_name === modelFilter) &&
       (!q || i.filename.toLowerCase().includes(q) || (i.prompt ?? '').toLowerCase().includes(q)),
   )
@@ -203,6 +290,26 @@ export function Gallery() {
 
         </div>
       </header>
+
+      {/* Owner chips — who made it (projects / Playground / Director). Hidden
+          until tagged renders exist, so old untagged galleries stay clean. */}
+      {ownerChips.length > 1 && (
+        <div className="flex items-center gap-1.5 px-6 pt-3 flex-wrap shrink-0">
+          {ownerChips.map(c => (
+            <button
+              key={c.value}
+              onClick={() => setOwnerFilter(c.value)}
+              className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                ownerFilter === c.value
+                  ? 'bg-amber-500/15 border-amber-500/50 text-amber-300'
+                  : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:border-zinc-600'
+              }`}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 overflow-auto p-6">
@@ -316,6 +423,17 @@ export function Gallery() {
                       </button>
                     </>
                   )}
+                  {/* Send to project — files the render into a project's assets */}
+                  <button
+                    aria-label="Send to project"
+                    title="Send to project — file this render into a project's Gen Space"
+                    onClick={(e) => { e.stopPropagation(); setSendItem(item) }}
+                    className="absolute bottom-2 right-2 p-1.5 rounded bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-amber-500/80"
+                  >
+                    {sentIds.has(item.id)
+                      ? <Check className="h-3.5 w-3.5 text-emerald-400" />
+                      : <FolderInput className="h-3.5 w-3.5 text-white" />}
+                  </button>
                   <button
                     aria-label="Delete"
                     onClick={(e) => { e.stopPropagation(); void handleDelete(item) }}
@@ -358,6 +476,43 @@ export function Gallery() {
       </div>
 
       <SaveToLibraryModal request={saveToLibrary} onClose={() => setSaveToLibrary(null)} />
+
+      {/* Send-to-project picker */}
+      {sendItem && (
+        <div
+          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50"
+          onClick={() => setSendItem(null)}
+        >
+          <div
+            className="bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-full max-w-sm mx-4 p-4"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 className="text-sm font-semibold text-white mb-1">Send to project</h3>
+            <p className="text-xs text-zinc-500 mb-3 truncate">{sendItem.filename}</p>
+            {projects.length === 0 ? (
+              <p className="text-xs text-zinc-400">No projects yet — create one from Home first.</p>
+            ) : (
+              <div className="space-y-1 max-h-64 overflow-y-auto">
+                {projects.map(p => (
+                  <button
+                    key={p.id}
+                    onClick={() => sendToProject(sendItem, p.id)}
+                    className="w-full text-left px-3 py-2 rounded-lg text-sm text-zinc-200 hover:bg-zinc-800 border border-transparent hover:border-zinc-700 transition-colors"
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <button
+              onClick={() => setSendItem(null)}
+              className="mt-3 w-full px-3 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white bg-zinc-800/60 hover:bg-zinc-800 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Preview Lightbox */}
       {previewItem && (

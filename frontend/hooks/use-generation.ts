@@ -96,6 +96,13 @@ export interface ComfyEngineStatus {
   profile: string | null
 }
 
+export interface GenerateOptions {
+  /** Ownership labels stored on the queue job, e.g. ["project:<id>"] from
+   *  Gen Space or ["playground"] — lets surfaces adopt completed renders
+   *  after navigation and lets the Gallery group by owner. */
+  tags?: string[]
+}
+
 /** True when the job's engine will render warm given the current comfy state. */
 export function isComfyWarmFor(model: string, comfy: ComfyEngineStatus | null | undefined): boolean {
   const engine = LOCAL_COMFY_ENGINES[model]
@@ -138,9 +145,9 @@ export function getEstimatedSeconds(job: QueueJob, comfy?: ComfyEngineStatus | n
 }
 
 interface UseGenerationReturn extends GenerationState {
-  generate: (prompt: string, imagePath: string | null, settings: GenerationSettings, audioPath?: string | null, lastFramePath?: string | null) => Promise<void>
-  generateImage: (prompt: string, settings: GenerationSettings) => Promise<void>
-  editImage: (prompt: string, sourceImagePath: string, settings: GenerationSettings, strength?: number) => Promise<void>
+  generate: (prompt: string, imagePath: string | null, settings: GenerationSettings, audioPath?: string | null, lastFramePath?: string | null, opts?: GenerateOptions) => Promise<void>
+  generateImage: (prompt: string, settings: GenerationSettings, opts?: GenerateOptions) => Promise<void>
+  editImage: (prompt: string, sourceImagePath: string, settings: GenerationSettings, strength?: number, opts?: GenerateOptions) => Promise<void>
   cancel: () => void
   reset: () => void
   clearQueue: () => void
@@ -485,6 +492,7 @@ export function useGeneration(): UseGenerationReturn {
     settings: GenerationSettings,
     audioPath?: string | null,
     lastFramePath?: string | null,
+    opts?: GenerateOptions,
   ) => {
     // Seedance 1.5 Pro requires a Replicate API key
     if (settings.model === 'seedance-1.5-pro' && !appSettings.hasReplicateApiKey) {
@@ -591,6 +599,7 @@ export function useGeneration(): UseGenerationReturn {
           type: useLongVideo ? 'long_video' : 'video',
           model: settings.model,
           params,
+          ...(opts?.tags?.length ? { tags: opts.tags } : {}),
         }),
       })
 
@@ -638,7 +647,8 @@ export function useGeneration(): UseGenerationReturn {
 
   const generateImage = useCallback(async (
     prompt: string,
-    settings: GenerationSettings
+    settings: GenerationSettings,
+    opts?: GenerateOptions,
   ) => {
     if (forceApiGenerations) {
       try {
@@ -719,6 +729,7 @@ export function useGeneration(): UseGenerationReturn {
             ...(settings.imageModelParams ? { modelParams: settings.imageModelParams } : {}),
             ...(settings.loraPath ? { loraPath: settings.loraPath, loraWeight: settings.loraWeight ?? 1.0 } : {}),
           },
+          ...(opts?.tags?.length ? { tags: opts.tags } : {}),
         }),
       })
 
@@ -744,6 +755,7 @@ export function useGeneration(): UseGenerationReturn {
     sourceImagePath: string,
     settings: GenerationSettings,
     strength: number = 0.65,
+    opts?: GenerateOptions,
   ) => {
     startedAtRef.current = null
     setState(prev => ({
@@ -758,6 +770,8 @@ export function useGeneration(): UseGenerationReturn {
       imageUrl: null,
       imageUrls: [],
       error: null,
+      activeModel: settings.imageModel ?? null,
+      coldStart: false,
     }))
 
     try {
@@ -789,6 +803,7 @@ export function useGeneration(): UseGenerationReturn {
             ...(settings.imageModelParams ? { modelParams: settings.imageModelParams } : {}),
             ...(settings.loraPath ? { loraPath: settings.loraPath, loraWeight: settings.loraWeight ?? 1.0 } : {}),
           },
+          ...(opts?.tags?.length ? { tags: opts.tags } : {}),
         }),
       })
 
