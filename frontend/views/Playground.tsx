@@ -641,7 +641,7 @@ export function Playground() {
                   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                     e.preventDefault()
                     if (editingJob) { if (prompt.trim()) void handleUpdateQueuedShot() }
-                    else if (isGenerating) { if (canQueue && mode !== 'text-to-image' && !isRetakeMode) handleQueue() }
+                    else if (isGenerating) { if (canQueue && !isRetakeMode) handleQueue() }
                     else if (canGenerate) handleGenerate()
                   }
                 }}
