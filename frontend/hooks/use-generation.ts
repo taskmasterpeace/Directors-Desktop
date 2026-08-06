@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import type { GenerationSettings } from '../components/SettingsPanel'
 import { useAppSettings } from '../contexts/AppSettingsContext'
 import { migrateImageModelId } from '../lib/image-models'
-import { recordModelTiming } from '../lib/model-timing'
+import { getPersonalEtaSeconds, recordModelTiming } from '../lib/model-timing'
 
 export interface QueueJob {
   id: string
@@ -389,15 +389,21 @@ export function useGeneration(): UseGenerationReturn {
             next.elapsedSeconds = Math.floor((Date.now() - startedAtRef.current) / 1000)
           }
 
-          // Compute estimated total time for video jobs
+          // Compute estimated total time for video jobs. The user's own
+          // measured average (matching warm/cold bucket) beats the static
+          // table once it has enough samples — the countdown adapts to the
+          // machine it's actually running on.
           if ((activeJob.type === 'video' || activeJob.type === 'long_video') && next.estimatedSeconds === null) {
-            next.estimatedSeconds = getEstimatedSeconds(activeJob, comfyRef.current)
+            next.estimatedSeconds =
+              getPersonalEtaSeconds(activeJob.model, prev.coldStart)
+              ?? getEstimatedSeconds(activeJob, comfyRef.current)
           }
 
           if (activeJob.status === 'complete') {
-            // Feed the personal-average marker: how long this model ACTUALLY took.
+            // Feed the personal-average memory: how long this model ACTUALLY
+            // took, filed under the right warm/cold bucket.
             if (startedAtRef.current) {
-              recordModelTiming(activeJob.model, Date.now() - startedAtRef.current)
+              recordModelTiming(activeJob.model, Date.now() - startedAtRef.current, prev.coldStart)
             }
             next.isGenerating = hasRunning
             next.progress = 100
@@ -470,13 +476,16 @@ export function useGeneration(): UseGenerationReturn {
         activeJobIdRef.current = active.id
         const startedMs = Date.parse(active.created_at)
         startedAtRef.current = Number.isFinite(startedMs) ? startedMs : Date.now()
+        const rejoinedCold = !isComfyWarmFor(active.model, comfyRef.current)
         setState(prev => ({
           ...prev,
           isGenerating: true,
           activeModel: active.model,
-          coldStart: !isComfyWarmFor(active.model, comfyRef.current),
+          coldStart: rejoinedCold,
           statusMessage: getPhaseMessage(active.phase),
-          estimatedSeconds: getEstimatedSeconds(active, comfyRef.current),
+          estimatedSeconds:
+            getPersonalEtaSeconds(active.model, rejoinedCold)
+            ?? getEstimatedSeconds(active, comfyRef.current),
           error: null,
         }))
         startPolling()

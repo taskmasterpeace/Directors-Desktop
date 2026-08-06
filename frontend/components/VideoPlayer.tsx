@@ -1,16 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import { Play, Pause, Download, RotateCcw, Volume2, VolumeX, Maximize2, FastForward } from 'lucide-react'
 import { ClapperboardSpinner } from './ClapperboardSpinner'
-
-/** Friendly labels for the model line under the clapperboard. */
-const VIDEO_MODEL_LABELS: Record<string, string> = {
-  'h3-local': 'MiniMax H3 · local',
-  'ltx-comfy': 'LTX-2.3 · local',
-  'ltx-fast': 'LTX-2 Fast · local',
-  'fast': 'LTX-2 Fast · local',
-  'seedance-2.0': 'Seedance 2.0',
-  'seedance-1.5-pro': 'Seedance 1.5 Pro',
-}
+import { getVideoModel } from '../lib/video-models'
 import { Button } from './ui/button'
 import { logger } from '../lib/logger'
 import { extractVideoFrame } from '../lib/video-frames'
@@ -321,8 +312,9 @@ export function VideoPlayer({ videoUrl, videoPath, videoResolution, isGenerating
             <ClapperboardSpinner
               estimatedSeconds={estimatedSeconds ?? 60}
               startedAt={elapsedSeconds != null ? Date.now() - elapsedSeconds * 1000 : undefined}
-              displayName={modelName ? (VIDEO_MODEL_LABELS[modelName] ?? modelName) : 'Rendering'}
+              displayName={modelName ? (getVideoModel(modelName)?.displayName ?? modelName) : 'Rendering'}
               model={modelName ?? undefined}
+              cold={coldStart}
               statusMessage={statusMessage}
               note={coldStart ? 'First render loads the model into VRAM — later ones are much faster' : undefined}
             />

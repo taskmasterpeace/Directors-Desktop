@@ -10,12 +10,21 @@ interface ClapperboardSpinnerProps {
   displayName: string
   /** Timing-memory key — the model id completions were recorded under. */
   model?: string
+  /** Which timing bucket applies to THIS render (cold pays the model load). */
+  cold?: boolean
   /** Prompt preview under the board. */
   prompt?: string
   /** Backend phase text ("loading model", "inference"…) shown as the status line. */
   statusMessage?: string
   /** Extra note (e.g. "first render loads the model"). */
   note?: string
+}
+
+function formatAvg(seconds: number): string {
+  if (seconds < 90) return `${Math.round(seconds)}s`
+  const m = Math.floor(seconds / 60)
+  const s = Math.round(seconds % 60)
+  return s === 0 ? `${m}m` : `${m}m ${s.toString().padStart(2, '0')}s`
 }
 
 /**
@@ -32,15 +41,16 @@ export function ClapperboardSpinner({
   startedAt,
   displayName,
   model,
+  cold = false,
   prompt,
   statusMessage,
   note,
 }: ClapperboardSpinnerProps) {
   const safeEstimate = Number.isFinite(estimatedSeconds) && estimatedSeconds > 0 ? estimatedSeconds : 60
 
-  // Personal per-model rolling average — read once per mount; completions
-  // recorded elsewhere (use-generation) between mounts.
-  const personalAvgSecRef = useRef<number | null>(model ? getModelAvgSeconds(model) : null)
+  // Personal per-model rolling average (matching warm/cold bucket) — read once
+  // per mount; completions recorded elsewhere (use-generation) between mounts.
+  const personalAvgSecRef = useRef<number | null>(model ? getModelAvgSeconds(model, cold) : null)
   const personalAvgSec = personalAvgSecRef.current
 
   // Use the passed-in start time so progress survives remounts.
@@ -70,15 +80,6 @@ export function ClapperboardSpinner({
   if (overtime) timeColorState = 'over'
   else if (personalAvgSec !== null && elapsed >= personalAvgSec) timeColorState = 'approaching'
   else timeColorState = 'normal'
-
-  // Clapper animation: snaps open at start, then again in overtime.
-  let clapAngle = 0
-  if (!overtime) {
-    if (progress < 0.08) clapAngle = (progress / 0.08) * -28
-    else if (progress < 0.16) clapAngle = -28 + ((progress - 0.08) / 0.08) * 28
-  } else {
-    clapAngle = Math.sin(Date.now() / 200) * -22
-  }
 
   let timeText: string
   if (overtime) {
@@ -152,8 +153,19 @@ export function ClapperboardSpinner({
           </text>
         )}
 
-        {/* Clapper top (animated) */}
-        <g transform={`rotate(${clapAngle} 10 35)`}>
+        {/* Clapper top — a real animation loop (SMIL), not progress-scaled:
+            the original tied the clap to progress, which on a 6-minute video
+            estimate crept invisibly. Now it claps twice then rests, every few
+            seconds; overtime remounts it into a frantic fast cycle. */}
+        <g key={overtime ? 'clap-fast' : 'clap-slow'}>
+          <animateTransform
+            attributeName="transform"
+            type="rotate"
+            values="0 10 35; -30 10 35; -4 10 35; -26 10 35; 0 10 35; 0 10 35"
+            keyTimes="0; 0.08; 0.14; 0.2; 0.28; 1"
+            dur={overtime ? '1.4s' : '4.5s'}
+            repeatCount="indefinite"
+          />
           <rect x="10" y="20" width="80" height="16" rx="2"
             fill={trackLight} stroke={strokeColor} strokeWidth="1.5" />
           {[0, 1, 2, 3, 4].map(i => (
@@ -171,9 +183,14 @@ export function ClapperboardSpinner({
         {timeText}
       </span>
 
-      {/* Model name */}
+      {/* Model name + the user's own measured average for this model/bucket */}
       <span className="text-[10px] font-medium" style={{ color: primary }}>
         {displayName}
+        {personalAvgSec !== null && (
+          <span style={{ color: textMuted }}>
+            {' '}· your avg {formatAvg(personalAvgSec)}{cold ? ' (cold)' : ''}
+          </span>
+        )}
       </span>
 
       {/* Backend phase / status line */}

@@ -34,6 +34,7 @@ import { AtAutocompleteDropdown } from '../components/AtAutocompleteDropdown'
 import { useAtCaretAutocomplete } from '../hooks/useAtCaretAutocomplete'
 import { useMentionOptions } from '../hooks/useMentionOptions'
 import { fileUrlToPath } from '../lib/url-to-path'
+import { conditioningConflictMessage } from '../lib/video-models'
 import { sanitizeForcedApiVideoSettings } from '../lib/api-video-options'
 import { RetakePanel } from '../components/RetakePanel'
 
@@ -671,6 +672,16 @@ export function Playground() {
                 </Button>
               )}
             </div>
+
+            {/* Registry-driven compensation: say when this model will ignore
+                one of the attached images, before the render is paid for. */}
+            {mode !== 'text-to-image' && !isRetakeMode && (selectedImage || firstFramePath) &&
+              (settings.referenceImagePaths?.length ?? 0) > 0 &&
+              conditioningConflictMessage(String(settings.model)) && (
+              <p className="mt-2 text-xs text-amber-400/90 border border-amber-500/30 bg-amber-500/5 rounded-md px-2.5 py-1.5">
+                {conditioningConflictMessage(String(settings.model))}
+              </p>
+            )}
 
             {/* The load is the surprise, so name it before the click, not after. */}
             {localEta?.cold && !isBusy && (

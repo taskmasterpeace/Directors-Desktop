@@ -11,9 +11,13 @@ import type { GenSpaceRetakeSource } from '../contexts/ProjectContext'
 import { useAppSettings } from '../contexts/AppSettingsContext'
 import { useGeneration } from '../hooks/use-generation'
 import { ClapperboardSpinner } from '../components/ClapperboardSpinner'
+import { VIDEO_MODELS, conditioningConflictMessage, getVideoModel } from '../lib/video-models'
 
-/** Video engines that run on the user's own GPU — free, never points-priced. */
-const LOCAL_VIDEO_MODELS = new Set(['h3-local', 'ltx-comfy', 'ltx-fast', 'fast'])
+/** Video engines that run on the user's own GPU — free, never points-priced.
+ *  Derived from the registry so a new model can't drift out of sync. */
+const LOCAL_VIDEO_MODELS = new Set(
+  Object.values(VIDEO_MODELS).filter(m => m.kind === 'local').map(m => m.id),
+)
 import { useRetake } from '../hooks/use-retake'
 import type { Asset } from '../types/project'
 import { GenerationErrorDialog } from '../components/GenerationErrorDialog'
@@ -2303,6 +2307,14 @@ export function GenSpace() {
     : armedQuickMode
       ? attachedImagePhotos.length > 0 // the recipe brings its own prompt
       : !!prompt.trim()
+  // Registry-driven attachment compensation: does the selected model actually
+  // use everything the user attached? (Local engines take ONE image — refs
+  // silently beat the first-frame slot without this notice.)
+  const conditioningNotice =
+    mode !== 'image' && mode !== 'retake' && inputImage && (settings.referenceImagePaths?.length ?? 0) > 0
+      ? conditioningConflictMessage(String(settings.model))
+      : ''
+
   // Local engines render on the user's own GPU — never bill or display points
   // for them (Robert hit "Generate (10 pts)" on MiniMax H3 local).
   const isLocalVideo =
@@ -2651,9 +2663,10 @@ export function GenSpace() {
                       displayName={
                         mode === 'image'
                           ? getImageModel(appSettings.imageModel).displayName
-                          : (activeModel ?? 'Rendering')
+                          : (activeModel ? getVideoModel(activeModel)?.displayName ?? activeModel : 'Rendering')
                       }
                       model={mode === 'image' ? appSettings.imageModel : (activeModel ?? undefined)}
+                      cold={mode !== 'image' && coldStart}
                       statusMessage={statusMessage || 'Generating...'}
                       note={coldStart ? 'First render loads the model — later ones are much faster' : undefined}
                     />
@@ -2705,6 +2718,17 @@ export function GenSpace() {
           hasLtxApiKey={appSettings.hasLtxApiKey}
           isGenerating={isGenerating}
         />
+
+        {/* Model-compensation notice (registry-driven): say OUT LOUD when the
+            selected engine will ignore one of the attached images, before the
+            user pays a render to find out. */}
+        {conditioningNotice && (
+          <div className="absolute inset-x-0 bottom-[168px] flex justify-center px-4 z-20 pointer-events-none">
+            <div className="max-w-2xl w-full rounded-lg border border-amber-500/40 bg-zinc-900/95 px-3 py-2 text-xs text-amber-300 pointer-events-auto shadow-lg">
+              {conditioningNotice}
+            </div>
+          </div>
+        )}
 
         {/* Prompt bar */}
         <PromptBar
