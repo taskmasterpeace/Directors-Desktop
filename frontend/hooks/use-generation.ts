@@ -473,9 +473,14 @@ export function useGeneration(): UseGenerationReturn {
     void runPoll()
   }, [])
 
-  // Clean up polling on unmount
+  // Clean up polling on unmount — and clear the taskbar fill, which is driven
+  // by the poll tick: without this, navigating away mid-render froze the icon
+  // at the last value (a lying indicator beats no indicator for worst).
   useEffect(() => {
-    return () => stopPolling()
+    return () => {
+      stopPolling()
+      void window.electronAPI.setTaskbarProgress?.(-1)
+    }
   }, [stopPolling])
 
   // Re-attach to a still-running job after navigation/remount. Without this,
