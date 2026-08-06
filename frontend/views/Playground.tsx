@@ -647,7 +647,7 @@ export function Playground() {
                 }}
                 onSelect={() => atAutocomplete.sync()}
                 onBlur={() => atAutocomplete.close()}
-                helperText="Type @ to drop in your Characters & References · longer, detailed prompts get better results."
+                helperText="Type @ for your Characters & References · Ctrl+Enter to generate · detailed prompts win."
                 charCount={prompt.length}
                 maxChars={5000}
               />
