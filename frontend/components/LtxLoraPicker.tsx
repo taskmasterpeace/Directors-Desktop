@@ -27,7 +27,7 @@ export function LtxLoraPicker({ value, strength, onChange, disabled }: LtxLoraPi
   return (
     <div className="space-y-2">
       <label className="block text-xs font-medium text-zinc-400">
-        LoRA <span className="text-zinc-600">· stacked on the distilled speed LoRA</span>
+        LoRA <span className="text-zinc-600">· LTX-2.3 only · stacked on the distilled speed LoRA</span>
       </label>
       <select
         value={value ?? ''}

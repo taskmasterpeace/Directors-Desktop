@@ -81,6 +81,20 @@ describe('mergeLtxLoras — curated + drop-a-file discoveries', () => {
     expect(getLtxLora('CozyFelt.safetensors')).toBeUndefined()          // static list: unknown
     expect(getLtxLora('CozyFelt.safetensors', merged)?.local).toBe(true) // merged list: found
   })
+
+  it('other engine families never leak into the LTX picker', () => {
+    const withH3: LocalLtxLoraEntry[] = [
+      ...scanned,
+      { file: 'h3/Turbo.safetensors', name: 'Turbo', sizeBytes: 5, family: 'h3', thumbnail: null, trigger: null },
+      { file: 'flux/Sketch.safetensors', name: 'Sketch', sizeBytes: 5, family: 'flux', thumbnail: null, trigger: null },
+    ]
+    const merged = mergeLtxLoras(LTX_LORAS, withH3)
+    expect(merged.some(l => l.id.startsWith('h3/') || l.id.startsWith('flux/'))).toBe(false)
+    expect(merged.some(l => l.id === 'CozyFelt.safetensors')).toBe(true)
+    // Backends that predate the family field are treated as LTX.
+    const legacy = mergeLtxLoras(LTX_LORAS, [{ file: 'Old.safetensors', name: 'Old', sizeBytes: 1, thumbnail: null, trigger: null }])
+    expect(legacy.some(l => l.id === 'Old.safetensors')).toBe(true)
+  })
 })
 
 describe('applyLtxTrigger — sidecar trigger words ride the prompt', () => {

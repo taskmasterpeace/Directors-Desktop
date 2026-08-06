@@ -1,7 +1,14 @@
-"""Local LTX video LoRAs: drop a .safetensors into the loras dir and it shows
+"""Local video LoRAs: drop a .safetensors into the loras dir and it shows
 up in the picker — with a thumbnail and trigger words when sidecars exist.
 
-Convention (all optional, all beside the weights file):
+LoRAs are architecture-specific, so the dir is ENGINE-SCOPED by subfolder:
+    loras/*.safetensors        LTX-2.3 LoRAs (family "ltx" — the original convention)
+    loras/h3/*.safetensors     MiniMax H3 LoRAs (family "h3")
+    loras/flux/*.safetensors   Flux image LoRAs (family "flux")
+Each listing entry carries its ``family`` and each picker filters to its own
+engine — an H3 file can never appear pickable on the LTX engine.
+
+Sidecar convention (all optional, all beside the weights file, any family):
     CozyFelt.safetensors      the LoRA itself
     CozyFelt.png/.jpg/...     thumbnail (or thumbnails/CozyFelt.*)
     CozyFelt.txt              trigger words (first line)
@@ -59,13 +66,13 @@ def _sidecar_trigger(loras_dir: Path, stem: str) -> str | None:
     return None
 
 
-def list_local_ltx_loras(loras_dir: Path) -> list[dict[str, Any]]:
-    """Every *.safetensors directly in the dir, with resolved sidecars. The
-    file name doubles as the ComfyUI lora_name (bare = stageable), so nothing
-    downstream changes for a listed entry."""
+_FAMILY_SUBDIRS = ("h3", "flux")
+
+
+def _scan_family(scan_dir: Path, family: str, file_prefix: str) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
     try:
-        files = sorted(loras_dir.iterdir())
+        files = sorted(scan_dir.iterdir())
     except OSError:
         return entries
     for f in files:
@@ -76,12 +83,26 @@ def list_local_ltx_loras(loras_dir: Path) -> list[dict[str, Any]]:
         except OSError:
             size = 0
         entries.append({
-            "file": f.name,
+            "file": f"{file_prefix}{f.name}",
             "name": f.stem,
             "sizeBytes": size,
-            "thumbnail": _sidecar_thumbnail(loras_dir, f.stem),
-            "trigger": _sidecar_trigger(loras_dir, f.stem),
+            "family": family,
+            "thumbnail": _sidecar_thumbnail(scan_dir, f.stem),
+            "trigger": _sidecar_trigger(scan_dir, f.stem),
         })
+    return entries
+
+
+def list_local_ltx_loras(loras_dir: Path) -> list[dict[str, Any]]:
+    """Every *.safetensors in the dir, with resolved sidecars and its engine
+    family: top-level files are LTX (the original convention — their bare file
+    name doubles as the ComfyUI lora_name, so nothing downstream changes),
+    while ``h3/`` and ``flux/`` subfolders hold other architectures. Family
+    subdir entries carry a ``<family>/`` prefix on ``file`` so a future engine
+    can stage them by name the same way."""
+    entries = _scan_family(loras_dir, "ltx", "")
+    for family in _FAMILY_SUBDIRS:
+        entries.extend(_scan_family(loras_dir / family, family, f"{family}/"))
     return entries
 
 

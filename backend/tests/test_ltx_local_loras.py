@@ -59,6 +59,26 @@ class TestScan:
     def test_missing_dir_returns_empty(self, tmp_path):
         assert list_local_ltx_loras(tmp_path / "nope") == []
 
+    def test_top_level_files_are_family_ltx(self, tmp_path):
+        d = _make_dir(tmp_path)
+        assert all(e["family"] == "ltx" for e in list_local_ltx_loras(d))
+
+    def test_family_subdirs_scan_with_prefix_and_own_sidecars(self, tmp_path):
+        d = _make_dir(tmp_path)
+        h3 = d / "h3"
+        h3.mkdir()
+        (h3 / "TurboStyle.safetensors").write_bytes(b"weights")
+        (h3 / "TurboStyle.txt").write_text("turbo trigger", encoding="utf-8")
+        (h3 / "TurboStyle.png").write_bytes(b"\x89PNG")
+        entries = list_local_ltx_loras(d)
+        turbo = next(e for e in entries if e["name"] == "TurboStyle")
+        assert turbo["family"] == "h3"
+        assert turbo["file"] == "h3/TurboStyle.safetensors"  # stageable by name
+        assert turbo["trigger"] == "turbo trigger"
+        assert turbo["thumbnail"].endswith("TurboStyle.png")
+        # LTX files stay bare — the original convention is untouched.
+        assert next(e for e in entries if e["name"] == "CozyFelt")["file"] == "CozyFelt.safetensors"
+
 
 class TestThumbnailAdopt:
     def test_adopts_image_as_stem_png(self, tmp_path):

@@ -43,6 +43,9 @@ export interface LocalLtxLoraEntry {
   file: string
   name: string
   sizeBytes: number
+  /** Engine architecture: 'ltx' (top-level files), 'h3' or 'flux' (subfolders).
+   *  Absent on older backends — treated as 'ltx', the original convention. */
+  family?: string
   thumbnail: string | null
   trigger: string | null
 }
@@ -51,6 +54,10 @@ export interface LocalLtxLoraEntry {
  * Curated registry + drop-a-file discoveries, one list. Curated wins on id
  * collision (its metadata is richer); local entries arrive as style LoRAs at
  * full strength — the drop-in convention is "this file IS the look".
+ *
+ * LoRAs are architecture-specific, so only the LTX family merges here — an H3
+ * or Flux file dropped into its subfolder must never be pickable on this
+ * engine. A future H3 picker filters the same listing to its own family.
  */
 export function mergeLtxLoras(
   curated: readonly LtxLora[],
@@ -58,6 +65,7 @@ export function mergeLtxLoras(
 ): LtxLora[] {
   const known = new Set(curated.map(l => l.id))
   const locals: LtxLora[] = scanned
+    .filter(e => (e.family ?? 'ltx') === 'ltx')
     .filter(e => !known.has(e.file))
     .map(e => ({
       id: e.file,
