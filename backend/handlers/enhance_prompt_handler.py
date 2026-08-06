@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 from threading import RLock
-from typing import Any
+from typing import Any, cast
 
 from _routes._errors import HTTPError
 from handlers.base import StateHandlerBase
@@ -367,6 +367,144 @@ class EnhancePromptHandler(StateHandlerBase):
         result = self.enhance("", "image-to-video", "ltx-fast")
         return result.get("enhancedPrompt", "")
 
+    def enhance_options(
+        self, prompt: str, model: str, direction: str | None = None,
+    ) -> dict[str, Any]:
+        """The director's enhance flow: analyze -> pick a direction -> four
+        visible prompt choices.
+
+        Phase 1 (direction is None): return {"question", "options": [4 x
+        {id,label,hint}]}. With a Gemini/OpenRouter key the question comes from
+        the LLM analyzing THIS prompt; without one (Palette-only setups) the
+        four H3-crafted directions ship locally — still useful, never blocked.
+
+        Phase 2 (direction set): return {"variants": [4 full prompts]}. LLM
+        path asks for strict JSON (tolerant extraction, fallback included);
+        Palette-only path folds the direction's guidance into four separate
+        prompt-expander calls so all four choices are real and distinct.
+        """
+        prompt = _clamp_prompt(prompt)
+        gemini_key = self.state.app_settings.gemini_api_key
+        openrouter_key = self.state.app_settings.openrouter_api_key
+        has_llm = bool(gemini_key or openrouter_key)
+
+        if direction is None:
+            if has_llm and prompt:
+                analyzed = self._llm_json(
+                    system=(
+                        _H3_GUIDE
+                        + " Analyze the user's draft prompt and pick the ONE "
+                          "most useful creative question to ask them, with 4 "
+                          "short direction options. Reply with STRICT JSON: "
+                          '{"question": str, "options": [{"id": str, '
+                          '"label": str, "hint": str}]} and nothing else.'
+                    ),
+                    user=f"Draft prompt: {prompt}",
+                    gemini_key=gemini_key,
+                    openrouter_key=openrouter_key,
+                )
+                if analyzed is not None:
+                    raw_options = analyzed.get("options")
+                    question = analyzed.get("question")
+                    if isinstance(question, str) and isinstance(raw_options, list):
+                        options: list[dict[str, str]] = []
+                        for entry in cast("list[object]", raw_options)[:4]:
+                            if not isinstance(entry, dict):
+                                continue
+                            record = cast("dict[str, object]", entry)
+                            label = record.get("label")
+                            if not isinstance(label, str) or not label:
+                                continue
+                            oid = record.get("id")
+                            hint = record.get("hint")
+                            options.append({
+                                "id": oid if isinstance(oid, str) and oid else label.lower().replace(" ", "-"),
+                                "label": label,
+                                "hint": hint if isinstance(hint, str) else "",
+                            })
+                        if len(options) >= 2:
+                            return {"question": question, "options": options[:4]}
+            # Palette-only (or analysis failed): the H3-crafted house directions.
+            return {
+                "question": _DIRECTION_QUESTION,
+                "options": [
+                    {"id": d["id"], "label": d["label"], "hint": d["hint"]}
+                    for d in _DIRECTIONS
+                ],
+            }
+
+        guidance = next(
+            (d["guidance"] for d in _DIRECTIONS if d["id"] == direction),
+            direction,  # LLM-authored direction ids carry their own meaning
+        )
+
+        if has_llm:
+            generated = self._llm_json(
+                system=(
+                    _H3_GUIDE
+                    + " Write FOUR distinct enhanced versions of the user's "
+                      "prompt honoring the chosen direction. Each stands alone "
+                      "as one continuous shot. Reply with STRICT JSON: "
+                      '{"variants": [str, str, str, str]} and nothing else.'
+                ),
+                user=f"Draft prompt: {prompt or '(write from scratch)'}\nChosen direction: {guidance}",
+                gemini_key=gemini_key,
+                openrouter_key=openrouter_key,
+            )
+            if generated is not None:
+                raw_variants = generated.get("variants")
+                if isinstance(raw_variants, list):
+                    variants = [
+                        v.strip() for v in cast("list[object]", raw_variants)
+                        if isinstance(v, str) and v.strip()
+                    ][:4]
+                    if variants:
+                        return {"variants": variants}
+
+        # Palette-only path: four separately-guided expander calls. Angle words
+        # keep the four results genuinely different, not four rerolls.
+        palette_key = (
+            effective_generation_key(self.state.app_settings)
+            or self.state.app_settings.palette_api_key
+        )
+        if not palette_key:
+            raise HTTPError(400, "No enhancement provider configured (Palette, Gemini, or OpenRouter).")
+        angles = ["", " Emphasize the light.", " Emphasize the camera move.", " Emphasize the sound and music."]
+        variants: list[str] = []
+        for angle in angles:
+            guided = f"{prompt or 'A striking performance shot.'} Direction: {guidance}{angle}"
+            try:
+                result = self._enhance_via_palette(guided, palette_key, "text-to-video", model)
+                text = result.get("enhancedPrompt", "").strip()
+                if text and text not in variants:
+                    variants.append(text)
+            except HTTPError:
+                continue
+        if not variants:
+            raise HTTPError(502, "Enhancement provider returned nothing usable.")
+        return {"variants": variants[:4]}
+
+    def _llm_json(
+        self, *, system: str, user: str, gemini_key: str, openrouter_key: str,
+    ) -> dict[str, Any] | None:
+        """One JSON-shaped completion via whichever LLM key exists. Returns the
+        parsed object, or None so callers fall back (never raises for parse
+        problems — a flaky LLM must not break the enhance button)."""
+        try:
+            if gemini_key:
+                result = self._enhance_via_gemini(
+                    user, "text-to-video", "h3-local", gemini_key,
+                    system_text_override=system,
+                )
+            else:
+                result = self._enhance_via_openrouter(
+                    user, "text-to-video", "h3-local", openrouter_key,
+                    system_text_override=system,
+                )
+        except Exception:
+            return None
+        return _extract_json_block(result.get("enhancedPrompt", ""))
+
     def _enhance_via_palette(
         self, prompt: str, api_key: str, mode: str = "text-to-video", model: str = "ltx-fast",
     ) -> dict[str, str]:
@@ -639,3 +777,83 @@ class EnhancePromptHandler(StateHandlerBase):
             return base64.b64encode(raw).decode("ascii")
         except Exception:
             return None
+
+
+# --- Director's enhance: analyze -> pick a direction -> four visible choices ---
+#
+# The H3 prompting craft baked into every path (from the multishot pack's guide
+# + measured behavior): H3 renders AUDIO natively — dialogue in quotes gets
+# SPOKEN, name music/sounds explicitly; describe subject + action + setting +
+# camera + light in present tense; one continuous shot per prompt; no on-screen
+# text; for chained shots, end on what the next shot expects to see.
+
+_H3_GUIDE = (
+    "You are a music-video director writing prompts for MiniMax H3, a video "
+    "model with NATIVE AUDIO. Rules: dialogue or lyrics in double quotes will "
+    "be SPOKEN/SUNG by the character — use them deliberately. Name the music "
+    "and sounds explicitly (e.g. 'over a booming hip-hop instrumental', "
+    "'waves crashing'). Describe subject, action, setting, camera movement, "
+    "and light in present tense, one continuous shot. Never request on-screen "
+    "text. Keep the energy of a performance: who is on camera, what they do, "
+    "how the camera moves with them."
+)
+
+_DIRECTION_QUESTION = "How do you want this shot to feel?"
+
+# Four concrete directions, each with guidance text folded into enhancement.
+_DIRECTIONS: list[dict[str, str]] = [
+    {
+        "id": "locked",
+        "label": "Locked & cinematic",
+        "hint": "tripod-still frame, composed like a film shot",
+        "guidance": "Locked-off cinematic frame, deliberate composition, "
+                    "shallow depth of field, controlled studio-grade light.",
+    },
+    {
+        "id": "handheld",
+        "label": "Handheld & raw",
+        "hint": "documentary energy, close and human",
+        "guidance": "Handheld camera with natural shake, close documentary "
+                    "energy, practical available light, imperfect and human.",
+    },
+    {
+        "id": "moving",
+        "label": "Moving camera",
+        "hint": "tracking / push-in that rides the action",
+        "guidance": "A moving camera that rides the action - tracking, "
+                    "pushing in, or orbiting - motion motivated by the "
+                    "performance.",
+    },
+    {
+        "id": "hype",
+        "label": "Hype performance",
+        "hint": "music-video energy, punchy and loud",
+        "guidance": "Music-video hype: performer plays straight to the lens, "
+                    "punchy motion, bold light, the audio mix loud and "
+                    "forward.",
+    },
+]
+
+# Inputs are clamped so a 5000-char paste can't blow the provider context.
+_MAX_ENHANCE_INPUT = 3000
+
+
+def _clamp_prompt(prompt: str) -> str:
+    p = prompt.strip()
+    return p if len(p) <= _MAX_ENHANCE_INPUT else p[:_MAX_ENHANCE_INPUT]
+
+
+def _extract_json_block(text: str) -> dict[str, Any] | None:
+    """Tolerate LLMs that wrap JSON in prose/code fences."""
+    import json as _json
+    import re as _re
+
+    for candidate in _re.findall(r"\{.*\}", text, _re.DOTALL):
+        try:
+            parsed = _json.loads(candidate)
+        except Exception:
+            continue
+        if isinstance(parsed, dict):
+            return cast("dict[str, Any]", parsed)
+    return None
+

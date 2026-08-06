@@ -86,6 +86,9 @@ export function Gallery() {
   const [error, setError] = useState<string | null>(null)
   const [previewItem, setPreviewItem] = useState<GalleryItem | null>(null)
   const [backendUrl, setBackendUrl] = useState<string>('')
+  // Bulk erase: selection mode with per-card checkboxes and one delete.
+  const [selectMode, setSelectMode] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
 
   const perPage = 200
 
@@ -255,6 +258,56 @@ export function Gallery() {
       (!q || i.filename.toLowerCase().includes(q) || (i.prompt ?? '').toLowerCase().includes(q)),
   )
 
+  // Click-through: move the lightbox to the neighboring item without closing.
+  const stepPreview = useCallback((dir: -1 | 1) => {
+    setPreviewItem(current => {
+      if (!current) return current
+      const idx = visibleItems.findIndex(i => i.id === current.id)
+      if (idx < 0) return current
+      const next = visibleItems[(idx + dir + visibleItems.length) % visibleItems.length]
+      return next ?? current
+    })
+  }, [visibleItems])
+
+  useEffect(() => {
+    if (!previewItem) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') stepPreview(1)
+      if (e.key === 'ArrowLeft') stepPreview(-1)
+      if (e.key === 'Escape') setPreviewItem(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [previewItem, stepPreview])
+
+  const toggleSelected = useCallback((id: string) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  const bulkDelete = useCallback(async () => {
+    const ids = [...selected]
+    if (ids.length === 0) return
+    if (!(await confirm({ title: `Delete ${ids.length} item${ids.length === 1 ? '' : 's'}?`, message: 'Files are removed from disk. This cannot be undone.', destructive: true }))) return
+    const url = backendUrl || await window.electronAPI.getBackendUrl()
+    for (const id of ids) {
+      try {
+        const res = await fetch(`${url}/api/gallery/local/${id}`, { method: 'DELETE' })
+        if (res.ok) {
+          setItems(prev => prev.filter(i => i.id !== id))
+          setTotal(prev => prev - 1)
+        }
+      } catch { /* keep going — one failure shouldn't stop the sweep */ }
+    }
+    setSelected(new Set())
+    setSelectMode(false)
+  }, [selected, backendUrl, confirm])
+
+
   return (
     <div className="h-screen bg-background flex flex-col">
       {/* Header */}
@@ -306,6 +359,31 @@ export function Gallery() {
             ))}
           </select>
 
+          {/* Bulk erase */}
+          {selectMode ? (
+            <>
+              <button
+                onClick={() => void bulkDelete()}
+                disabled={selected.size === 0}
+                className="h-8 px-3 rounded-lg text-xs font-medium bg-red-600 hover:bg-red-500 text-white disabled:bg-zinc-800 disabled:text-zinc-600 transition-colors"
+              >
+                Delete {selected.size || ''}
+              </button>
+              <button
+                onClick={() => { setSelectMode(false); setSelected(new Set()) }}
+                className="h-8 px-3 rounded-lg text-xs text-zinc-400 hover:text-white bg-zinc-900 border border-zinc-700 transition-colors"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setSelectMode(true)}
+              className="h-8 px-3 rounded-lg text-xs text-zinc-300 hover:text-white bg-zinc-900 border border-zinc-700 hover:border-zinc-500 transition-colors"
+            >
+              Select
+            </button>
+          )}
         </div>
       </header>
 
@@ -356,9 +434,20 @@ export function Gallery() {
               {visibleItems.map(item => (
                 <div
                   key={item.id}
-                  className="group relative bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800 hover:border-zinc-600 transition-all cursor-pointer hover:shadow-lg hover:shadow-black/20"
-                  onClick={() => setPreviewItem(item)}
+                  className={`group relative bg-zinc-900 rounded-lg overflow-hidden border transition-all cursor-pointer hover:shadow-lg hover:shadow-black/20 ${
+                    selectMode && selected.has(item.id)
+                      ? 'border-red-500/70 ring-1 ring-red-500/40'
+                      : 'border-zinc-800 hover:border-zinc-600'
+                  }`}
+                  onClick={() => (selectMode ? toggleSelected(item.id) : setPreviewItem(item))}
                 >
+                  {selectMode && (
+                    <div className={`absolute top-2 left-2 z-20 h-5 w-5 rounded border flex items-center justify-center ${
+                      selected.has(item.id) ? 'bg-red-500 border-red-400' : 'bg-black/60 border-zinc-500'
+                    }`}>
+                      {selected.has(item.id) && <Check className="h-3.5 w-3.5 text-white" />}
+                    </div>
+                  )}
                   {/* Thumbnail */}
                   <div className="aspect-video bg-zinc-800 flex items-center justify-center overflow-hidden">
                     {item.type === 'image' ? (
@@ -582,6 +671,22 @@ export function Gallery() {
               className="absolute -top-10 right-0 p-2 text-zinc-400 hover:text-white transition-colors"
             >
               <X className="h-5 w-5" />
+            </button>
+            {/* Click-through: flip to the neighboring render without closing.
+                Arrow keys work too. */}
+            <button
+              aria-label="Previous"
+              onClick={() => stepPreview(-1)}
+              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-12 p-2.5 rounded-full bg-black/50 text-zinc-300 hover:text-white hover:bg-black/80 transition-colors"
+            >
+              <ChevronLeft className="h-6 w-6" />
+            </button>
+            <button
+              aria-label="Next"
+              onClick={() => stepPreview(1)}
+              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-12 p-2.5 rounded-full bg-black/50 text-zinc-300 hover:text-white hover:bg-black/80 transition-colors"
+            >
+              <ChevronRight className="h-6 w-6" />
             </button>
             {previewItem.type === 'video' ? (
               <video

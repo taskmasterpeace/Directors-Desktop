@@ -28,6 +28,24 @@ def enhance_prompt(
     )
 
 
+class EnhanceOptionsRequest(BaseModel):
+    prompt: str = ""
+    model: str = "h3-local"
+    # Absent = phase 1 (analyze -> direction question); set = phase 2 (variants).
+    direction: str | None = None
+
+
+@router.post("/api/enhance-prompt/options")
+def enhance_prompt_options(
+    req: EnhanceOptionsRequest,
+    handler: AppHandler = Depends(get_state_service),
+):
+    """Director's enhance: analyze -> pick a direction -> 4 visible choices."""
+    return handler.enhance_prompt.enhance_options(
+        req.prompt, req.model, direction=req.direction,
+    )
+
+
 @router.post("/api/caption-image", response_model=CaptionImageResponse)
 def caption_image(
     req: CaptionImageRequest,

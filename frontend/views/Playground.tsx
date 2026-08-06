@@ -14,6 +14,7 @@ import { LtxLogo } from '../components/LtxLogo'
 import { ModelStatusDropdown } from '../components/ModelStatusDropdown'
 import { ModelWarmthPill } from '../components/ModelWarmthPill'
 import { PlaygroundQueueStrip } from '../components/PlaygroundQueueStrip'
+import { EnhanceDirectorModal } from '../components/EnhanceDirectorModal'
 import {
   estimateRenderSeconds,
   estimateTotalSeconds,
@@ -74,6 +75,7 @@ export function Playground() {
   // "then animate the result" chain toggle.
   const [editingJob, setEditingJob] = useState<QueueJob | null>(null)
   const [thenAnimate, setThenAnimate] = useState(false)
+  const [showEnhanceDirector, setShowEnhanceDirector] = useState(false)
 
   // Esc backs out of edit-before-render without touching the pending job.
   useEffect(() => {
@@ -211,6 +213,13 @@ export function Playground() {
 
   const handleEnhancePrompt = async () => {
     if (isEnhancing) return
+    // Video modes get the director's flow: analyze -> pick a direction ->
+    // four visible takes (H3 craft baked in server-side). Image mode keeps
+    // the classic one-shot enhance.
+    if (mode !== 'text-to-image' && !isRetakeMode) {
+      setShowEnhanceDirector(true)
+      return
+    }
     setIsEnhancing(true)
     try {
       const backendUrl = await window.electronAPI.getBackendUrl()
@@ -904,6 +913,14 @@ export function Playground() {
           {/* The queue as a work surface: thumbnails, prompts, reorder/edit/
               duplicate/remove, and the finished-→-Gallery trail. */}
           <PlaygroundQueueStrip onEditJob={handleEditQueuedJob} />
+
+          <EnhanceDirectorModal
+            open={showEnhanceDirector}
+            prompt={prompt}
+            model={String(settings.model)}
+            onClose={() => setShowEnhanceDirector(false)}
+            onApply={setPrompt}
+          />
         </div>
       </main>
     </div>
