@@ -634,7 +634,17 @@ export function Playground() {
                 placeholder="Write a prompt... (type @ to mention a character or reference)"
                 value={prompt}
                 onChange={(e) => { setPrompt(e.target.value); atAutocomplete.sync() }}
-                onKeyDown={(e) => { if (atAutocomplete.onKeyDown(e)) e.preventDefault() }}
+                onKeyDown={(e) => {
+                  if (atAutocomplete.onKeyDown(e)) { e.preventDefault(); return }
+                  // Ctrl/Cmd+Enter fires the contextual primary action (plain
+                  // Enter stays a newline — H3 prompts are multi-line).
+                  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault()
+                    if (editingJob) { if (prompt.trim()) void handleUpdateQueuedShot() }
+                    else if (isGenerating) { if (canQueue && mode !== 'text-to-image' && !isRetakeMode) handleQueue() }
+                    else if (canGenerate) handleGenerate()
+                  }
+                }}
                 onSelect={() => atAutocomplete.sync()}
                 onBlur={() => atAutocomplete.close()}
                 helperText="Type @ to drop in your Characters & References · longer, detailed prompts get better results."
