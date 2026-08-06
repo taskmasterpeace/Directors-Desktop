@@ -9,8 +9,9 @@ import {
 import { useProjects } from '../contexts/ProjectContext'
 import type { GenSpaceRetakeSource } from '../contexts/ProjectContext'
 import { useAppSettings } from '../contexts/AppSettingsContext'
-import { useGeneration } from '../hooks/use-generation'
+import { useGeneration, LOCAL_COMFY_ENGINES } from '../hooks/use-generation'
 import { ClapperboardSpinner } from '../components/ClapperboardSpinner'
+import { ModelWarmthPill } from '../components/ModelWarmthPill'
 import { VIDEO_MODELS, conditioningConflictMessage, getVideoModel } from '../lib/video-models'
 
 /** Video engines that run on the user's own GPU — free, never points-priced.
@@ -2727,6 +2728,19 @@ export function GenSpace() {
             <div className="max-w-2xl w-full rounded-lg border border-amber-500/40 bg-zinc-900/95 px-3 py-2 text-xs text-amber-300 pointer-events-auto shadow-lg">
               {conditioningNotice}
             </div>
+          </div>
+        )}
+
+        {/* Same honest hot/cold residency story the Playground gets — a cold
+            engine here also costs the ~5-15 min load before the render. */}
+        {isLocalVideo && LOCAL_COMFY_ENGINES[String(settings.model)] && (
+          <div className="mb-2 flex justify-end">
+            <ModelWarmthPill
+              warmth="cold"
+              expectedProfile={LOCAL_COMFY_ENGINES[String(settings.model)].profile}
+              activeModel={getVideoModel(String(settings.model))?.displayName ?? String(settings.model)}
+              gpuInfo={null}
+            />
           </div>
         )}
 
