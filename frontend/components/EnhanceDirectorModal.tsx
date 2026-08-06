@@ -51,24 +51,27 @@ export function EnhanceDirectorModal({ open, prompt, model, onClose, onApply }: 
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onClose])
 
-  // Phase 1 on open: analyze the draft, get the direction question.
-  useEffect(() => {
-    if (!open) return
+  // Phase 1: analyze the draft, get the direction question. Extracted so the
+  // error strip's "Try again" can re-run it without a close-and-reopen.
+  const loadDirections = useCallback(async () => {
     setPhase('loading')
     setError(null)
     setVariants([])
-    void (async () => {
-      try {
-        const data = await api({ prompt, model })
-        setQuestion(data.question ?? 'How do you want this shot to feel?')
-        setOptions(data.options ?? [])
-        setPhase('directions')
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Enhancement unavailable')
-        setPhase('directions')
-      }
-    })()
-  }, [open, prompt, model, api])
+    try {
+      const data = await api({ prompt, model })
+      setQuestion(data.question ?? 'How do you want this shot to feel?')
+      setOptions(data.options ?? [])
+      setPhase('directions')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Enhancement unavailable')
+      setPhase('directions')
+    }
+  }, [api, prompt, model])
+
+  useEffect(() => {
+    if (!open) return
+    void loadDirections()
+  }, [open, loadDirections])
 
   const pickDirection = useCallback(async (id: string) => {
     setBusyDirection(id)
@@ -112,7 +115,17 @@ export function EnhanceDirectorModal({ open, prompt, model, onClose, onApply }: 
 
         <div className="px-5 py-4 overflow-y-auto">
           {error && (
-            <p className="mb-3 text-xs text-red-400 border border-red-500/30 bg-red-500/10 rounded-md px-2.5 py-1.5">{error}</p>
+            <div className="mb-3 flex items-center gap-2 text-xs text-red-400 border border-red-500/30 bg-red-500/10 rounded-md px-2.5 py-1.5">
+              <span className="flex-1 min-w-0 truncate" title={error}>{error}</span>
+              {phase === 'directions' && options.length === 0 && (
+                <button
+                  onClick={() => void loadDirections()}
+                  className="shrink-0 font-semibold text-amber-400 hover:text-amber-300"
+                >
+                  Try again
+                </button>
+              )}
+            </div>
           )}
 
           {phase === 'loading' && (
