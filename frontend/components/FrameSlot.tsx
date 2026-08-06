@@ -95,7 +95,7 @@ export function FrameSlot({ label, imageUrl, onImageSet, disabled }: FrameSlotPr
   return (
     <div
       className={`relative rounded-lg border-2 border-dashed transition-colors cursor-pointer
-        ${isDragOver ? 'border-blue-500 bg-blue-500/10' : 'border-zinc-700 hover:border-zinc-500'}
+        ${isDragOver ? 'border-amber-500 bg-amber-500/10' : 'border-zinc-700 hover:border-zinc-500'}
         ${disabled ? 'opacity-50 pointer-events-none' : ''}
       `}
       onClick={handleBrowse}
