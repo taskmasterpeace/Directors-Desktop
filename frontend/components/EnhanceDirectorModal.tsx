@@ -41,6 +41,16 @@ export function EnhanceDirectorModal({ open, prompt, model, onClose, onApply }: 
     return res.json() as Promise<{ question?: string; options?: DirectionOption[]; variants?: string[] }>
   }, [])
 
+  // Esc closes — same convention as queue editing and the lightbox.
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open, onClose])
+
   // Phase 1 on open: analyze the draft, get the direction question.
   useEffect(() => {
     if (!open) return
