@@ -62,10 +62,20 @@ function suggestFromFilename(filename: string): string {
 export function Gallery() {
   const { goHome, setPendingAnimateImage, openPlayground , setPendingRemix, projects, addAsset } = useProjects()
   const [filter, setFilter] = useState<FilterType>('all')
-  // Ownership (project management Phase 2): queue jobs carry tags like
-  // "project:<id>" / "playground" / "director"; matching a gallery file back
-  // to its job by filename tells us which surface made it.
-  const [ownership, setOwnership] = useState<Record<string, string[]>>({})
+  // Job enrichment: matching a gallery file back to its queue job by filename
+  // gives us ownership tags AND the generation facts users asked for on the
+  // card — requested duration/resolution and the seed (two identical-looking
+  // renders usually means the same seed).
+  interface GalleryJobInfo {
+    tags: string[]
+    duration?: string
+    resolution?: string
+    seed?: number
+  }
+  const [jobInfo, setJobInfo] = useState<Record<string, GalleryJobInfo>>({})
+  // True media facts read from the file itself (works for files with no job
+  // record): duration + actual pixel size, captured on metadata load.
+  const [mediaMeta, setMediaMeta] = useState<Record<string, { sec?: number; w: number; h: number }>>({})
   const [ownerFilter, setOwnerFilter] = useState<string>('all')
   const [sendItem, setSendItem] = useState<GalleryItem | null>(null)
   const [sentIds, setSentIds] = useState<Set<string>>(new Set())
@@ -124,39 +134,47 @@ export function Gallery() {
     void fetchGallery()
   }, [fetchGallery])
 
-  // Build filename -> tags from the queue history (jobs record result paths).
+  // Build filename -> job facts from the queue history (jobs record result paths).
   useEffect(() => {
     void (async () => {
       try {
         const url = backendUrl || await window.electronAPI.getBackendUrl()
         const res = await fetch(`${url}/api/queue/status`)
         if (!res.ok) return
-        const data = (await res.json()) as { jobs?: Array<{ tags?: string[]; result_paths?: string[] }> }
-        const map: Record<string, string[]> = {}
+        const data = (await res.json()) as {
+          jobs?: Array<{ tags?: string[]; result_paths?: string[]; params?: Record<string, unknown> }>
+        }
+        const map: Record<string, GalleryJobInfo> = {}
         for (const j of data.jobs ?? []) {
-          if (!j.tags?.length) continue
-          for (const p of j.result_paths ?? []) {
-            const base = String(p).split(/[\\/]/).pop()
-            if (base) map[base] = j.tags
+          const p = j.params ?? {}
+          const info: GalleryJobInfo = {
+            tags: j.tags ?? [],
+            ...(typeof p.duration === 'string' ? { duration: p.duration } : {}),
+            ...(typeof p.resolution === 'string' ? { resolution: p.resolution } : {}),
+            ...(typeof p.seed === 'number' ? { seed: p.seed } : {}),
+          }
+          for (const rp of j.result_paths ?? []) {
+            const base = String(rp).split(/[\\/]/).pop()
+            if (base) map[base] = info
           }
         }
-        setOwnership(map)
+        setJobInfo(map)
       } catch {
-        // queue unavailable — ownership chips simply stay hidden
+        // queue unavailable — enrichment simply stays hidden
       }
     })()
   }, [backendUrl])
 
   /** Which surface made this file: 'playground' | 'director' | a project id | null. */
   const ownerOf = useCallback((item: GalleryItem): string | null => {
-    const tags = ownership[item.filename]
-    if (!tags) return null
+    const tags = jobInfo[item.filename]?.tags
+    if (!tags?.length) return null
     if (tags.includes('playground')) return 'playground'
     const proj = tags.find(t => t.startsWith('project:'))
     if (proj) return proj.slice('project:'.length)
     if (tags.includes('director')) return 'director'
     return null
-  }, [ownership])
+  }, [jobInfo])
 
   const projectName = useCallback(
     (id: string) => projects.find(p => p.id === id)?.name ?? null,
@@ -348,6 +366,10 @@ export function Gallery() {
                         src={mediaSrc(item)}
                         alt={item.filename}
                         className="w-full h-full object-cover"
+                        onLoad={e => {
+                          const el = e.currentTarget
+                          if (el.naturalWidth) setMediaMeta(prev => prev[item.id] ? prev : { ...prev, [item.id]: { w: el.naturalWidth, h: el.naturalHeight } })
+                        }}
                       />
                     ) : (
                       // Videos: file:// streams with Range support, so a muted
@@ -358,6 +380,10 @@ export function Gallery() {
                         playsInline
                         preload="metadata"
                         className="w-full h-full object-cover"
+                        onLoadedMetadata={e => {
+                          const el = e.currentTarget
+                          setMediaMeta(prev => prev[item.id] ? prev : { ...prev, [item.id]: { sec: el.duration, w: el.videoWidth, h: el.videoHeight } })
+                        }}
                       />
                     )}
                     {item.type === 'video' && (
@@ -368,15 +394,41 @@ export function Gallery() {
                     )}
                   </div>
 
-                  {/* Info */}
+                  {/* Info — the facts users actually ask of a render: how long,
+                      what size, which seed (identical seeds = identical takes). */}
                   <div className="p-2.5">
                     <p className="text-xs text-white font-medium truncate">{item.filename}</p>
-                    <div className="flex items-center gap-2 mt-1.5">
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                       {item.model_name && (
                         <span className="text-[10px] bg-blue-500/20 text-blue-400 rounded px-1.5 py-0.5 font-medium">
                           {item.model_name}
                         </span>
                       )}
+                      {(() => {
+                        const meta = mediaMeta[item.id]
+                        const info = jobInfo[item.filename]
+                        const sec = meta?.sec
+                        const dims = meta ? `${meta.w}×${meta.h}` : null
+                        return (
+                          <>
+                            {sec !== undefined && Number.isFinite(sec) && (
+                              <span className="text-[10px] bg-zinc-800 text-zinc-300 rounded px-1.5 py-0.5 tabular-nums">
+                                {sec.toFixed(1)}s
+                              </span>
+                            )}
+                            {dims && (
+                              <span className="text-[10px] text-zinc-400 tabular-nums" title={info?.resolution ? `requested ${info.resolution}` : undefined}>
+                                {dims}
+                              </span>
+                            )}
+                            {info?.seed !== undefined && (
+                              <span className="text-[10px] text-zinc-500 tabular-nums" title="Seed — identical seed + prompt = identical take">
+                                seed {info.seed}
+                              </span>
+                            )}
+                          </>
+                        )
+                      })()}
                       <span className="text-[10px] text-zinc-500">{formatFileSize(item.size_bytes)}</span>
                       <span className="text-[10px] text-zinc-500">{formatDate(item.created_at)}</span>
                     </div>
@@ -569,6 +621,15 @@ export function Gallery() {
                 <p className="text-xs text-zinc-500 mt-0.5">
                   {formatFileSize(previewItem.size_bytes)} &middot; {formatDate(previewItem.created_at)}
                   {previewItem.model_name && ` \u00B7 ${previewItem.model_name}`}
+                  {(() => {
+                    const meta = mediaMeta[previewItem.id]
+                    const info = jobInfo[previewItem.filename]
+                    const parts: string[] = []
+                    if (meta?.sec !== undefined && Number.isFinite(meta.sec)) parts.push(`${meta.sec.toFixed(1)}s`)
+                    if (meta) parts.push(`${meta.w}\u00D7${meta.h}${info?.resolution ? ` (${info.resolution})` : ''}`)
+                    if (info?.seed !== undefined) parts.push(`seed ${info.seed}`)
+                    return parts.length ? ` \u00B7 ${parts.join(' \u00B7 ')}` : ''
+                  })()}
                 </p>
               </div>
               <Button
