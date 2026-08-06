@@ -131,6 +131,53 @@ export function ClipPropertiesPanel(props: ClipPropertiesPanelProps) {
 
         return (
           <div className="space-y-3">
+            {/* Provenance — the production pipeline's promise: at any clip you
+                can SEE what it is ("Scene 14, Maya's third line, qwen3"),
+                never a mystery file. Data rides Asset.origin from the import. */}
+            {liveAsset?.origin && (() => {
+              const o = liveAsset.origin
+              const activeTake = liveAsset.takes && liveAsset.takes.length > 0
+                ? liveAsset.takes[Math.max(0, Math.min(currentTakeIdx, liveAsset.takes.length - 1))]
+                : null
+              const sourceLabel = o.app === 'dramatis' ? 'Dramatis (Audio Movie Studio)'
+                : o.app === 'director' ? 'Director (music video)'
+                : 'Directors Palette MV'
+              const where = o.app === 'dramatis'
+                ? [o.bookId, o.chapterNumber != null ? `ch. ${o.chapterNumber}` : null, o.lineId].filter(Boolean).join(' · ')
+                : o.app === 'director'
+                  ? [`run ${(o.runId || '').slice(0, 10)}`, o.shotIndex != null ? `shot ${o.shotIndex + 1}` : null].filter(Boolean).join(' · ')
+                  : `beat ${o.beatId || '?'}`
+              const row = (label: string, value: string | null | undefined) => value ? (
+                <div className="flex items-start justify-between gap-3">
+                  <span className="text-xs text-zinc-400 shrink-0">{label}</span>
+                  <span className="text-xs text-zinc-200 text-right break-words min-w-0">{value}</span>
+                </div>
+              ) : null
+              return (
+                <div className="space-y-2">
+                  <h4 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">What this is</h4>
+                  <div className="bg-zinc-800/60 rounded-lg p-3 space-y-1.5">
+                    {row('Source', sourceLabel)}
+                    {row('Who', o.entity)}
+                    {row('Where', where)}
+                    {row('Scene', o.sceneId)}
+                    {row('Engine', [o.engine, activeTake?.note ? null : o.voiceKey ? `· ${o.voiceKey.slice(0, 42)}${o.voiceKey.length > 42 ? '…' : ''}` : null].filter(Boolean).join(' '))}
+                    {(o.text || o.prompt) && (
+                      <blockquote className="mt-1 rounded border border-zinc-700/60 bg-zinc-900/50 px-2 py-1.5 text-[11px] italic text-zinc-300 leading-snug max-h-20 overflow-y-auto">
+                        “{o.text || o.prompt}”
+                      </blockquote>
+                    )}
+                    {activeTake?.note && (
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="text-xs text-amber-400/90 shrink-0">Direction</span>
+                        <span className="text-xs text-amber-200/90 text-right break-words min-w-0">“{activeTake.note}”</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })()}
+
             {/* Currently Displayed */}
             <div className="space-y-2">
               <h4 className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">Currently Displayed</h4>
