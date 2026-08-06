@@ -608,13 +608,11 @@ export function Playground() {
                   label="First Frame"
                   imageUrl={firstFrameUrl}
                   onImageSet={(url, path) => { setFirstFrameUrl(url); setFirstFramePath(path) }}
-                  disabled={isBusy}
                 />
                 <FrameSlot
                   label="Last Frame"
                   imageUrl={lastFrameUrl}
                   onImageSet={(url, path) => { setLastFrameUrl(url); setLastFramePath(path) }}
-                  disabled={isBusy}
                 />
               </div>
             )}
@@ -633,11 +631,10 @@ export function Playground() {
                 helperText="Longer, detailed prompts lead to better, more accurate results."
                 charCount={prompt.length}
                 maxChars={5000}
-                disabled={isBusy}
               />
               <button
                 onClick={handleEnhancePrompt}
-                disabled={isEnhancing || isBusy}
+                disabled={isEnhancing}
                 className="absolute top-7 right-2 p-1.5 rounded-md text-zinc-500 hover:text-amber-400 hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                 title={prompt.trim() ? "Enhance prompt with AI" : "Generate a random prompt"}
               >
@@ -673,7 +670,6 @@ export function Playground() {
               <SettingsPanel
                 settings={settings}
                 onSettingsChange={setSettings}
-                disabled={isBusy}
                 mode={mode}
                 forceApiGenerations={shouldVideoGenerateWithLtxApi}
                 hasAudio={!!selectedAudio}
@@ -734,7 +730,6 @@ export function Playground() {
               <Button
                 variant="outline"
                 onClick={handleClearAll}
-                disabled={isBusy}
                 className="flex items-center gap-2 border-zinc-700 bg-zinc-800 text-white hover:bg-zinc-700"
               >
                 <Trash2 className="h-4 w-4" />

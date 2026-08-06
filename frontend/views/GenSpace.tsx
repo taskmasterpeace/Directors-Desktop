@@ -981,7 +981,7 @@ function PromptBar({
           )}
           <button
             onClick={onEnhancePrompt}
-            disabled={isEnhancing || isGenerating}
+            disabled={isEnhancing}
             className="absolute top-2 right-1 p-1.5 rounded-md text-zinc-500 hover:text-amber-400 hover:bg-zinc-800 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
             title={prompt.trim() ? "Enhance prompt with AI" : "Generate a random prompt"}
           >
