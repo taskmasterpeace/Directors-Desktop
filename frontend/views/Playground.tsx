@@ -832,6 +832,9 @@ export function Playground() {
             {editingJob && (
               <p className="mt-2 text-xs text-amber-300 border border-amber-500/40 bg-amber-500/10 rounded-md px-2.5 py-1.5">
                 Editing queued shot — Update saves your changes to the pending render · Esc or Cancel leaves it untouched.
+                {typeof editingJob.params.seed === 'number' && (
+                  <span className="text-amber-300/70"> Keeps seed {editingJob.params.seed} (same seed + same prompt = same take).</span>
+                )}
               </p>
             )}
 
