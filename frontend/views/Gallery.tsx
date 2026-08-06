@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { ArrowLeft, Image as ImageIcon, Film, Trash2, Download, X, ChevronLeft, ChevronRight, Sparkles , UserPlus, Images, FolderInput, Check, Copy } from 'lucide-react'
+import { ArrowLeft, Image as ImageIcon, Film, Trash2, Download, X, ChevronLeft, ChevronRight, Sparkles , UserPlus, Images, FolderInput, FolderOpen, Check, Copy } from 'lucide-react'
 import { useConfirm } from '../components/ConfirmDialog'
 import { SaveToLibraryModal, type SaveToLibraryRequest } from '../components/SaveToLibraryModal'
 import { useProjects } from '../contexts/ProjectContext'
@@ -378,12 +378,26 @@ export function Gallery() {
               </button>
             </>
           ) : (
-            <button
-              onClick={() => setSelectMode(true)}
-              className="h-8 px-3 rounded-lg text-xs text-zinc-300 hover:text-white bg-zinc-900 border border-zinc-700 hover:border-zinc-500 transition-colors"
-            >
-              Select
-            </button>
+            <>
+              <button
+                onClick={() => setSelectMode(true)}
+                className="h-8 px-3 rounded-lg text-xs text-zinc-300 hover:text-white bg-zinc-900 border border-zinc-700 hover:border-zinc-500 transition-colors"
+              >
+                Select
+              </button>
+              {/* The literal answer to "where do my generations actually live" —
+                  reveals the newest item in Explorer, i.e. the outputs folder. */}
+              {items.length > 0 && (
+                <button
+                  onClick={() => void window.electronAPI.showItemInFolder(items[0].path)}
+                  className="h-8 px-3 rounded-lg text-xs text-zinc-300 hover:text-white bg-zinc-900 border border-zinc-700 hover:border-zinc-500 transition-colors flex items-center gap-1.5"
+                  title="Open the outputs folder in Explorer (newest file selected)"
+                >
+                  <FolderOpen className="h-3.5 w-3.5" />
+                  Open folder
+                </button>
+              )}
+            </>
           )}
         </div>
       </header>
