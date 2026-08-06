@@ -26,6 +26,7 @@ from handlers.library_handler import LibraryHandler
 from runtime_config.runtime_config import RuntimeConfig
 from handlers.contact_sheet_handler import ContactSheetHandler
 from handlers.enhance_prompt_handler import EnhancePromptHandler
+from handlers.dramatis_handler import DramatisHandler
 from handlers.transcription_handler import TranscriptionHandler
 from handlers.prompt_handler import PromptHandler
 from handlers.receive_job_handler import ReceiveJobHandler
@@ -255,6 +256,8 @@ class AppHandler:
         )
 
         self.transcription = TranscriptionHandler(state=self.state, http=http)
+
+        self.dramatis = DramatisHandler(state=self.state, lock=self._lock)
 
         self.retake = RetakeHandler(
             state=self.state,

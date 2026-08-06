@@ -87,6 +87,9 @@ class AppSettings(SettingsBaseModel):
     seed_locked: bool = False
     locked_seed: int = 42
     batch_sound_enabled: bool = True
+    # Audio Movie Studio (dramatis) install root. Empty = auto-discover the
+    # default location; the Story Stage view lets the user point elsewhere.
+    dramatis_root: str = ""
     ffn_chunk_count: int = 8
     tea_cache_threshold: float = 0.0
     r2_access_key_id: str = ""
@@ -183,6 +186,7 @@ class SettingsResponse(SettingsBaseModel):
     seed_locked: bool = False
     locked_seed: int = 42
     batch_sound_enabled: bool = True
+    dramatis_root: str = ""
     ffn_chunk_count: int = 8
     tea_cache_threshold: float = 0.0
     has_r2_credentials: bool = False
