@@ -31,6 +31,7 @@ interface Window {
     openPaletteApiKeyPage: () => Promise<boolean>
     openParentFolderOfFile: (filePath: string) => Promise<void>
     showItemInFolder: (filePath: string) => Promise<void>
+    setTaskbarProgress?: (value: number) => Promise<void>
     getLogs: () => Promise<LogsResponse>
     getLogPath: () => Promise<{ logPath: string; logDir: string }>
     openLogFolder: () => Promise<boolean>

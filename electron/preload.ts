@@ -42,6 +42,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Reveal a specific file in the OS file manager (Explorer/Finder)
   showItemInFolder: (filePath: string): Promise<void> => ipcRenderer.invoke('show-item-in-folder', filePath),
   
+  // Taskbar progress (Windows icon fill; 0..1, >1 indeterminate, <0 clears)
+  setTaskbarProgress: (value: number): Promise<void> => ipcRenderer.invoke('set-taskbar-progress', value),
+
   // Log viewer
   getLogs: (): Promise<LogsResponse> => ipcRenderer.invoke('get-logs'),
   getLogPath: (): Promise<{ logPath: string; logDir: string }> => ipcRenderer.invoke('get-log-path'),
@@ -190,6 +193,7 @@ declare global {
       getNoticesText: () => Promise<string>
       openParentFolderOfFile: (filePath: string) => Promise<void>
       showItemInFolder: (filePath: string) => Promise<void>
+      setTaskbarProgress: (value: number) => Promise<void>
       getLogs: () => Promise<LogsResponse>
       getLogPath: () => Promise<{ logPath: string; logDir: string }>
       openLogFolder: () => Promise<boolean>

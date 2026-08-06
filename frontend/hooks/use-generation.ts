@@ -390,6 +390,14 @@ export function useGeneration(): UseGenerationReturn {
         ? (activeJob.status === 'queued' || activeJob.status === 'running')
         : false
 
+      // Windows taskbar fill: running = fraction, queued = indeterminate pulse,
+      // terminal/no job = clear. Runs every tick, so the terminal tick clears it.
+      void window.electronAPI.setTaskbarProgress?.(
+        activeJob?.status === 'running' ? Math.max(0.02, activeJob.progress / 100)
+          : activeJob?.status === 'queued' ? 2
+          : -1,
+      )
+
       setState(prev => {
         const next = { ...prev, jobs }
 
