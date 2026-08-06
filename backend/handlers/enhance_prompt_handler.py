@@ -388,11 +388,13 @@ class EnhancePromptHandler(StateHandlerBase):
         openrouter_key = self.state.app_settings.openrouter_api_key
         has_llm = bool(gemini_key or openrouter_key)
 
+        guide = _guide_for_model(model)
+
         if direction is None:
             if has_llm and prompt:
                 analyzed = self._llm_json(
                     system=(
-                        _H3_GUIDE
+                        guide
                         + " Analyze the user's draft prompt and pick the ONE "
                           "most useful creative question to ask them, with 4 "
                           "short direction options. Reply with STRICT JSON: "
@@ -441,11 +443,12 @@ class EnhancePromptHandler(StateHandlerBase):
         if has_llm:
             generated = self._llm_json(
                 system=(
-                    _H3_GUIDE
+                    guide
                     + " Write FOUR distinct enhanced versions of the user's "
                       "prompt honoring the chosen direction. Each stands alone "
-                      "as one continuous shot. Reply with STRICT JSON: "
-                      '{"variants": [str, str, str, str]} and nothing else.'
+                      "as one complete shot prompt for this model. Reply with "
+                      'STRICT JSON: {"variants": [str, str, str, str]} and '
+                      "nothing else."
                 ),
                 user=f"Draft prompt: {prompt or '(write from scratch)'}\nChosen direction: {guidance}",
                 gemini_key=gemini_key,
@@ -797,6 +800,56 @@ _H3_GUIDE = (
     "text. Keep the energy of a performance: who is on camera, what they do, "
     "how the camera moves with them."
 )
+
+# LTX-2.3 speaks a different language than H3 (official Lightricks guidance +
+# measured behavior): specificity WINS with its larger text connector; subject
+# -> action -> camera -> mood in present tense, 4-8 sentences, ONE dominant
+# event. Name camera moves from its proven vocabulary and keep them simple —
+# measured adherence to complex camera instructions is weak, and fast complex
+# motion (spins, jumps) collapses anatomy, so favor composed, gentler action.
+# Audio exists but must be DESCRIBED (dialogue in quotes with volume cues,
+# ambient sound named). Never internal feelings, on-screen text, or logos.
+_LTX_GUIDE = (
+    "You are a director writing prompts for LTX-2.3. Structure every prompt "
+    "subject -> action -> camera -> mood as one flowing paragraph in present "
+    "tense, 4-8 sentences, ONE dominant event per shot. Be SPECIFIC — this "
+    "model rewards detail ('a woman in her 30s by the window of a small "
+    "Parisian cafe', not 'a woman in a cafe'). Name the camera move plainly "
+    "from: follows, tracks, pans across, circles around, tilts upward, pushes "
+    "in, overhead view, over-the-shoulder, wide establishing, static frame, "
+    "handheld. Keep camera and motion SIMPLE — avoid fast complex movement "
+    "like rapid spins or jumps. Describe what changes on screen, never inner "
+    "feelings or vague labels like 'cinematic'. For sound, describe it: "
+    "dialogue in double quotes with a volume cue (whispers, shouts), ambient "
+    "audio named ('rain on glass', 'coffeeshop murmur'). No on-screen text or "
+    "logos."
+)
+
+# Seedance 2.0 (fal): director's-notes formula, camera is the highest-leverage
+# token, timeline prompting gives real cuts inside one generation.
+_SEEDANCE_GUIDE = (
+    "You are a director writing prompts for Seedance 2.0. Use the formula "
+    "Subject + Action + Environment + Camera + Lighting/Mood + Style in 50-100 "
+    "words. The CAMERA direction is the most powerful element — name it "
+    "precisely ('slow dolly forward', 'overhead crane down', 'handheld "
+    "close-up'). Avoid the words 'fast' and 'rapid' — they degrade detail. "
+    "For multi-shot sequences use timeline prompting: break the video into "
+    "timestamped segments ('0-4s: ...', '4-8s: ...') each with its own camera "
+    "and action — this produces real cuts inside one generation. Dialogue in "
+    "quotes with delivery notes ('quiet, close-mic'). No on-screen text."
+)
+
+
+def _guide_for_model(model: str) -> str:
+    """The selected model decides the prompting language the enhancer speaks —
+    H3 wants performed audio and one continuous shot, LTX wants specific
+    composed simplicity, Seedance wants director's notes with timeline cuts."""
+    m = model.lower()
+    if m.startswith("seedance") or m.startswith("dp-"):
+        return _SEEDANCE_GUIDE
+    if "ltx" in m:
+        return _LTX_GUIDE
+    return _H3_GUIDE
 
 _DIRECTION_QUESTION = "How do you want this shot to feel?"
 

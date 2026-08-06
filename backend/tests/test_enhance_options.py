@@ -78,3 +78,28 @@ class TestVariantsPhase:
             "prompt": "x", "model": "h3-local", "direction": "locked",
         })
         assert resp.status_code == 400
+
+
+class TestGuideSelection:
+    """The selected model decides the prompting language the enhancer speaks."""
+
+    def test_each_model_family_gets_its_own_guide(self):
+        from handlers.enhance_prompt_handler import (
+            _H3_GUIDE, _LTX_GUIDE, _SEEDANCE_GUIDE, _guide_for_model,
+        )
+        assert _guide_for_model("h3-local") is _H3_GUIDE
+        assert _guide_for_model("ltx-comfy") is _LTX_GUIDE
+        assert _guide_for_model("ltx-fast") is _LTX_GUIDE
+        assert _guide_for_model("seedance-1.0-pro") is _SEEDANCE_GUIDE
+        assert _guide_for_model("dp-seedance-fast") is _SEEDANCE_GUIDE
+        # Unknown models fall back to the H3 house language, never crash.
+        assert _guide_for_model("future-model") is _H3_GUIDE
+
+    def test_guides_carry_their_models_laws(self):
+        from handlers.enhance_prompt_handler import _LTX_GUIDE, _SEEDANCE_GUIDE
+        # LTX: specificity + simple camera + described (not performed) audio.
+        assert "subject -> action -> camera -> mood" in _LTX_GUIDE
+        assert "avoid fast complex movement" in _LTX_GUIDE
+        # Seedance: the formula + timeline prompting + no fast/rapid.
+        assert "timeline prompting" in _SEEDANCE_GUIDE
+        assert "'fast' and 'rapid'" in _SEEDANCE_GUIDE
