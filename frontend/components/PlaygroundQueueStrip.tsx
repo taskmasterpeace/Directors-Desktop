@@ -146,10 +146,10 @@ export function PlaygroundQueueStrip({ onEditJob }: PlaygroundQueueStripProps) {
   const modelLabel = (id: string) => getVideoModel(id)?.displayName ?? id
 
   return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 space-y-2">
+    <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 p-3 space-y-2 overflow-hidden">
       <div className="flex items-center gap-2 text-xs font-medium text-zinc-400">
         <ListVideo className="w-3.5 h-3.5" />
-        Queue · {running.length + queued.length}
+        {running.length + queued.length > 0 ? `Queue · ${running.length + queued.length}` : 'Recent renders'}
         <span className="ml-auto text-[10px] text-zinc-600">finished renders land in the Gallery</span>
       </div>
 
@@ -247,7 +247,7 @@ export function PlaygroundQueueStrip({ onEditJob }: PlaygroundQueueStripProps) {
               <div className="w-14 h-9 rounded overflow-hidden bg-zinc-800 shrink-0">
                 <video src={pathToFileUrl(job.result_paths[0])} muted preload="metadata" className="w-full h-full object-cover" />
               </div>
-              <p className="text-[11px] text-zinc-500 truncate flex-1">
+              <p className="text-[11px] text-zinc-500 truncate flex-1 min-w-0">
                 {typeof job.params.prompt === 'string' ? job.params.prompt : job.id}
               </p>
               <button

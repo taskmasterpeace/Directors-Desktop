@@ -567,8 +567,9 @@ export function Playground() {
 
       {/* Main Content */}
       <main className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Controls */}
-        <div className="w-[500px] border-r border-zinc-800 p-6 overflow-y-auto">
+        {/* Left Panel - Controls. shrink-0: a fixed column must never be
+            crushed by a wide right-panel child demanding min-content width. */}
+        <div className="w-[500px] shrink-0 border-r border-zinc-800 p-6 overflow-y-auto">
           <div className="space-y-6">
             {/* Mode Tabs */}
             <ModeTabs
@@ -864,8 +865,9 @@ export function Playground() {
           </div>
         </div>
 
-        {/* Right Panel - Result Preview */}
-        <div className="flex-1 p-6">
+        {/* Right Panel - Result Preview. min-w-0 lets content truncate inside
+            instead of blowing out the flex row. */}
+        <div className="flex-1 min-w-0 p-6">
           {mode === 'text-to-image' ? (
             <ImageResult
               imageUrl={imageUrl}
