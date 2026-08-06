@@ -30,6 +30,46 @@ export interface LtxLora {
   needsControl?: boolean
   /** Where to accept the license, for gated LoRAs. */
   licenseUrl?: string
+  /** Discovered on disk (drop-a-file), not from the curated registry. */
+  local?: boolean
+  /** Absolute path to a sidecar thumbnail image, when one exists. */
+  thumbnailPath?: string | null
+  /** Trigger words from a sidecar .txt/.json — shown and pasteable. */
+  trigger?: string | null
+}
+
+/** Shape of /api/lora/ltx-local entries (backend server_utils/ltx_local_loras). */
+export interface LocalLtxLoraEntry {
+  file: string
+  name: string
+  sizeBytes: number
+  thumbnail: string | null
+  trigger: string | null
+}
+
+/**
+ * Curated registry + drop-a-file discoveries, one list. Curated wins on id
+ * collision (its metadata is richer); local entries arrive as style LoRAs at
+ * full strength — the drop-in convention is "this file IS the look".
+ */
+export function mergeLtxLoras(
+  curated: readonly LtxLora[],
+  scanned: readonly LocalLtxLoraEntry[],
+): LtxLora[] {
+  const known = new Set(curated.map(l => l.id))
+  const locals: LtxLora[] = scanned
+    .filter(e => !known.has(e.file))
+    .map(e => ({
+      id: e.file,
+      label: e.name,
+      type: 'style' as const,
+      description: e.trigger ? `Local LoRA — trigger: ${e.trigger}` : 'Local LoRA (dropped into the loras folder).',
+      defaultStrength: 1.0,
+      local: true,
+      thumbnailPath: e.thumbnail,
+      trigger: e.trigger,
+    }))
+  return [...curated, ...locals]
 }
 
 export const LTX_LORAS: readonly LtxLora[] = [
@@ -71,6 +111,22 @@ export const LTX_LORAS: readonly LtxLora[] = [
   },
 ]
 
-export function getLtxLora(id: string | undefined | null): LtxLora | undefined {
-  return id ? LTX_LORAS.find(l => l.id === id) : undefined
+export function getLtxLora(
+  id: string | undefined | null,
+  from: readonly LtxLora[] = LTX_LORAS,
+): LtxLora | undefined {
+  return id ? from.find(l => l.id === id) : undefined
+}
+
+/**
+ * Prepend a LoRA's trigger words to the prompt — the local-file convention is
+ * "the trigger IS part of the look". Skipped when the prompt already carries
+ * the first trigger token, so re-generating or hand-typed triggers never double.
+ */
+export function applyLtxTrigger(prompt: string, trigger: string | null | undefined): string {
+  const t = trigger?.trim()
+  if (!t) return prompt
+  const firstWord = t.split(/[,\s]+/)[0] ?? ''
+  if (firstWord && prompt.toLowerCase().includes(firstWord.toLowerCase())) return prompt
+  return prompt.trim() ? `${t}, ${prompt}` : t
 }

@@ -101,6 +101,30 @@ def route_list_library(
     return {"entries": handler.lora.list_library()}
 
 
+@router.get("/ltx-local")
+def route_list_ltx_local(
+    handler: AppHandler = Depends(get_state_service),
+) -> dict[str, Any]:
+    """Drop-a-file discovery: local video LoRAs with sidecar thumbnails/triggers."""
+    return {"entries": handler.lora.list_ltx_local()}
+
+
+class LtxThumbnailRequest(BaseModel):
+    file: str
+    imagePath: str
+
+
+@router.post("/ltx-local/thumbnail")
+def route_set_ltx_thumbnail(
+    body: LtxThumbnailRequest,
+    handler: AppHandler = Depends(get_state_service),
+) -> dict[str, Any]:
+    thumb = handler.lora.set_ltx_thumbnail(body.file, body.imagePath)
+    if thumb is None:
+        raise HTTPError(400, "Could not set thumbnail (unknown LoRA file or unreadable image)")
+    return {"status": "ok", "thumbnail": thumb}
+
+
 @router.delete("/library/{lora_id}")
 def route_delete_lora(
     lora_id: str,

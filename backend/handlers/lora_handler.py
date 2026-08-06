@@ -11,6 +11,7 @@ from typing import Any
 
 import requests
 
+from server_utils.ltx_local_loras import list_local_ltx_loras, set_lora_thumbnail
 from state.lora_library import LoraEntry, LoraLibraryStore
 
 _logger = logging.getLogger(__name__)
@@ -27,6 +28,17 @@ class LoraHandler:
 
     def set_api_key(self, key: str) -> None:
         self._civitai_api_key = key
+
+    # ── Local LTX video LoRAs (drop-a-file discovery + sidecar thumbnails) ──
+
+    def list_ltx_local(self) -> list[dict[str, Any]]:
+        """Every *.safetensors sitting in the loras dir, with sidecar thumbnail
+        and trigger when present. The file name IS the ComfyUI lora_name."""
+        return list_local_ltx_loras(self._store.loras_dir)
+
+    def set_ltx_thumbnail(self, lora_file: str, image_path: str) -> str | None:
+        """Adopt an image as <stem>.png beside the LoRA (sidecar convention)."""
+        return set_lora_thumbnail(self._store.loras_dir, lora_file, image_path)
 
     # ── CivitAI Search ──────────────────────────────────────────────
 

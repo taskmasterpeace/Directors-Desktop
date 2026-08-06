@@ -90,11 +90,13 @@ class ComfyLTXClientImpl:
             return True
         if ("/" in lora_name or "\\" in lora_name) or not self._lora_src_dir:
             return False
-        src = self._lora_src_dir / lora_name
-        if src.exists():
-            dst.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copyfile(src, dst)
-            return True
+        # Two source candidates: the models root (curated downloads) and the
+        # loras/ subdir (the drop-a-file local LoRA convention).
+        for src in (self._lora_src_dir / lora_name, self._lora_src_dir / "loras" / lora_name):
+            if src.exists():
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(src, dst)
+                return True
         return False
 
     # -- ComfyUI HTTP (identical to the H3 engine — same instance) ----------

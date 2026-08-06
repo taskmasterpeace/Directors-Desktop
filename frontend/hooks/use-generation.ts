@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import type { GenerationSettings } from '../components/SettingsPanel'
 import { useAppSettings } from '../contexts/AppSettingsContext'
 import { migrateImageModelId } from '../lib/image-models'
+import { applyLtxTrigger } from '../lib/ltx-loras'
 import { getPersonalEtaSeconds, recordModelTiming } from '../lib/model-timing'
 
 export interface QueueJob {
@@ -603,6 +604,12 @@ export function useGeneration(): UseGenerationReturn {
       // it and lets duplicate deliberately re-roll for a new take.
       const seed = opts?.seed ?? Math.floor(Math.random() * 2_147_483_647)
 
+      // Local LTX LoRAs from the drop-a-file convention carry sidecar trigger
+      // words — ride them on the prompt (mirrors the flux loraTriggerPhrase path).
+      const videoPrompt = settings.model === 'ltx-comfy' && settings.ltxLora
+        ? applyLtxTrigger(prompt, settings.ltxLoraTrigger)
+        : prompt
+
       const params: Record<string, unknown> = useLongVideo
         ? {
             prompt,
@@ -618,7 +625,7 @@ export function useGeneration(): UseGenerationReturn {
             ...(settings.exactDuration ? { exactDuration: true } : {}),
           }
         : {
-            prompt,
+            prompt: videoPrompt,
             duration: String(settings.duration),
             resolution: settings.videoResolution,
             fps: String(settings.fps),

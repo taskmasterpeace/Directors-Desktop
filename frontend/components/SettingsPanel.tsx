@@ -44,9 +44,11 @@ export interface GenerationSettings {
   // Exact-length promise: trim the output back to exactly `duration` seconds.
   exactDuration?: boolean
   // Local LTX-2.3 (ComfyUI) LoRA stacked on the always-on distilled speed LoRA:
-  // a ComfyUI lora_name (relative to the loras dir) + its strength.
+  // a ComfyUI lora_name (relative to the loras dir) + its strength. Local
+  // drop-a-file LoRAs may carry sidecar trigger words, prepended at submit.
   ltxLora?: string
   ltxLoraStrength?: number
+  ltxLoraTrigger?: string | null
 }
 
 interface SettingsPanelProps {
@@ -414,7 +416,8 @@ export function SettingsPanel({
         <LtxLoraPicker
           value={settings.ltxLora}
           strength={settings.ltxLoraStrength}
-          onChange={(id, str) => onSettingsChange({ ...settings, ltxLora: id, ltxLoraStrength: str })}
+          onChange={(id, str, trigger) =>
+            onSettingsChange({ ...settings, ltxLora: id, ltxLoraStrength: str, ltxLoraTrigger: trigger ?? null })}
           disabled={disabled}
         />
       )}

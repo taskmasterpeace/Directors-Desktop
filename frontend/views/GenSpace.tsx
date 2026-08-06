@@ -26,7 +26,8 @@ import { useConfirm } from '../components/ConfirmDialog'
 import { SaveToLibraryModal, type SaveToLibraryRequest } from '../components/SaveToLibraryModal'
 import { LookPicker } from '../components/LookPicker'
 import { copyToAssetFolder } from '../lib/asset-copy'
-import { LTX_LORAS, getLtxLora } from '../lib/ltx-loras'
+import { getLtxLora } from '../lib/ltx-loras'
+import { useLtxLoras } from '../hooks/use-ltx-loras'
 import { fileUrlToPath } from '../lib/url-to-path'
 import { extractVideoFrame } from '../lib/video-frames'
 import {
@@ -593,6 +594,7 @@ function PromptBar({
     imageModelParams?: Record<string, unknown>
     ltxLora?: string
     ltxLoraStrength?: number
+    ltxLoraTrigger?: string | null
   }
   onSettingsChange: (settings: any) => void
   shouldVideoGenerateWithLtxApi: boolean
@@ -600,6 +602,9 @@ function PromptBar({
   // The image model is a global setting, so picking it here applies everywhere
   // images are generated (Playground, Video Editor, Batch, …).
   const { settings: globalSettings, saveImageModel } = useAppSettings()
+  // Curated + drop-a-file local LTX LoRAs (only fetched while the local LTX
+  // engine is the selected model — that's the only surface that can use them).
+  const ltxLoras = useLtxLoras(settings.model === 'ltx-comfy')
   const imageModelId = migrateImageModelId(globalSettings.imageModel)
   const imageModelConfig = getImageModel(imageModelId)
   const imageModelParams = settings.imageModelParams ?? {}
@@ -1310,13 +1315,24 @@ function PromptBar({
                 <SettingsDropdown
                   title="LORA"
                   value={settings.ltxLora ?? ''}
-                  onChange={(v) => onSettingsChange({ ...settings, ltxLora: v || undefined, ltxLoraStrength: getLtxLora(v)?.defaultStrength ?? 1.0 })}
+                  onChange={(v) => {
+                    const picked = getLtxLora(v, ltxLoras)
+                    onSettingsChange({
+                      ...settings,
+                      ltxLora: v || undefined,
+                      ltxLoraStrength: picked?.defaultStrength ?? 1.0,
+                      ltxLoraTrigger: picked?.trigger ?? null,
+                    })
+                  }}
                   options={[
                     { value: '', label: 'None — base LTX' },
-                    ...LTX_LORAS.map(l => ({ value: l.id, label: `${l.label}${l.gated ? ' (needs HF access)' : ''}` })),
+                    ...ltxLoras.map(l => ({
+                      value: l.id,
+                      label: `${l.label}${l.gated ? ' (needs HF access)' : ''}${l.local ? ' · local file' : ''}`,
+                    })),
                   ]}
                   trigger={
-                    <span className="text-zinc-300 font-medium">{getLtxLora(settings.ltxLora)?.label ?? 'No LoRA'}</span>
+                    <span className="text-zinc-300 font-medium">{getLtxLora(settings.ltxLora, ltxLoras)?.label ?? 'No LoRA'}</span>
                   }
                 />
               </>
@@ -1567,9 +1583,11 @@ type GenSpaceSettings = typeof DEFAULT_VIDEO_SETTINGS & {
   videoReferencePaths?: string[]
   /** Per-image-model settings (gpt quality, camera angle …) — see lib/image-models.ts */
   imageModelParams?: Record<string, unknown>
-  /** Local LTX-2.3 LoRA (ComfyUI lora_name) stacked on the distilled LoRA, + strength. */
+  /** Local LTX-2.3 LoRA (ComfyUI lora_name) stacked on the distilled LoRA, + strength.
+   *  Local drop-a-file LoRAs may carry sidecar trigger words, prepended at submit. */
   ltxLora?: string
   ltxLoraStrength?: number
+  ltxLoraTrigger?: string | null
 }
 
 export function GenSpace() {
