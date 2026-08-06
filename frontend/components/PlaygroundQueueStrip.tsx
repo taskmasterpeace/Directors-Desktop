@@ -42,6 +42,8 @@ export function PlaygroundQueueStrip({ onEditJob }: PlaygroundQueueStripProps) {
   const { openGallery } = useProjects()
   const [jobs, setJobs] = useState<QueueJob[]>([])
   const [busyId, setBusyId] = useState<string | null>(null)
+  // Session-scoped: hides finished-trail rows the user has dismissed.
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set())
   const jobsRef = useRef<QueueJob[]>([])
   jobsRef.current = jobs
 
@@ -67,7 +69,7 @@ export function PlaygroundQueueStrip({ onEditJob }: PlaygroundQueueStripProps) {
   const running = videoJobs.filter(j => j.status === 'running')
   const queued = videoJobs.filter(j => j.status === 'queued')
   const finished = videoJobs
-    .filter(j => j.status === 'complete' && j.result_paths.length > 0)
+    .filter(j => j.status === 'complete' && j.result_paths.length > 0 && !dismissed.has(j.id))
     .slice(-3)
     .reverse()
 
@@ -242,6 +244,15 @@ export function PlaygroundQueueStrip({ onEditJob }: PlaygroundQueueStripProps) {
       {/* Recently finished — the "where do I actually get it" trail */}
       {finished.length > 0 && (
         <div className="pt-1 border-t border-zinc-800/70 space-y-1">
+          <div className="flex justify-end px-2">
+            <button
+              onClick={() => setDismissed(prev => new Set([...prev, ...finished.map(j => j.id)]))}
+              className="text-[10px] text-zinc-600 hover:text-zinc-400"
+              title="Hide these finished rows (they stay in the Gallery)"
+            >
+              clear finished
+            </button>
+          </div>
           {finished.map(job => (
             <div key={job.id} className="flex items-center gap-2.5 px-2 py-1">
               <div className="w-14 h-9 rounded overflow-hidden bg-zinc-800 shrink-0">
