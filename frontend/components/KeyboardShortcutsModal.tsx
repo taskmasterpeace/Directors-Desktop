@@ -106,11 +106,11 @@ const KB_ROWS: KBKey[][] = [
 
 // Category → color mapping
 const CATEGORY_COLORS: Record<string, { bg: string; border: string; text: string; dot: string }> = {
-  Tools:     { bg: 'bg-blue-600/30',    border: 'border-blue-500/60',    text: 'text-blue-300',    dot: 'bg-blue-400' },
+  Tools:     { bg: 'bg-amber-600/30',    border: 'border-amber-500/60',    text: 'text-amber-300',    dot: 'bg-amber-400' },
   Transport: { bg: 'bg-emerald-600/30', border: 'border-emerald-500/60', text: 'text-emerald-300', dot: 'bg-emerald-400' },
   Editing:   { bg: 'bg-amber-600/30',   border: 'border-amber-500/60',   text: 'text-amber-300',   dot: 'bg-amber-400' },
   Marking:   { bg: 'bg-rose-600/30',    border: 'border-rose-500/60',    text: 'text-rose-300',    dot: 'bg-rose-400' },
-  Timeline:  { bg: 'bg-blue-600/30',  border: 'border-blue-500/60',  text: 'text-blue-300',  dot: 'bg-blue-400' },
+  Timeline:  { bg: 'bg-amber-600/30',  border: 'border-amber-500/60',  text: 'text-amber-300',  dot: 'bg-amber-400' },
 }
 
 // Keys that are modifier indicators (not assignable targets)
@@ -335,8 +335,8 @@ export function KeyboardShortcutsModal() {
       <div className="w-[880px] max-h-[90vh] bg-zinc-900 rounded-xl border border-zinc-700/80 shadow-2xl flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center gap-3 px-5 py-3 border-b border-zinc-800 bg-zinc-900/95">
-          <div className="w-8 h-8 rounded-lg bg-blue-600/20 flex items-center justify-center">
-            <Keyboard className="h-4 w-4 text-blue-400" />
+          <div className="w-8 h-8 rounded-lg bg-amber-600/20 flex items-center justify-center">
+            <Keyboard className="h-4 w-4 text-amber-400" />
           </div>
           <div className="flex-1">
             <h2 className="text-sm font-semibold text-white">Keyboard Shortcuts</h2>
@@ -345,7 +345,7 @@ export function KeyboardShortcutsModal() {
           <button
             onClick={() => setShowKeyboard(!showKeyboard)}
             className={`px-2.5 py-1 text-[10px] font-medium rounded-md transition-colors ${
-              showKeyboard ? 'bg-blue-600/20 text-blue-300' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
+              showKeyboard ? 'bg-amber-600/20 text-amber-300' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
             }`}
           >
             {showKeyboard ? 'Hide Keyboard' : 'Show Keyboard'}
@@ -372,7 +372,7 @@ export function KeyboardShortcutsModal() {
                   <div
                     key={p.id}
                     className={`flex items-center gap-1 hover:bg-zinc-700 transition-colors ${
-                      p.id === activePresetId ? 'bg-blue-600/15' : ''
+                      p.id === activePresetId ? 'bg-amber-600/15' : ''
                     }`}
                   >
                     <button
@@ -381,7 +381,7 @@ export function KeyboardShortcutsModal() {
                         setShowPresetDropdown(false)
                       }}
                       className={`flex-1 text-left px-3 py-2 text-[11px] ${
-                        p.id === activePresetId ? 'text-blue-300' : 'text-zinc-300'
+                        p.id === activePresetId ? 'text-amber-300' : 'text-zinc-300'
                       }`}
                     >
                       <div className="font-medium">{p.name}</div>
@@ -421,7 +421,7 @@ export function KeyboardShortcutsModal() {
               placeholder="Search actions or keys..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 bg-zinc-800 rounded-md text-[11px] text-white placeholder-zinc-600 outline-none border border-zinc-700/40 focus:border-blue-500/50 transition-colors"
+              className="w-full pl-8 pr-3 py-1.5 bg-zinc-800 rounded-md text-[11px] text-white placeholder-zinc-600 outline-none border border-zinc-700/40 focus:border-amber-500/50 transition-colors"
             />
           </div>
 
@@ -460,7 +460,7 @@ export function KeyboardShortcutsModal() {
                       setShowSaveDialog(false)
                     }
                   }}
-                  className="w-full px-2 py-1.5 bg-zinc-900 rounded text-[11px] text-white placeholder-zinc-600 outline-none border border-zinc-700 focus:border-blue-500 mb-2"
+                  className="w-full px-2 py-1.5 bg-zinc-900 rounded text-[11px] text-white placeholder-zinc-600 outline-none border border-zinc-700 focus:border-amber-500 mb-2"
                   autoFocus
                 />
                 <button
@@ -472,7 +472,7 @@ export function KeyboardShortcutsModal() {
                     }
                   }}
                   disabled={!savePresetName.trim()}
-                  className="w-full py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white text-[11px] font-medium rounded transition-colors"
+                  className="w-full py-1.5 bg-amber-600 hover:bg-amber-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white text-[11px] font-medium rounded transition-colors"
                 >
                   Save Preset
                 </button>
@@ -507,7 +507,7 @@ export function KeyboardShortcutsModal() {
                   onClick={mod.toggle}
                   className={`px-3 py-1 rounded text-[10px] font-bold transition-all ${
                     mod.active
-                      ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20'
+                      ? 'bg-amber-500 text-zinc-950 shadow-lg shadow-amber-600/20'
                       : 'bg-zinc-800 text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300 border border-zinc-700/50'
                   }`}
                 >
@@ -559,15 +559,15 @@ export function KeyboardShortcutsModal() {
                           ${isModifier
                             ? 'bg-zinc-800/60 border-zinc-700/40 cursor-default'
                             : isDropTarget
-                              ? 'bg-blue-600/40 border-blue-400 ring-1 ring-blue-400 scale-105'
+                              ? 'bg-amber-600/40 border-amber-400 ring-1 ring-amber-400 scale-105'
                               : isHighlighted
-                                ? 'bg-blue-600/30 border-blue-500 ring-1 ring-blue-400/50'
+                                ? 'bg-amber-600/30 border-amber-500 ring-1 ring-amber-400/50'
                                 : hasConflict
                                   ? 'bg-amber-900/30 border-amber-600/60'
                                   : assigned && catColors
                                     ? `${catColors.bg} ${catColors.border}`
                                     : isDragging && !isModifier
-                                      ? 'bg-zinc-800/80 border-zinc-600/80 border-dashed hover:border-blue-500/60 hover:bg-zinc-700/50'
+                                      ? 'bg-zinc-800/80 border-zinc-600/80 border-dashed hover:border-amber-500/60 hover:bg-zinc-700/50'
                                       : 'bg-zinc-850 border-zinc-700/50 hover:border-zinc-600'
                           }
                           ${!isModifier ? 'cursor-pointer' : ''}
@@ -590,7 +590,7 @@ export function KeyboardShortcutsModal() {
                         <span className={`text-[9px] font-medium leading-none ${
                           isModifier ? 'text-zinc-600' :
                           assigned && catColors ? catColors.text :
-                          isHighlighted ? 'text-blue-300' :
+                          isHighlighted ? 'text-amber-300' :
                           'text-zinc-500'
                         }`}>
                           {kbKey.label}
@@ -616,7 +616,7 @@ export function KeyboardShortcutsModal() {
 
             {/* Drag hint */}
             {draggedActionId && (
-              <div className="text-center mt-2 text-[10px] text-blue-400 animate-pulse">
+              <div className="text-center mt-2 text-[10px] text-amber-400 animate-pulse">
                 Drop on a key to assign — current modifiers: {
                   [kbModCtrl && 'Ctrl', kbModShift && 'Shift', kbModAlt && 'Alt'].filter(Boolean).join('+') || 'None'
                 }
@@ -630,7 +630,7 @@ export function KeyboardShortcutsModal() {
           <button
             onClick={() => setSelectedCategory(null)}
             className={`px-2.5 py-1 rounded-md text-[10px] font-medium transition-colors ${
-              !selectedCategory ? 'bg-blue-600/20 text-blue-300' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
+              !selectedCategory ? 'bg-amber-600/20 text-amber-300' : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
             }`}
           >
             All
@@ -681,8 +681,8 @@ export function KeyboardShortcutsModal() {
                       onMouseEnter={() => setHoveredActionId(action.id)}
                       onMouseLeave={() => setHoveredActionId(null)}
                       className={`flex items-center gap-3 px-4 py-2 border-b border-zinc-800/30 transition-colors select-none ${
-                        isRecording ? 'bg-blue-950/30' :
-                        draggedActionId === action.id ? 'bg-blue-600/20 ring-1 ring-blue-500/50' :
+                        isRecording ? 'bg-amber-950/30' :
+                        draggedActionId === action.id ? 'bg-amber-600/20 ring-1 ring-amber-500/50' :
                         hoveredActionId === action.id ? 'bg-zinc-800/40' :
                         'hover:bg-zinc-800/30'
                       } ${!isRecording ? 'cursor-grab active:cursor-grabbing' : ''}`}
@@ -690,7 +690,7 @@ export function KeyboardShortcutsModal() {
                       {/* Drag handle */}
                       {!isRecording && (
                         <GripVertical className={`h-3 w-3 flex-shrink-0 ${
-                          draggedActionId === action.id ? 'text-blue-400 cursor-grabbing' : 'text-zinc-700 cursor-grab'
+                          draggedActionId === action.id ? 'text-amber-400 cursor-grabbing' : 'text-zinc-700 cursor-grab'
                         }`} />
                       )}
 
@@ -713,8 +713,8 @@ export function KeyboardShortcutsModal() {
                       {/* Current binding(s) */}
                       <div className="flex items-center gap-1.5">
                         {isRecording ? (
-                          <div className="flex items-center gap-2 px-3 py-1 bg-blue-600/20 border border-blue-500/50 rounded-md animate-pulse">
-                            <span className="text-[11px] text-blue-300">Press a key...</span>
+                          <div className="flex items-center gap-2 px-3 py-1 bg-amber-600/20 border border-amber-500/50 rounded-md animate-pulse">
+                            <span className="text-[11px] text-amber-300">Press a key...</span>
                             <button
                               onClick={(e) => { e.stopPropagation(); setRecordingAction(null) }}
                               className="text-zinc-500 hover:text-white"
@@ -753,7 +753,7 @@ export function KeyboardShortcutsModal() {
                         <div className="flex items-center gap-1 ml-2">
                           <button
                             onClick={() => setRecordingAction(action.id)}
-                            className="px-2 py-0.5 text-[10px] text-zinc-500 hover:text-blue-400 hover:bg-blue-600/10 rounded transition-colors"
+                            className="px-2 py-0.5 text-[10px] text-zinc-500 hover:text-amber-400 hover:bg-amber-600/10 rounded transition-colors"
                           >
                             Edit
                           </button>
@@ -782,7 +782,7 @@ export function KeyboardShortcutsModal() {
           </span>
           <button
             onClick={() => setEditorOpen(false)}
-            className="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-medium rounded-md transition-colors"
+            className="px-4 py-1.5 bg-amber-500 hover:bg-amber-400 text-zinc-950 text-[11px] font-medium rounded-md transition-colors"
           >
             Done
           </button>

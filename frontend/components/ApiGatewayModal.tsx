@@ -29,7 +29,7 @@ export interface ApiGatewayModalProps {
 const KEY_TYPE_META: Record<ApiKeyType, { icon: typeof Zap; iconClass: string; chipClass: string }> = {
   ltx: {
     icon: Zap,
-    iconClass: 'text-blue-400',
+    iconClass: 'text-amber-400',
     chipClass: 'bg-amber-500/10 text-amber-300',
   },
   replicate: {
@@ -116,7 +116,7 @@ export function ApiGatewayModal({
       <div className="w-full max-w-[620px] rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl overflow-hidden">
         <div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/15 text-blue-300">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/15 text-amber-300">
               <KeyRound className="h-4 w-4" />
             </div>
             <h2 className="text-base font-semibold text-zinc-100">{title}</h2>
@@ -176,7 +176,7 @@ export function ApiGatewayModal({
                         <button
                           onClick={() => handleSave(section)}
                           disabled={!canSubmit}
-                          className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-500 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                          className="px-3 py-2 bg-amber-500 text-zinc-950 text-sm rounded-lg hover:bg-amber-500 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
                         >
                           {saving ? 'Saving...' : 'Save Key'}
                         </button>
@@ -208,7 +208,7 @@ export function ApiGatewayModal({
             <div className="flex justify-end">
               <button
                 onClick={onClose}
-                className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-500 transition-colors"
+                className="px-4 py-2 bg-amber-500 text-zinc-950 text-sm rounded-lg hover:bg-amber-500 transition-colors"
               >
                 Done
               </button>

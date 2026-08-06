@@ -71,7 +71,7 @@ export function ImageUploader({ onImageSelect, selectedImage }: ImageUploaderPro
         className={cn(
           'relative border border-dashed border-zinc-600 rounded-lg cursor-pointer transition-colors',
           'hover:border-zinc-500',
-          isDragActive && 'border-blue-500 bg-blue-500/5',
+          isDragActive && 'border-amber-500 bg-amber-500/5',
           selectedImage ? 'p-3' : 'p-6'
         )}
       >
@@ -117,7 +117,7 @@ export function ImageUploader({ onImageSelect, selectedImage }: ImageUploaderPro
           <div className="flex items-center gap-4">
             <div className="p-3 bg-zinc-700 rounded-lg">
               {isDragActive ? (
-                <Upload className="h-6 w-6 text-blue-400" />
+                <Upload className="h-6 w-6 text-amber-400" />
               ) : (
                 <ImageIcon className="h-6 w-6 text-zinc-400" />
               )}
@@ -127,7 +127,7 @@ export function ImageUploader({ onImageSelect, selectedImage }: ImageUploaderPro
                 Drag image file here
               </p>
               <p className="text-sm text-zinc-500">
-                Or <span className="text-blue-400 underline">upload a file</span>
+                Or <span className="text-amber-400 underline">upload a file</span>
               </p>
             </div>
           </div>

@@ -429,7 +429,7 @@ export function ExportModal({ open, onClose, clips, tracks, timeline, projectNam
           {exportStatus === 'exporting' && (
             <div className="space-y-4">
               <div className="flex items-center gap-3">
-                <Loader2 className="h-5 w-5 text-blue-400 animate-spin" />
+                <Loader2 className="h-5 w-5 text-amber-400 animate-spin" />
                 <span className="text-sm text-zinc-300">
                   {exportType === 'package' ? 'Generating FCPXML...' : 'Rendering video...'}
                 </span>
@@ -568,7 +568,7 @@ export function ExportModal({ open, onClose, clips, tracks, timeline, projectNam
                       onClick={() => handleCodecChange(codec)}
                       className={`p-2.5 rounded-lg border text-center transition-all ${
                         settings.codec === codec
-                          ? 'border-blue-500 bg-blue-500/10 text-white'
+                          ? 'border-amber-500 bg-amber-500/10 text-white'
                           : 'border-zinc-700 bg-zinc-800/50 text-zinc-400 hover:border-zinc-600 hover:text-zinc-300'
                       }`}
                     >
@@ -595,7 +595,7 @@ export function ExportModal({ open, onClose, clips, tracks, timeline, projectNam
                         const [w, h] = e.target.value.split('x').map(Number)
                         setSettings(prev => ({ ...prev, width: w, height: h }))
                       }}
-                      className="w-full appearance-none bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 pr-8 cursor-pointer"
+                      className="w-full appearance-none bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 pr-8 cursor-pointer"
                     >
                       {RESOLUTION_GROUPS.map(g => (
                         <optgroup key={g.group} label={g.group}>
@@ -622,7 +622,7 @@ export function ExportModal({ open, onClose, clips, tracks, timeline, projectNam
                     <select
                       value={settings.fps}
                       onChange={(e) => setSettings(prev => ({ ...prev, fps: parseInt(e.target.value) }))}
-                      className="w-full appearance-none bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-blue-500 pr-8 cursor-pointer"
+                      className="w-full appearance-none bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-amber-500 pr-8 cursor-pointer"
                     >
                       {FRAME_RATES.map(fps => (
                         <option key={fps} value={fps}>{fps} fps</option>
@@ -645,7 +645,7 @@ export function ExportModal({ open, onClose, clips, tracks, timeline, projectNam
                       step={1}
                       value={settings.quality}
                       onChange={(e) => setSettings(prev => ({ ...prev, quality: parseInt(e.target.value) }))}
-                      className="flex-1 h-1.5 accent-blue-500 cursor-pointer"
+                      className="flex-1 h-1.5 accent-amber-500 cursor-pointer"
                       // Note: lower CRF = higher quality (inverted display)
                     />
                     <span className="text-xs text-zinc-400 w-16 text-right">
@@ -662,7 +662,7 @@ export function ExportModal({ open, onClose, clips, tracks, timeline, projectNam
                         onClick={() => setSettings(prev => ({ ...prev, quality: p.value }))}
                         className={`py-1.5 px-2 rounded-md text-xs font-medium transition-all ${
                           settings.quality === p.value
-                            ? 'bg-blue-500/20 border border-blue-500 text-blue-300'
+                            ? 'bg-amber-500/20 border border-amber-500 text-amber-300'
                             : 'bg-zinc-800 border border-zinc-700 text-zinc-400 hover:border-zinc-600'
                         }`}
                       >
@@ -680,7 +680,7 @@ export function ExportModal({ open, onClose, clips, tracks, timeline, projectNam
                       step={1}
                       value={settings.quality}
                       onChange={(e) => setSettings(prev => ({ ...prev, quality: parseInt(e.target.value) }))}
-                      className="flex-1 h-1.5 accent-blue-500 cursor-pointer"
+                      className="flex-1 h-1.5 accent-amber-500 cursor-pointer"
                     />
                     <span className="text-xs text-zinc-400 w-20 text-right">
                       {settings.quality} Mbps
@@ -702,7 +702,7 @@ export function ExportModal({ open, onClose, clips, tracks, timeline, projectNam
                       type="checkbox"
                       checked={burnSubtitles}
                       onChange={(e) => setBurnSubtitles(e.target.checked)}
-                      className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 accent-blue-500 cursor-pointer"
+                      className="w-4 h-4 rounded border-zinc-600 bg-zinc-800 accent-amber-500 cursor-pointer"
                     />
                     <span className="text-xs text-zinc-300 group-hover:text-white transition-colors">Burn-in subtitles</span>
                   </label>

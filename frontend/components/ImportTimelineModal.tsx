@@ -231,8 +231,8 @@ export function ImportTimelineModal({ isOpen, onClose, onImport }: ImportTimelin
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-blue-600/20 flex items-center justify-center">
-              <Upload className="h-4 w-4 text-blue-400" />
+            <div className="w-8 h-8 rounded-lg bg-amber-600/20 flex items-center justify-center">
+              <Upload className="h-4 w-4 text-amber-400" />
             </div>
             <div>
               <h2 className="text-base font-semibold text-white">Import Timeline</h2>
@@ -253,10 +253,10 @@ export function ImportTimelineModal({ isOpen, onClose, onImport }: ImportTimelin
             <div className="space-y-6">
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-zinc-700 hover:border-blue-500/50 rounded-xl p-10 text-center cursor-pointer transition-colors group"
+                className="border-2 border-dashed border-zinc-700 hover:border-amber-500/50 rounded-xl p-10 text-center cursor-pointer transition-colors group"
               >
-                <div className="w-14 h-14 rounded-full bg-zinc-800 group-hover:bg-blue-900/30 flex items-center justify-center mx-auto mb-4 transition-colors">
-                  <FileText className="h-7 w-7 text-zinc-500 group-hover:text-blue-400 transition-colors" />
+                <div className="w-14 h-14 rounded-full bg-zinc-800 group-hover:bg-amber-900/30 flex items-center justify-center mx-auto mb-4 transition-colors">
+                  <FileText className="h-7 w-7 text-zinc-500 group-hover:text-amber-400 transition-colors" />
                 </div>
                 <p className="text-sm text-zinc-300 font-medium mb-1">Click to select timeline file</p>
                 <p className="text-xs text-zinc-600">Supports .xml (FCP 7 XML), .fcpxml, .edl (CMX 3600)</p>
@@ -273,9 +273,9 @@ export function ImportTimelineModal({ isOpen, onClose, onImport }: ImportTimelin
               <div className="bg-zinc-800/50 rounded-lg p-4 space-y-2">
                 <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">How to export from your NLE:</h4>
                 <div className="space-y-1.5 text-[11px] text-zinc-500">
-                  <p><span className="text-blue-400 font-medium">Premiere Pro:</span> File → Export → Final Cut Pro XML</p>
+                  <p><span className="text-amber-400 font-medium">Premiere Pro:</span> File → Export → Final Cut Pro XML</p>
                   <p><span className="text-orange-400 font-medium">DaVinci Resolve:</span> File → Export Timeline → EDL (.edl) or FCP 7 XML (.xml)</p>
-                  <p><span className="text-blue-400 font-medium">Final Cut Pro:</span> File → Export XML</p>
+                  <p><span className="text-amber-400 font-medium">Final Cut Pro:</span> File → Export XML</p>
                   <p className="text-zinc-600 pt-1 border-t border-zinc-700/50 mt-2">
                     AAF files are binary and cannot be imported directly. Please export as XML instead.
                   </p>
@@ -287,7 +287,7 @@ export function ImportTimelineModal({ isOpen, onClose, onImport }: ImportTimelin
           {/* Parsing indicator */}
           {step === 'parsing' && (
             <div className="flex flex-col items-center justify-center py-16">
-              <Loader2 className="h-8 w-8 text-blue-400 animate-spin mb-4" />
+              <Loader2 className="h-8 w-8 text-amber-400 animate-spin mb-4" />
               <p className="text-sm text-zinc-400">Parsing timeline...</p>
             </div>
           )}
@@ -419,7 +419,7 @@ export function ImportTimelineModal({ isOpen, onClose, onImport }: ImportTimelin
                           className={`flex items-center gap-2 px-3 py-2 text-[11px] ${i % 2 === 0 ? 'bg-zinc-800/30' : 'bg-zinc-900/30'}`}
                         >
                           <TypeIcon className={`h-3.5 w-3.5 flex-shrink-0 ${
-                            ref.type === 'video' ? 'text-blue-400' : ref.type === 'audio' ? 'text-green-400' : 'text-blue-400'
+                            ref.type === 'video' ? 'text-amber-400' : ref.type === 'audio' ? 'text-green-400' : 'text-amber-400'
                           }`} />
                           
                           <div className="flex-1 min-w-0">
@@ -489,7 +489,7 @@ export function ImportTimelineModal({ isOpen, onClose, onImport }: ImportTimelin
               </button>
               <button
                 onClick={handleConfirmImport}
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-500 transition-colors font-medium flex items-center gap-2"
+                className="px-4 py-2 rounded-lg bg-amber-500 text-zinc-950 text-sm hover:bg-amber-500 transition-colors font-medium flex items-center gap-2"
               >
                 <Upload className="h-3.5 w-3.5" />
                 Import Timeline

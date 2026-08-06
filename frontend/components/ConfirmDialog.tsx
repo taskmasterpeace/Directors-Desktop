@@ -85,7 +85,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
             <div className="flex items-start gap-3">
               <div
                 className={`mt-0.5 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full ${
-                  destructive ? 'bg-red-500/15 text-red-400' : 'bg-blue-500/15 text-blue-400'
+                  destructive ? 'bg-red-500/15 text-red-400' : 'bg-amber-500/15 text-amber-400'
                 }`}
               >
                 <AlertTriangle className="h-5 w-5" />

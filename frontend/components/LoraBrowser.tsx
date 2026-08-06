@@ -192,7 +192,7 @@ export function LoraBrowser({ isOpen, onClose, onSelectLora }: LoraBrowserProps)
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
           <div className="flex items-center gap-3">
-            <Package className="w-5 h-5 text-blue-400" />
+            <Package className="w-5 h-5 text-amber-400" />
             <h2 className="text-sm font-semibold text-zinc-200">LoRA Library</h2>
           </div>
           <button aria-label="Close" onClick={onClose} className="p-1 text-zinc-500 hover:text-zinc-300 rounded-lg hover:bg-zinc-800">
@@ -208,7 +208,7 @@ export function LoraBrowser({ isOpen, onClose, onSelectLora }: LoraBrowserProps)
               onClick={() => setActiveTab(tab)}
               className={`px-4 py-1.5 text-xs font-medium rounded-lg transition-colors ${
                 activeTab === tab
-                  ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
+                  ? 'bg-amber-600/20 text-amber-400 border border-amber-500/30'
                   : 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800'
               }`}
             >
@@ -280,7 +280,7 @@ function BrowseTab({
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && onSearch()}
             placeholder="Search LoRAs on CivitAI..."
-            className="w-full pl-9 pr-3 py-2 text-xs bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-blue-500/50"
+            className="w-full pl-9 pr-3 py-2 text-xs bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-amber-500/50"
           />
         </div>
         <select
@@ -306,7 +306,7 @@ function BrowseTab({
         <button
           onClick={onSearch}
           disabled={isSearching}
-          className="px-4 py-2 text-xs font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-lg disabled:opacity-50 transition-colors"
+          className="px-4 py-2 text-xs font-medium bg-amber-500 hover:bg-amber-400 text-zinc-950 rounded-lg disabled:opacity-50 transition-colors"
         >
           {isSearching ? 'Searching...' : 'Search'}
         </button>
@@ -407,7 +407,7 @@ function CivitaiCard({ item, isDownloading, onDownload }: {
             <button
               onClick={onDownload}
               disabled={isDownloading}
-              className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium bg-blue-600 hover:bg-blue-500 text-white rounded-md disabled:opacity-50 transition-colors"
+              className="flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium bg-amber-500 hover:bg-amber-400 text-zinc-950 rounded-md disabled:opacity-50 transition-colors"
             >
               <Download className="w-3 h-3" />
               {isDownloading ? 'Downloading...' : 'Download'}
@@ -442,7 +442,7 @@ function LibraryTab({ library, backendUrl: _backendUrl, onSelect, onDelete }: {
       {library.map(entry => (
         <div
           key={entry.id}
-          className="group relative bg-zinc-800/50 border border-zinc-700/50 rounded-xl overflow-hidden hover:border-blue-500/40 cursor-pointer transition-colors"
+          className="group relative bg-zinc-800/50 border border-zinc-700/50 rounded-xl overflow-hidden hover:border-amber-500/40 cursor-pointer transition-colors"
           onClick={() => onSelect(entry)}
         >
           {/* Thumbnail */}

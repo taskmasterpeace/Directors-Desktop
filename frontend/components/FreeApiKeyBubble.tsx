@@ -57,7 +57,7 @@ export function FreeApiKeyBubble({
             prompt enhancement.{' '}
             <button
               onClick={handleGoToSettings}
-              className="text-blue-400 hover:text-blue-300 underline underline-offset-2 transition-colors"
+              className="text-amber-400 hover:text-amber-300 underline underline-offset-2 transition-colors"
             >
               Get a free LTX API key
             </button>{' '}

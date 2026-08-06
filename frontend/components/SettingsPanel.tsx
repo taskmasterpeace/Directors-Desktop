@@ -192,7 +192,7 @@ export function SettingsPanel({
             value={settings.variations || 1}
             onChange={(e) => handleChange('variations', parseInt(e.target.value))}
             disabled={disabled}
-            className="w-full h-1.5 bg-zinc-700 rounded-full appearance-none cursor-pointer accent-blue-500"
+            className="w-full h-1.5 bg-zinc-700 rounded-full appearance-none cursor-pointer accent-amber-500"
           />
           <div className="flex justify-between text-[10px] text-zinc-600">
             <span>1</span>
@@ -210,7 +210,7 @@ export function SettingsPanel({
               type="button"
               disabled={disabled}
               onClick={() => setLoraBrowserOpen(true)}
-              className="flex-1 px-3 py-1.5 text-xs text-left bg-zinc-800 border border-zinc-700 rounded-lg hover:border-blue-500/40 truncate disabled:opacity-50"
+              className="flex-1 px-3 py-1.5 text-xs text-left bg-zinc-800 border border-zinc-700 rounded-lg hover:border-amber-500/40 truncate disabled:opacity-50"
             >
               {settings.loraPath
                 ? settings.loraPath.split(/[/\\]/).pop()
@@ -289,7 +289,7 @@ export function SettingsPanel({
                     value={settings.loraWeight ?? 1.0}
                     onChange={(e) => onSettingsChange({ ...settings, loraWeight: parseFloat(e.target.value) })}
                     disabled={disabled}
-                    className="w-24 h-1.5 bg-zinc-700 rounded-full appearance-none cursor-pointer accent-blue-500"
+                    className="w-24 h-1.5 bg-zinc-700 rounded-full appearance-none cursor-pointer accent-amber-500"
                   />
                   <span className="text-xs text-zinc-500 w-8 text-right">{(settings.loraWeight ?? 1.0).toFixed(2)}</span>
                 </div>
@@ -317,7 +317,7 @@ export function SettingsPanel({
                         } catch { /* cancelled or parse error */ }
                       }}
                       disabled={disabled}
-                      className="text-[10px] text-blue-400 hover:text-blue-300"
+                      className="text-[10px] text-amber-400 hover:text-amber-300"
                     >
                       Load from config
                     </button>
@@ -357,7 +357,7 @@ export function SettingsPanel({
                             active
                               ? mode === 'off'
                                 ? 'bg-zinc-700 border-zinc-600 text-zinc-300'
-                                : 'bg-blue-600/20 border-blue-500/40 text-blue-400'
+                                : 'bg-amber-600/20 border-amber-500/40 text-amber-400'
                               : 'bg-zinc-800/50 border-zinc-700/50 text-zinc-600 hover:text-zinc-400 hover:border-zinc-600'
                           } disabled:opacity-50`}
                         >
@@ -435,7 +435,7 @@ export function SettingsPanel({
                 handleChange('duration', Math.max(1, Math.min(maxExactDuration, v)))
               }}
               disabled={disabled}
-              className="w-full px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-blue-500 disabled:opacity-50"
+              className="w-full px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm focus:outline-none focus:border-amber-500 disabled:opacity-50"
             />
           </div>
         ) : (
@@ -506,7 +506,7 @@ export function SettingsPanel({
             }
           }}
           disabled={disabled}
-          className="mt-0.5 h-3.5 w-3.5 rounded border-zinc-600 bg-zinc-800 accent-blue-500"
+          className="mt-0.5 h-3.5 w-3.5 rounded border-zinc-600 bg-zinc-800 accent-amber-500"
         />
         <span className="text-xs text-zinc-300">
           Exact length — return exactly {settings.duration}s

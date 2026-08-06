@@ -162,7 +162,7 @@ export function ModelStatusDropdown({ className = '' }: ModelStatusDropdownProps
         `}
       >
         {isDownloading && (
-          <Loader2 className="h-3.5 w-3.5 text-blue-400 animate-spin" />
+          <Loader2 className="h-3.5 w-3.5 text-amber-400 animate-spin" />
         )}
         {isReady && !isDownloading && (
           <div className="w-2 h-2 bg-green-500 rounded-full" />
@@ -184,7 +184,7 @@ export function ModelStatusDropdown({ className = '' }: ModelStatusDropdownProps
         </span>
 
         {isDownloading && (
-          <span className="text-xs text-blue-400 font-semibold">
+          <span className="text-xs text-amber-400 font-semibold">
             {downloadProgress?.totalProgress || 0}%
           </span>
         )}
@@ -209,16 +209,16 @@ export function ModelStatusDropdown({ className = '' }: ModelStatusDropdownProps
 
           {/* Download Progress (if downloading) */}
           {isDownloading && downloadProgress && (
-            <div className="px-4 py-3 bg-blue-500/5 border-b border-zinc-800">
+            <div className="px-4 py-3 bg-amber-500/5 border-b border-zinc-800">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-blue-300 font-medium">Downloading</span>
-                <span className="text-xs text-blue-400">{(downloadProgress.speedBytesPerSec / (1024 * 1024)).toFixed(1)} MB/s</span>
+                <span className="text-xs text-amber-300 font-medium">Downloading</span>
+                <span className="text-xs text-amber-400">{(downloadProgress.speedBytesPerSec / (1024 * 1024)).toFixed(1)} MB/s</span>
               </div>
 
               {/* Progress bar */}
               <div className="h-2 bg-zinc-800 rounded-full overflow-hidden mb-2">
                 <div
-                  className="h-full bg-gradient-to-r from-blue-500 via-blue-500 to-blue-500 transition-all duration-300"
+                  className="h-full bg-gradient-to-r from-amber-500 via-amber-500 to-amber-500 transition-all duration-300"
                   style={{ width: `${downloadProgress.totalProgress}%` }}
                 />
               </div>
@@ -279,7 +279,7 @@ export function ModelStatusDropdown({ className = '' }: ModelStatusDropdownProps
             <div className="px-4 py-3 border-t border-zinc-800 bg-zinc-800/30">
               <button
                 onClick={startDownload}
-                className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                className="w-full py-2 px-4 bg-amber-500 hover:bg-amber-400 text-zinc-950 text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
               >
                 <Download className="h-4 w-4" />
                 Download Missing Models

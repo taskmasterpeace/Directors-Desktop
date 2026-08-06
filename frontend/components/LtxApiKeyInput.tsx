@@ -24,7 +24,7 @@ export const LtxApiKeyInput = forwardRef<HTMLInputElement, LtxApiKeyInputProps>(
           onClick={stopPropagation ? (e) => e.stopPropagation() : undefined}
           placeholder={placeholder}
           autoComplete="off"
-          className="w-full rounded-lg border border-zinc-700 bg-zinc-900 py-2.5 pl-9 pr-3 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full rounded-lg border border-zinc-700 bg-zinc-900 py-2.5 pl-9 pr-3 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
         />
       </div>
     )
@@ -48,7 +48,7 @@ export function ApiKeyHelperRow({ stopPropagation, label = 'Get API key', onOpen
           if (stopPropagation) e.stopPropagation()
           onOpenKey?.()
         }}
-        className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
+        className="inline-flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300"
       >
         {label}
         <ExternalLink className="h-3 w-3" />

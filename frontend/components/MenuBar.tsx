@@ -139,7 +139,7 @@ export function MenuBar({ menus, rightContent }: MenuBarProps) {
         className={`w-full flex items-center justify-between px-3 py-1.5 text-left text-[13px] transition-colors ${
           item.disabled
             ? 'text-zinc-600 cursor-not-allowed'
-            : 'text-zinc-200 hover:bg-blue-600 hover:text-white'
+            : 'text-zinc-200 hover:bg-amber-500 hover:text-zinc-950'
         }`}
       >
         <span>{item.label}</span>
@@ -217,7 +217,7 @@ export function MenuBar({ menus, rightContent }: MenuBarProps) {
                               onClick={() => handleSearchResultClick(result.item)}
                               className={`w-full flex items-center justify-between px-2 py-1.5 text-left text-[12px] rounded transition-colors ${
                                 i === highlightedResult
-                                  ? 'bg-blue-600 text-white'
+                                  ? 'bg-amber-500 text-zinc-950'
                                   : 'text-zinc-300 hover:bg-zinc-800'
                               }`}
                             >

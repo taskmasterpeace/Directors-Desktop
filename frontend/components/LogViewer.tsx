@@ -109,7 +109,7 @@ export function LogViewer({ isOpen, onClose, embedded = false }: LogViewerProps)
               variant="ghost"
               size="sm"
               onClick={() => setAutoScroll(!autoScroll)}
-              className={`${autoScroll ? 'text-blue-400' : 'text-zinc-400'} hover:text-white`}
+              className={`${autoScroll ? 'text-amber-400' : 'text-zinc-400'} hover:text-white`}
               title={autoScroll ? 'Auto-scroll enabled' : 'Auto-scroll disabled'}
             >
               {autoScroll ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
@@ -146,7 +146,7 @@ export function LogViewer({ isOpen, onClose, embedded = false }: LogViewerProps)
                 } else if (line.includes(' - WARNING - ')) {
                   lineClass = 'text-yellow-400'
                 } else if (line.includes(' - INFO - ')) {
-                  lineClass = 'text-blue-300'
+                  lineClass = 'text-amber-300'
                 } else if (line.includes(' - DEBUG - ')) {
                   lineClass = 'text-zinc-500'
                 }

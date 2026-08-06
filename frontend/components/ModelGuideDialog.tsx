@@ -35,8 +35,8 @@ interface ModelGuideDialogProps {
 
 const QUALITY_COLORS: Record<string, string> = {
   'Best': 'bg-green-500/20 text-green-400 border-green-500/30',
-  'Excellent': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
-  'Very Good': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
+  'Excellent': 'bg-amber-500/20 text-amber-400 border-amber-500/30',
+  'Very Good': 'bg-amber-500/20 text-amber-400 border-amber-500/30',
   'Good': 'bg-amber-500/20 text-amber-400 border-amber-500/30',
 }
 
@@ -97,7 +97,7 @@ export function ModelGuideDialog({ isOpen, onClose }: ModelGuideDialogProps) {
         <div className="p-6 space-y-6">
           {loading && (
             <div className="flex items-center justify-center py-12">
-              <div className="h-6 w-6 rounded-full border-2 border-blue-500 border-t-transparent animate-spin" />
+              <div className="h-6 w-6 rounded-full border-2 border-amber-500 border-t-transparent animate-spin" />
               <span className="ml-3 text-sm text-zinc-400">Loading recommendations…</span>
             </div>
           )}
@@ -113,7 +113,7 @@ export function ModelGuideDialog({ isOpen, onClose }: ModelGuideDialogProps) {
             <>
               {/* GPU Banner */}
               <div className="flex items-center gap-3 rounded-lg bg-zinc-800/60 border border-zinc-700/50 px-4 py-3">
-                <Monitor className="h-5 w-5 text-blue-400 flex-shrink-0" />
+                <Monitor className="h-5 w-5 text-amber-400 flex-shrink-0" />
                 <div>
                   {guide.gpu_name ? (
                     <p className="text-sm font-medium text-white">
@@ -129,7 +129,7 @@ export function ModelGuideDialog({ isOpen, onClose }: ModelGuideDialogProps) {
                   )}
                   <p className="text-xs text-zinc-500 mt-0.5">
                     Best pick for your GPU:{' '}
-                    <span className="text-blue-300 font-medium">
+                    <span className="text-amber-300 font-medium">
                       {guide.formats.find(f => f.id === guide.recommended_format)?.name ?? guide.recommended_format}
                     </span>
                   </p>
@@ -156,13 +156,13 @@ export function ModelGuideDialog({ isOpen, onClose }: ModelGuideDialogProps) {
                         key={fmt.id}
                         className={`relative flex flex-col gap-3 rounded-lg border p-4 transition-colors ${
                           isRecommended
-                            ? 'bg-blue-500/10 border-blue-500/40'
+                            ? 'bg-amber-500/10 border-amber-500/40'
                             : 'bg-zinc-800/40 border-zinc-700/50'
                         }`}
                       >
                         {/* Recommended pill */}
                         {isRecommended && (
-                          <span className="absolute top-3 right-3 rounded-full bg-blue-600/30 border border-blue-500/40 px-2 py-0.5 text-[10px] font-semibold text-blue-300 uppercase tracking-wide">
+                          <span className="absolute top-3 right-3 rounded-full bg-amber-600/30 border border-amber-500/40 px-2 py-0.5 text-[10px] font-semibold text-amber-300 uppercase tracking-wide">
                             Recommended
                           </span>
                         )}
@@ -194,7 +194,7 @@ export function ModelGuideDialog({ isOpen, onClose }: ModelGuideDialogProps) {
                           onClick={() => window.open(fmt.download_url, '_blank')}
                           className={`w-full gap-1.5 text-xs ${
                             isRecommended
-                              ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                              ? 'bg-amber-600 hover:bg-amber-700 text-white'
                               : 'bg-zinc-700 hover:bg-zinc-600 text-white'
                           }`}
                         >

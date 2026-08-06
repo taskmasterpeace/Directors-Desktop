@@ -395,7 +395,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex shrink-0 items-center gap-2 px-3.5 py-3 text-sm font-medium whitespace-nowrap transition-colors ${
                   activeTab === tab.id
-                    ? 'text-white border-b-2 border-blue-500 -mb-px'
+                    ? 'text-white border-b-2 border-amber-500 -mb-px'
                     : 'text-zinc-400 hover:text-white'
                 }`}
               >
@@ -413,7 +413,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
               {/* Text Encoding Section */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
-                  <svg className="h-4 w-4 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg className="h-4 w-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M15 7h3a5 5 0 0 1 5 5 5 5 0 0 1-5 5h-3m-6 0H6a5 5 0 0 1-5-5 5 5 0 0 1 5-5h3" />
                     <line x1="8" y1="12" x2="16" y2="12" />
                   </svg>
@@ -428,7 +428,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                 {/* Local Encoder Option */}
                 <div
                   className={`bg-zinc-800/50 rounded-lg p-4 border-2 transition-colors cursor-pointer ${
-                    settings.useLocalTextEncoder ? 'border-blue-500' : 'border-transparent hover:border-zinc-600'
+                    settings.useLocalTextEncoder ? 'border-amber-500' : 'border-transparent hover:border-zinc-600'
                   }`}
                   onClick={() => !settings.useLocalTextEncoder && handleToggleLocalEncoder()}
                 >
@@ -446,7 +446,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       </p>
                     </div>
                     <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                      settings.useLocalTextEncoder ? 'border-blue-500 bg-blue-500' : 'border-zinc-600'
+                      settings.useLocalTextEncoder ? 'border-amber-500 bg-amber-500' : 'border-zinc-600'
                     }`}>
                       {settings.useLocalTextEncoder && <Check className="h-3 w-3 text-white" />}
                     </div>
@@ -461,8 +461,8 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                           <span>Downloaded ({textEncoderStatus.size_gb} GB)</span>
                         </div>
                       ) : isDownloading ? (
-                        <div className="flex items-center gap-2 text-xs text-blue-400">
-                          <div className="w-4 h-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+                        <div className="flex items-center gap-2 text-xs text-amber-400">
+                          <div className="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin" />
                           <span>Downloading text encoder...</span>
                         </div>
                       ) : (
@@ -477,7 +477,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                               e.stopPropagation()
                               handleDownloadTextEncoder()
                             }}
-                            className="w-full bg-blue-600 hover:bg-blue-500 text-white text-xs"
+                            className="w-full bg-amber-500 hover:bg-amber-400 text-zinc-950 text-xs"
                           >
                             <Download className="h-3 w-3 mr-2" />
                             Download Text Encoder
@@ -528,7 +528,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <svg className="h-4 w-4 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <svg className="h-4 w-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83" />
                       </svg>
                       <label className="text-sm font-medium text-white">
@@ -547,7 +547,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                   <button
                     onClick={handleToggleLoadOnStartup}
                     className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      settings.loadOnStartup ? 'bg-blue-500' : 'bg-zinc-700'
+                      settings.loadOnStartup ? 'bg-amber-500' : 'bg-zinc-700'
                     }`}
                   >
                     <span
@@ -561,11 +561,11 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                 {/* Status indicator */}
                 <div className={`text-xs px-2 py-1 rounded inline-flex items-center gap-1.5 ${
                   settings.loadOnStartup
-                    ? 'bg-blue-500/10 text-blue-400'
+                    ? 'bg-amber-500/10 text-amber-400'
                     : 'bg-zinc-800 text-zinc-500'
                 }`}>
                   <div className={`w-1.5 h-1.5 rounded-full ${
-                    settings.loadOnStartup ? 'bg-blue-400' : 'bg-zinc-600'
+                    settings.loadOnStartup ? 'bg-amber-400' : 'bg-zinc-600'
                   }`} />
                   {settings.loadOnStartup ? 'Models preload in background at startup' : 'Models load on first generation'}
                 </div>
@@ -695,7 +695,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <svg className="h-4 w-4 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <svg className="h-4 w-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <line x1="18" y1="20" x2="18" y2="10" />
                         <line x1="12" y1="20" x2="12" y2="4" />
                         <line x1="6" y1="20" x2="6" y2="14" />
@@ -714,7 +714,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                   <button
                     onClick={handleToggleAnalytics}
                     className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      analyticsEnabled ? 'bg-blue-500' : 'bg-zinc-700'
+                      analyticsEnabled ? 'bg-amber-500' : 'bg-zinc-700'
                     }`}
                   >
                     <span
@@ -766,7 +766,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                         setReplicateApiKeyInput('')
                       }}
                       disabled={!replicateApiKeyInput.trim()}
-                      className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-500 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                      className="px-3 py-2 bg-amber-500 text-zinc-950 text-sm rounded-lg hover:bg-amber-500 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
                     >
                       Save Key
                     </button>
@@ -801,7 +801,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                     <select
                       value={getImageModel(settings.imageModel).id}
                       onChange={(e) => { void saveImageModel(e.target.value) }}
-                      className="w-full bg-zinc-900 text-white text-sm rounded-lg px-3 py-2 border border-zinc-700 focus:border-blue-500 focus:outline-none"
+                      className="w-full bg-zinc-900 text-white text-sm rounded-lg px-3 py-2 border border-zinc-700 focus:border-amber-500 focus:outline-none"
                     >
                       {listImageModelGroups().map((group) => (
                         <optgroup key={group.label} label={group.label}>
@@ -856,7 +856,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                         setFalApiKeyInput('')
                       }}
                       disabled={!falApiKeyInput.trim()}
-                      className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-500 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                      className="px-3 py-2 bg-amber-500 text-zinc-950 text-sm rounded-lg hover:bg-amber-500 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
                     >
                       Save Key
                     </button>
@@ -886,7 +886,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
               {/* Gemini API Key Section */}
               <div className="space-y-4 pt-4 border-t border-zinc-800">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-blue-400" />
+                  <Sparkles className="h-4 w-4 text-amber-400" />
                   <h3 className="text-sm font-semibold text-white">Gemini API</h3>
                 </div>
 
@@ -903,7 +903,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       onChange={(e) => setGeminiApiKeyInput(e.target.value)}
                       placeholder={settings.hasGeminiApiKey ? 'Enter new key to replace...' : 'Enter your Gemini API key...'}
                       onKeyDown={(e) => e.stopPropagation()}
-                      className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                     />
                     <button
                       onClick={() => {
@@ -913,7 +913,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                         setGeminiApiKeyInput('')
                       }}
                       disabled={!geminiApiKeyInput.trim()}
-                      className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-500 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                      className="px-3 py-2 bg-amber-500 text-zinc-950 text-sm rounded-lg hover:bg-amber-500 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
                     >
                       Save Key
                     </button>
@@ -942,7 +942,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       href="https://aistudio.google.com/app/apikey"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-400 hover:text-blue-300 transition-colors underline underline-offset-2"
+                      className="text-amber-400 hover:text-amber-300 transition-colors underline underline-offset-2"
                       onClick={(e) => e.stopPropagation()}
                     >
                       Get Gemini API key →
@@ -970,7 +970,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       onChange={(e) => setOpenrouterApiKeyInput(e.target.value)}
                       placeholder={settings.hasOpenrouterApiKey ? 'Enter new key to replace...' : 'Enter your OpenRouter API key...'}
                       onKeyDown={(e) => e.stopPropagation()}
-                      className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="flex-1 px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                     />
                     <button
                       onClick={() => {
@@ -980,7 +980,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                         setOpenrouterApiKeyInput('')
                       }}
                       disabled={!openrouterApiKeyInput.trim()}
-                      className="px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-500 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
+                      className="px-3 py-2 bg-amber-500 text-zinc-950 text-sm rounded-lg hover:bg-amber-500 disabled:bg-zinc-700 disabled:text-zinc-500 disabled:cursor-not-allowed transition-colors whitespace-nowrap"
                     >
                       Save Key
                     </button>
@@ -1009,7 +1009,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       href="https://openrouter.ai/keys"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-400 hover:text-blue-300 transition-colors underline underline-offset-2"
+                      className="text-amber-400 hover:text-amber-300 transition-colors underline underline-offset-2"
                       onClick={(e) => e.stopPropagation()}
                     >
                       Get OpenRouter API key →
@@ -1121,7 +1121,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       <button
                         onClick={handleSyncLoras}
                         disabled={loraSyncing}
-                        className="px-3 py-1.5 rounded-lg text-xs bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-50 transition-colors"
+                        className="px-3 py-1.5 rounded-lg text-xs bg-amber-500 hover:bg-amber-400 text-zinc-950 disabled:opacity-50 transition-colors"
                       >
                         {loraSyncing ? 'Syncing LoRAs...' : 'Sync LoRAs'}
                       </button>
@@ -1380,7 +1380,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
               {/* Pro Model Settings */}
               <div className="space-y-4 pt-4 border-t border-zinc-800">
                 <div className="flex items-center gap-2">
-                  <svg className="h-4 w-4 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <svg className="h-4 w-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
                   </svg>
                   <h3 className="text-sm font-semibold text-white">Pro Model (Full)</h3>
@@ -1399,7 +1399,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       max="100"
                       value={settings.proModel?.steps ?? 20}
                       onChange={handleProStepsChange}
-                      className="w-20 px-3 py-1.5 bg-zinc-700 border border-zinc-600 rounded-lg text-sm text-white text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-20 px-3 py-1.5 bg-zinc-700 border border-zinc-600 rounded-lg text-sm text-white text-center focus:outline-none focus:ring-2 focus:ring-amber-500"
                     />
                   </div>
 
@@ -1412,7 +1412,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                     <button
                       onClick={handleProUpscalerToggle}
                       className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                        settings.proModel?.useUpscaler !== false ? 'bg-blue-500' : 'bg-zinc-700'
+                        settings.proModel?.useUpscaler !== false ? 'bg-amber-500' : 'bg-zinc-700'
                       }`}
                     >
                       <span
@@ -1433,7 +1433,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
               {/* Info Box */}
               <div className="bg-zinc-800/30 rounded-lg p-3 mt-4">
                 <p className="text-xs text-zinc-400">
-                  <span className="text-blue-400 font-medium">Tip:</span> Lower steps = faster but lower quality.
+                  <span className="text-amber-400 font-medium">Tip:</span> Lower steps = faster but lower quality.
                   Higher steps = better quality but slower.
                 </p>
               </div>
@@ -1444,7 +1444,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
             <>
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-blue-400" />
+                  <Sparkles className="h-4 w-4 text-amber-400" />
                   <h3 className="text-sm font-semibold text-white">Prompt Enhancer</h3>
                 </div>
 
@@ -1469,7 +1469,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       </div>
                       <button
                         onClick={() => setActiveTab('apiKeys')}
-                        className="w-full mt-1 px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors"
+                        className="w-full mt-1 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-zinc-950 text-sm font-medium rounded-lg transition-colors"
                       >
                         Open API Keys
                       </button>
@@ -1483,7 +1483,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       onClick={() => handleTogglePromptEnhancer('t2v')}
                     >
                       <div className="flex items-center gap-3">
-                        <span className="text-xs font-semibold text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded">T2V</span>
+                        <span className="text-xs font-semibold text-amber-400 bg-amber-400/10 px-1.5 py-0.5 rounded">T2V</span>
                         <div>
                           <span className="text-sm text-zinc-200">Text-to-Video</span>
                           <p className="text-[10px] text-zinc-500 mt-0.5">
@@ -1492,7 +1492,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                         </div>
                       </div>
                       <div className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
-                        settings.promptEnhancerEnabledT2V ? 'bg-blue-500' : 'bg-zinc-700'
+                        settings.promptEnhancerEnabledT2V ? 'bg-amber-500' : 'bg-zinc-700'
                       }`}>
                         <div className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform pointer-events-none ${
                           settings.promptEnhancerEnabledT2V ? 'translate-x-5' : 'translate-x-0'
@@ -1515,7 +1515,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                         </div>
                       </div>
                       <div className={`relative w-11 h-6 rounded-full transition-colors flex-shrink-0 ${
-                        settings.promptEnhancerEnabledI2V ? 'bg-blue-500' : 'bg-zinc-700'
+                        settings.promptEnhancerEnabledI2V ? 'bg-amber-500' : 'bg-zinc-700'
                       }`}>
                         <div className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform pointer-events-none ${
                           settings.promptEnhancerEnabledI2V ? 'translate-x-5' : 'translate-x-0'
@@ -1533,13 +1533,13 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
               {/* GPU Info Banner */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
-                  <Cpu className="h-4 w-4 text-blue-400" />
+                  <Cpu className="h-4 w-4 text-amber-400" />
                   <h3 className="text-sm font-semibold text-white">GPU Info</h3>
                 </div>
                 <div className="bg-zinc-800/50 rounded-lg p-4 border border-zinc-700/50">
                   {gpuInfo ? (
                     <div className="flex items-center gap-3">
-                      <Cpu className="h-5 w-5 text-blue-400 flex-shrink-0" />
+                      <Cpu className="h-5 w-5 text-amber-400 flex-shrink-0" />
                       <div>
                         <p className="text-sm font-medium text-white">{gpuInfo.name ?? 'Unknown GPU'}</p>
                         {gpuInfo.vram !== null && (
@@ -1556,7 +1556,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
               {/* Video Model Selection */}
               <div className="space-y-3 pt-4 border-t border-zinc-800">
                 <div className="flex items-center gap-2">
-                  <Film className="h-4 w-4 text-blue-400" />
+                  <Film className="h-4 w-4 text-amber-400" />
                   <h3 className="text-sm font-semibold text-white">Video Model</h3>
                 </div>
                 <select
@@ -1575,7 +1575,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       logger.error(`Failed to select video model: ${err}`)
                     }
                   }}
-                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                 >
                   <option value="">-- Select a model --</option>
                   {videoModels.map((m: any) => (
@@ -1607,7 +1607,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                       return (
                         <div
                           key={m.path ?? m.filename ?? m.name}
-                          className={`rounded-lg border p-3 ${isSelected ? 'bg-blue-500/10 border-blue-500/40' : 'bg-zinc-800/40 border-zinc-700/50'}`}
+                          className={`rounded-lg border p-3 ${isSelected ? 'bg-amber-500/10 border-amber-500/40' : 'bg-zinc-800/40 border-zinc-700/50'}`}
                         >
                           <div className="flex items-center justify-between gap-2">
                             <span className="text-xs font-medium text-white">
@@ -1623,7 +1623,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                     })}
                     <button
                       onClick={() => setShowModelGuide(true)}
-                      className="text-[11px] text-blue-400 hover:text-blue-300 underline underline-offset-2"
+                      className="text-[11px] text-amber-400 hover:text-amber-300 underline underline-offset-2"
                     >
                       Which model should I download for my card? →
                     </button>
@@ -1712,7 +1712,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
               <div className="pt-2">
                 <button
                   onClick={() => setShowModelGuide(true)}
-                  className="w-full px-4 py-2.5 bg-blue-600/20 hover:bg-blue-600/30 border border-blue-500/30 text-blue-400 text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+                  className="w-full px-4 py-2.5 bg-amber-600/20 hover:bg-amber-600/30 border border-amber-500/30 text-amber-400 text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
                 >
                   <Info className="h-4 w-4" />
                   Which Model Do I Need?
@@ -1769,7 +1769,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                   {/* License */}
                   <div className="bg-zinc-800/50 rounded-lg p-4 space-y-2">
                     <div className="flex items-center gap-2">
-                      <Info className="h-4 w-4 text-blue-400" />
+                      <Info className="h-4 w-4 text-amber-400" />
                       <span className="text-sm font-medium text-white">License</span>
                     </div>
                     <p className="text-xs text-zinc-400">
@@ -1780,7 +1780,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                   {/* LTX-2 Model License */}
                   <div className="bg-zinc-800/50 rounded-lg p-4 space-y-3">
                     <div className="flex items-center gap-2">
-                      <svg className="h-4 w-4 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <svg className="h-4 w-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
                       </svg>
                       <span className="text-sm font-medium text-white">LTX-2 Model License</span>
@@ -1801,7 +1801,7 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                   {/* Third-Party Notices */}
                   <div className="bg-zinc-800/50 rounded-lg p-4 space-y-3">
                     <div className="flex items-center gap-2">
-                      <svg className="h-4 w-4 text-blue-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <svg className="h-4 w-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
                         <polyline points="14 2 14 8 20 8" />
                         <line x1="16" y1="13" x2="8" y2="13" />

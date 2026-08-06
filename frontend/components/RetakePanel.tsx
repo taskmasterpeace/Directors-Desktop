@@ -387,7 +387,7 @@ export function RetakePanel({
     <div className={`bg-zinc-900 border border-zinc-800 rounded-2xl overflow-hidden flex flex-col ${fillHeight ? 'h-full min-h-0' : ''}`}>
       <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800 flex-shrink-0">
         <div className="flex items-center gap-2">
-          <Film className="h-4 w-4 text-blue-400" />
+          <Film className="h-4 w-4 text-amber-400" />
           <span className="text-sm font-semibold text-white">Retake</span>
           {videoPath && (
             <span className="text-xs text-zinc-500 truncate max-w-[240px]">
@@ -418,7 +418,7 @@ export function RetakePanel({
       {!videoUrl ? (
         <div
           className={`p-8 flex flex-col items-center justify-center gap-3 border-2 border-dashed rounded-xl m-4 transition-colors ${
-            isDragOver ? 'border-blue-500 bg-blue-500/10' : 'border-zinc-700'
+            isDragOver ? 'border-amber-500 bg-amber-500/10' : 'border-zinc-700'
           }`}
           onDragOver={(e) => { e.preventDefault(); setIsDragOver(true) }}
           onDragLeave={() => setIsDragOver(false)}
@@ -540,7 +540,7 @@ export function RetakePanel({
               />
 
               <div
-                className="absolute top-0 bottom-0 border-2 border-blue-500 pointer-events-none"
+                className="absolute top-0 bottom-0 border-2 border-amber-500 pointer-events-none"
                 style={{
                   left: `${selStartFrac * 100}%`,
                   width: `${(selEndFrac - selStartFrac) * 100}%`,
@@ -552,11 +552,11 @@ export function RetakePanel({
                 style={{ left: `calc(${selStartFrac * 100}% - 6px)`, width: '20px' }}
                 onMouseDown={(e) => handleFilmstripMouseDown(e, 'start')}
               >
-                <div className="absolute top-0 bottom-0 bg-blue-500 group-hover:bg-blue-400 transition-colors"
+                <div className="absolute top-0 bottom-0 bg-amber-500 group-hover:bg-amber-400 transition-colors"
                   style={{ left: '5px', width: '4px', borderRadius: '2px 0 0 2px' }}
                 />
-                <div className="absolute top-0 bg-blue-500 group-hover:bg-blue-400 transition-colors" style={{ left: '5px', width: '10px', height: '3px', borderRadius: '2px 0 0 0' }} />
-                <div className="absolute bottom-0 bg-blue-500 group-hover:bg-blue-400 transition-colors" style={{ left: '5px', width: '10px', height: '3px', borderRadius: '0 0 0 2px' }} />
+                <div className="absolute top-0 bg-amber-500 group-hover:bg-amber-400 transition-colors" style={{ left: '5px', width: '10px', height: '3px', borderRadius: '2px 0 0 0' }} />
+                <div className="absolute bottom-0 bg-amber-500 group-hover:bg-amber-400 transition-colors" style={{ left: '5px', width: '10px', height: '3px', borderRadius: '0 0 0 2px' }} />
               </div>
 
               <div
@@ -564,11 +564,11 @@ export function RetakePanel({
                 style={{ left: `calc(${selEndFrac * 100}% - 14px)`, width: '20px' }}
                 onMouseDown={(e) => handleFilmstripMouseDown(e, 'end')}
               >
-                <div className="absolute top-0 bottom-0 bg-blue-500 group-hover:bg-blue-400 transition-colors"
+                <div className="absolute top-0 bottom-0 bg-amber-500 group-hover:bg-amber-400 transition-colors"
                   style={{ right: '5px', width: '4px', borderRadius: '0 2px 2px 0' }}
                 />
-                <div className="absolute top-0 bg-blue-500 group-hover:bg-blue-400 transition-colors" style={{ right: '5px', width: '10px', height: '3px', borderRadius: '0 2px 0 0' }} />
-                <div className="absolute bottom-0 bg-blue-500 group-hover:bg-blue-400 transition-colors" style={{ right: '5px', width: '10px', height: '3px', borderRadius: '0 0 2px 0' }} />
+                <div className="absolute top-0 bg-amber-500 group-hover:bg-amber-400 transition-colors" style={{ right: '5px', width: '10px', height: '3px', borderRadius: '0 2px 0 0' }} />
+                <div className="absolute bottom-0 bg-amber-500 group-hover:bg-amber-400 transition-colors" style={{ right: '5px', width: '10px', height: '3px', borderRadius: '0 0 2px 0' }} />
               </div>
 
               <div
@@ -590,17 +590,17 @@ export function RetakePanel({
             </div>
 
               <div className="flex justify-between mt-1.5">
-                <span className="text-[10px] font-mono text-blue-400">{formatTimecode(selStart)}</span>
+                <span className="text-[10px] font-mono text-amber-400">{formatTimecode(selStart)}</span>
                 <span className="text-[10px] font-mono text-zinc-500">Duration: {formatTimecode(selDuration)}</span>
-                <span className="text-[10px] font-mono text-blue-400">{formatTimecode(selEnd)}</span>
+                <span className="text-[10px] font-mono text-amber-400">{formatTimecode(selEnd)}</span>
               </div>
             </div>
 
             {isProcessing && (
               <div className="px-4 pb-4">
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-600/10 border border-blue-500/20">
-                  <Loader2 className="h-3.5 w-3.5 text-blue-400 animate-spin flex-shrink-0" />
-                  <span className="text-xs text-blue-300">{processingStatus || 'Processing retake...'}</span>
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-600/10 border border-amber-500/20">
+                  <Loader2 className="h-3.5 w-3.5 text-amber-400 animate-spin flex-shrink-0" />
+                  <span className="text-xs text-amber-300">{processingStatus || 'Processing retake...'}</span>
                 </div>
               </div>
             )}

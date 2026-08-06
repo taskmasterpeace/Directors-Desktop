@@ -79,7 +79,7 @@ export function ImageResult({
             {/* Model badge */}
             {modelName && (
               <div className="absolute bottom-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-sm border border-white/10 z-10">
-                <div className="w-2 h-2 rounded-full bg-blue-400" />
+                <div className="w-2 h-2 rounded-full bg-amber-400" />
                 <span className="text-[11px] font-medium text-white/80">{MODEL_DISPLAY_NAMES[modelName] || modelName}</span>
               </div>
             )}
