@@ -637,7 +637,7 @@ export function Playground() {
                 onKeyDown={(e) => { if (atAutocomplete.onKeyDown(e)) e.preventDefault() }}
                 onSelect={() => atAutocomplete.sync()}
                 onBlur={() => atAutocomplete.close()}
-                helperText="Longer, detailed prompts lead to better, more accurate results."
+                helperText="Type @ to drop in your Characters & References · longer, detailed prompts get better results."
                 charCount={prompt.length}
                 maxChars={5000}
               />
