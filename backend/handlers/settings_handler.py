@@ -116,6 +116,7 @@ class SettingsHandler(StateHandlerBase):
             "openrouter_api_key",
             "replicate_api_key",
             "palette_api_key",
+            "palette_generation_key",
             "fal_api_key",
         ):
             if key_field in patch_payload and patch_payload[key_field] == "":

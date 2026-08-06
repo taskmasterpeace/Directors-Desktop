@@ -85,6 +85,47 @@ class JobQueue:
             self._save()
         return job
 
+    def reorder_queued(self, ordered_ids: list[str]) -> list[QueueJob]:
+        """Rearrange QUEUED jobs into the given id order (dispatch order is
+        simply list order). Running/finished jobs keep their positions; ids
+        that are unknown or no longer queued are ignored — a job may start
+        between the user's drag and the drop. Returns the queued jobs in
+        their new order."""
+        with self._lock:
+            queued = [j for j in self._jobs if j.status == "queued"]
+            by_id = {j.id: j for j in queued}
+            picked = [by_id[i] for i in ordered_ids if i in by_id]
+            remainder = [j for j in queued if j.id not in set(ordered_ids)]
+            new_queued = picked + remainder
+            it = iter(new_queued)
+            self._jobs = [next(it) if j.status == "queued" else j for j in self._jobs]
+            self._save()
+            return new_queued
+
+    def update_queued_job(
+        self,
+        job_id: str,
+        *,
+        params: dict[str, Any] | None = None,
+        model: str | None = None,
+        slot: str | None = None,
+    ) -> QueueJob | None:
+        """Edit a job that has NOT started (edit-before-render). Returns the
+        updated job, or None when the job is unknown or already past 'queued'
+        — the caller turns that into a 409 so a job never mutates mid-flight."""
+        with self._lock:
+            job = self.get_job(job_id)
+            if job is None or job.status != "queued":
+                return None
+            if params is not None:
+                job.params = params
+            if model is not None:
+                job.model = model
+                if slot is not None:
+                    job.slot = slot  # type: ignore[assignment]
+            self._save()
+            return job
+
     def _prune_finished(self) -> None:
         """Drop the oldest finished jobs beyond the retention cap.
 

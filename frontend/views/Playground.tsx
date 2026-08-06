@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Sparkles, Trash2, Square, ImageIcon, ArrowLeft, Scissors, Wand2 } from 'lucide-react'
+import { Sparkles, Trash2, Square, ImageIcon, ArrowLeft, Scissors, Wand2, ListPlus, Pencil } from 'lucide-react'
 import { logger } from '../lib/logger'
 import { ImageUploader } from '../components/ImageUploader'
 import { AudioUploader } from '../components/AudioUploader'
@@ -13,7 +13,7 @@ import { ModeTabs, type GenerationMode } from '../components/ModeTabs'
 import { LtxLogo } from '../components/LtxLogo'
 import { ModelStatusDropdown } from '../components/ModelStatusDropdown'
 import { ModelWarmthPill } from '../components/ModelWarmthPill'
-import { QueueTimers } from '../components/QueueTimers'
+import { PlaygroundQueueStrip } from '../components/PlaygroundQueueStrip'
 import {
   estimateRenderSeconds,
   estimateTotalSeconds,
@@ -23,7 +23,7 @@ import {
 } from '../lib/generation-cost'
 import { Textarea } from '../components/ui/textarea'
 import { Button } from '../components/ui/button'
-import { useGeneration } from '../hooks/use-generation'
+import { useGeneration, type QueueJob } from '../hooks/use-generation'
 import { useRetake } from '../hooks/use-retake'
 import { useBackend } from '../hooks/use-backend'
 import { useProjects } from '../contexts/ProjectContext'
@@ -34,7 +34,7 @@ import { AtAutocompleteDropdown } from '../components/AtAutocompleteDropdown'
 import { useAtCaretAutocomplete } from '../hooks/useAtCaretAutocomplete'
 import { useMentionOptions } from '../hooks/useMentionOptions'
 import { fileUrlToPath } from '../lib/url-to-path'
-import { conditioningConflictMessage } from '../lib/video-models'
+import { conditioningConflictMessage, getVideoModel } from '../lib/video-models'
 import { sanitizeForcedApiVideoSettings } from '../lib/api-video-options'
 import { RetakePanel } from '../components/RetakePanel'
 
@@ -70,6 +70,18 @@ export function Playground() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [selectedAudio, setSelectedAudio] = useState<string | null>(null)
   const [settings, setSettings] = useState<GenerationSettings>(() => ({ ...DEFAULT_SETTINGS }))
+  // Queue work surface: the pending job being edited, and the image-mode
+  // "then animate the result" chain toggle.
+  const [editingJob, setEditingJob] = useState<QueueJob | null>(null)
+  const [thenAnimate, setThenAnimate] = useState(false)
+
+  // Esc backs out of edit-before-render without touching the pending job.
+  useEffect(() => {
+    if (!editingJob) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setEditingJob(null) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [editingJob])
   const [firstFrameUrl, setFirstFrameUrl] = useState<string | null>(null)
   const [firstFramePath, setFirstFramePath] = useState<string | null>(null)
   const [lastFrameUrl, setLastFrameUrl] = useState<string | null>(null)
@@ -173,7 +185,6 @@ export function Playground() {
     lastModel,
     activeModel,
     coldStart,
-    jobs,
   } = useGeneration()
 
   const {
@@ -259,6 +270,19 @@ export function Playground() {
       const photos = settings.referenceImagePaths ?? []
       if (activeQuickMode) {
         if (photos.length === 0) return // toggle row shows the attach hint
+        const imageOpts = {
+          ...PLAYGROUND_TAGS,
+          ...(thenAnimate
+            ? {
+                thenAnimate: {
+                  model: String(settings.model),
+                  duration: settings.duration,
+                  resolution: settings.videoResolution,
+                  aspectRatio: settings.aspectRatio || '16:9',
+                },
+              }
+            : {}),
+        }
         const applied = applyQuickMode(activeQuickMode, prompt, photos)
         generateImage(applied.prompt, {
           ...settings,
@@ -266,11 +290,23 @@ export function Playground() {
           imageAspectRatio: applied.imageAspectRatio,
           imageModelParams: applied.imageModelParams,
           referenceImagePaths: applied.referenceImagePaths,
-        }, PLAYGROUND_TAGS)
+        }, imageOpts)
         return
       }
       if (!prompt.trim()) return
-      generateImage(prompt, settings, PLAYGROUND_TAGS)
+      generateImage(prompt, settings, {
+        ...PLAYGROUND_TAGS,
+        ...(thenAnimate
+          ? {
+              thenAnimate: {
+                model: String(settings.model),
+                duration: settings.duration,
+                resolution: settings.videoResolution,
+                aspectRatio: settings.aspectRatio || '16:9',
+              },
+            }
+          : {}),
+      })
     } else {
       const effectiveVideoSettings = shouldVideoGenerateWithLtxApi
         ? sanitizeForcedApiVideoSettings(settings)
@@ -359,6 +395,74 @@ export function Playground() {
         ? (settings.referenceImagePaths?.length ?? 0) > 0 // the recipe brings its own prompt
         : !!prompt.trim()
   )
+
+  // "+ Queue" is allowed WHILE a render runs — that is its whole point.
+  const canQueue = processStatus === 'alive' && !isRetakeMode && mode !== 'text-to-image' && !!prompt.trim()
+
+  const handleQueue = () => {
+    if (!canQueue) return
+    const effectiveVideoSettings = shouldVideoGenerateWithLtxApi
+      ? sanitizeForcedApiVideoSettings(settings)
+      : settings
+    const hasVideoRefs = (settings.videoReferencePaths?.length ?? 0) > 0
+    const isSeedance2Model =
+      effectiveVideoSettings.model === 'seedance-2.0' || effectiveVideoSettings.model === 'seedance-2.0-fast'
+    if (hasVideoRefs && !isSeedance2Model) {
+      setPreflightError(
+        'Video references require Seedance 2.0. Switch the model to Seedance 2.0 (or remove the @Video reference) and generate again.',
+      )
+      return
+    }
+    setPreflightError(null)
+    const imagePath = selectedImage ? fileUrlToPath(selectedImage) : (firstFramePath || null)
+    const audioPath = selectedAudio ? fileUrlToPath(selectedAudio) : null
+    if (audioPath) effectiveVideoSettings.model = 'pro'
+    void generate(prompt, imagePath, effectiveVideoSettings, audioPath, lastFramePath, {
+      ...PLAYGROUND_TAGS,
+      enqueueOnly: true,
+    })
+  }
+
+  // Edit-before-render: a queued shot loaded back into the real form.
+  const handleEditQueuedJob = (job: QueueJob) => {
+    setEditingJob(job)
+    const p = job.params
+    if (typeof p.prompt === 'string') setPrompt(p.prompt)
+    setSettings(prev => ({
+      ...prev,
+      model: job.model as GenerationSettings['model'],
+      duration: Number(p.duration ?? prev.duration) || prev.duration,
+      videoResolution: typeof p.resolution === 'string' ? p.resolution : prev.videoResolution,
+      aspectRatio: (typeof p.aspectRatio === 'string' ? p.aspectRatio : prev.aspectRatio) as GenerationSettings['aspectRatio'],
+    }))
+  }
+
+  const handleUpdateQueuedShot = async () => {
+    if (!editingJob) return
+    try {
+      const backendUrl = await window.electronAPI.getBackendUrl()
+      const res = await fetch(`${backendUrl}/api/queue/${editingJob.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: settings.model,
+          params: {
+            ...editingJob.params,
+            prompt,
+            duration: String(settings.duration),
+            resolution: settings.videoResolution,
+            aspectRatio: settings.aspectRatio || '16:9',
+          },
+        }),
+      })
+      if (res.status === 409) {
+        setPreflightError('That shot already started rendering — edits only apply while queued.')
+      }
+    } catch {
+      // The strip's next poll reconciles whatever actually happened.
+    }
+    setEditingJob(null)
+  }
 
   // Compute estimated credit cost for current generation
   const estimatedCostCents = (() => {
@@ -636,15 +740,48 @@ export function Playground() {
                 Clear all
               </Button>
               
-              {isGenerating ? (
-                <Button
-                  onClick={cancel}
-                  className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500 text-white"
-                >
-                  <Square className="h-4 w-4" />
-                  Stop generation
-                </Button>
+              {editingJob ? (
+                <>
+                  <Button
+                    onClick={() => void handleUpdateQueuedShot()}
+                    disabled={!prompt.trim()}
+                    className="flex-1 flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-400 text-zinc-950 disabled:bg-zinc-700 disabled:text-zinc-500"
+                  >
+                    <Pencil className="h-4 w-4" />
+                    Update queued shot
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => setEditingJob(null)}
+                    className="border-zinc-700 bg-zinc-800 text-white hover:bg-zinc-700"
+                  >
+                    Cancel
+                  </Button>
+                </>
+              ) : isGenerating ? (
+                <>
+                  <Button
+                    onClick={cancel}
+                    className="flex-1 flex items-center justify-center gap-2 bg-red-600 hover:bg-red-500 text-white"
+                  >
+                    <Square className="h-4 w-4" />
+                    Stop generation
+                  </Button>
+                  {mode !== 'text-to-image' && !isRetakeMode && (
+                    <Button
+                      variant="outline"
+                      onClick={handleQueue}
+                      disabled={!canQueue}
+                      title="Queue this shot to render after the current one — keep composing"
+                      className="flex items-center gap-2 border-amber-500/40 bg-zinc-800 text-amber-300 hover:bg-zinc-700 disabled:opacity-50"
+                    >
+                      <ListPlus className="h-4 w-4" />
+                      + Queue
+                    </Button>
+                  )}
+                </>
               ) : (
+                <>
                 <Button
                   onClick={handleGenerate}
                   disabled={!canGenerate}
@@ -670,8 +807,42 @@ export function Playground() {
                     </>
                   )}
                 </Button>
+                {mode !== 'text-to-image' && !isRetakeMode && (
+                  <Button
+                    variant="outline"
+                    onClick={handleQueue}
+                    disabled={!canQueue}
+                    title="Add this shot to the queue and keep composing"
+                    className="flex items-center gap-2 border-amber-500/40 bg-zinc-800 text-amber-300 hover:bg-zinc-700 disabled:opacity-50"
+                  >
+                    <ListPlus className="h-4 w-4" />
+                    + Queue
+                  </Button>
+                )}
+                </>
               )}
             </div>
+
+            {/* Edit-before-render banner */}
+            {editingJob && (
+              <p className="mt-2 text-xs text-amber-300 border border-amber-500/40 bg-amber-500/10 rounded-md px-2.5 py-1.5">
+                Editing queued shot — Update saves your changes to the pending render · Esc or Cancel leaves it untouched.
+              </p>
+            )}
+
+            {/* Then-Animate: chain a video job onto the image via the queue's
+                dependency engine — it waits for the image and animates it. */}
+            {mode === 'text-to-image' && !isRetakeMode && (
+              <label className="mt-2 flex items-center gap-2 text-xs text-zinc-400 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={thenAnimate}
+                  onChange={e => setThenAnimate(e.target.checked)}
+                  className="accent-amber-500"
+                />
+                Then animate the result ({getVideoModel(String(settings.model))?.displayName ?? settings.model} · {settings.duration}s — queued automatically)
+              </label>
+            )}
 
             {/* Registry-driven compensation: say when this model will ignore
                 one of the attached images, before the render is paid for. */}
@@ -733,7 +904,9 @@ export function Playground() {
           )}
 
           {/* Palette-style per-job queue timers (queued + running video jobs). */}
-          {mode !== 'text-to-image' && <QueueTimers jobs={jobs} />}
+          {/* The queue as a work surface: thumbnails, prompts, reorder/edit/
+              duplicate/remove, and the finished-→-Gallery trail. */}
+          <PlaygroundQueueStrip onEditJob={handleEditQueuedJob} />
         </div>
       </main>
     </div>

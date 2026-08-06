@@ -101,6 +101,20 @@ export interface GenerateOptions {
    *  Gen Space or ["playground"] — lets surfaces adopt completed renders
    *  after navigation and lets the Gallery group by owner. */
   tags?: string[]
+  /** Pin a specific seed (reproduce a take). Omitted = fresh random roll. */
+  seed?: number
+  /** Fire-and-forget: submit the job to the queue WITHOUT taking over the
+   *  result panel — the "+ Queue" flow. The queue strip shows its progress. */
+  enqueueOnly?: boolean
+  /** After an image job, auto-queue a video job that waits on it and animates
+   *  the result (depends_on + "$dep.result_paths[0]" — worker machinery that
+   *  already existed; see docs/plans queue ideas #2). */
+  thenAnimate?: {
+    model: string
+    duration: number
+    resolution: string
+    aspectRatio: string
+  }
 }
 
 /** True when the job's engine will render warm given the current comfy state. */
@@ -538,26 +552,28 @@ export function useGeneration(): UseGenerationReturn {
         ? 'Generating video with Seedance...'
         : 'Generating video...'
 
-    startedAtRef.current = null
-    // Fresh comfy-engine reading so the ETA and cold-start note are honest for
-    // THIS render, not a stale idea of what was loaded earlier.
-    await refreshComfyState()
-    const coldStart = !isComfyWarmFor(settings.model, comfyRef.current)
-    setState(prev => ({
-      ...prev,
-      isGenerating: true,
-      progress: 0,
-      statusMessage: statusMsg,
-      elapsedSeconds: 0,
-      estimatedSeconds: null,
-      videoUrl: null,
-      videoPath: null,
-      imageUrl: null,
-      imageUrls: [],
-      error: null,
-      activeModel: settings.model,
-      coldStart,
-    }))
+    if (!opts?.enqueueOnly) {
+      startedAtRef.current = null
+      // Fresh comfy-engine reading so the ETA and cold-start note are honest for
+      // THIS render, not a stale idea of what was loaded earlier.
+      await refreshComfyState()
+      const coldStart = !isComfyWarmFor(settings.model, comfyRef.current)
+      setState(prev => ({
+        ...prev,
+        isGenerating: true,
+        progress: 0,
+        statusMessage: statusMsg,
+        elapsedSeconds: 0,
+        estimatedSeconds: null,
+        videoUrl: null,
+        videoPath: null,
+        imageUrl: null,
+        imageUrls: [],
+        error: null,
+        activeModel: settings.model,
+        coldStart,
+      }))
+    }
 
     try {
       const backendUrl = await window.electronAPI.getBackendUrl()
@@ -565,6 +581,12 @@ export function useGeneration(): UseGenerationReturn {
       // Use the local long_video pipeline for durations > 8s with a source image.
       // Cloud Seedance models handle long durations themselves, so never route them here.
       const useLongVideo = !isSeedance && settings.duration > 8 && imagePath && !audioPath && !lastFramePath
+
+      // A fresh seed per submission: the local engines default to a FIXED seed
+      // when none is sent, so "run it again" reproduced the identical video
+      // byte-for-byte. Riding the seed on the job also lets queue cards show
+      // it and lets duplicate deliberately re-roll for a new take.
+      const seed = opts?.seed ?? Math.floor(Math.random() * 2_147_483_647)
 
       const params: Record<string, unknown> = useLongVideo
         ? {
@@ -576,6 +598,7 @@ export function useGeneration(): UseGenerationReturn {
             aspectRatio: settings.aspectRatio || '16:9',
             fps: settings.fps,
             cameraMotion: settings.cameraMotion,
+            seed,
             ...(settings.loraPath ? { loraPath: settings.loraPath, loraWeight: settings.loraWeight ?? 1.0 } : {}),
             ...(settings.exactDuration ? { exactDuration: true } : {}),
           }
@@ -587,6 +610,7 @@ export function useGeneration(): UseGenerationReturn {
             audio: String(settings.audio),
             cameraMotion: settings.cameraMotion,
             aspectRatio: settings.aspectRatio || '16:9',
+            seed,
             ...(imagePath ? { imagePath } : {}),
             ...(audioPath ? { audioPath } : {}),
             ...(lastFramePath ? { lastFramePath } : {}),
@@ -618,8 +642,10 @@ export function useGeneration(): UseGenerationReturn {
       }
 
       const result: { id: string; status: string } = await response.json()
-      activeJobIdRef.current = result.id
-      startPolling()
+      if (!opts?.enqueueOnly) {
+        activeJobIdRef.current = result.id
+        startPolling()
+      }
     } catch (error) {
       setState(prev => ({
         ...prev,
@@ -748,6 +774,38 @@ export function useGeneration(): UseGenerationReturn {
       }
 
       const result: { id: string; status: string } = await response.json()
+
+      // Then-Animate: queue a linked video job that waits on this image and
+      // receives its output as the first frame at dispatch time.
+      if (opts?.thenAnimate) {
+        const ta = opts.thenAnimate
+        await fetch(`${backendUrl}/api/queue/submit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'video',
+            model: ta.model,
+            params: {
+              prompt,
+              duration: String(ta.duration),
+              resolution: ta.resolution,
+              fps: '24',
+              audio: 'true',
+              cameraMotion: 'none',
+              aspectRatio: ta.aspectRatio,
+              seed: Math.floor(Math.random() * 2_147_483_647),
+            },
+            depends_on: result.id,
+            auto_params: { imagePath: '$dep.result_paths[0]' },
+            batch_id: `chain-${result.id}`,
+            ...(opts?.tags?.length ? { tags: opts.tags } : {}),
+          }),
+        }).catch(() => {
+          // The image job stands alone if the chain submit fails — never
+          // block or roll back the primary generation.
+        })
+      }
+
       activeJobIdRef.current = result.id
       startPolling()
     } catch (error) {

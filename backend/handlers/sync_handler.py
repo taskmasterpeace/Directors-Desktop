@@ -12,6 +12,7 @@ from services.palette_sync_client.palette_sync_client import (
     InsufficientCreditsError,
     PaletteSyncClient,
 )
+from state.app_settings import effective_generation_key
 from state.app_state_types import AppState
 from state.lora_library import LoraEntry, LoraLibraryStore
 
@@ -103,9 +104,9 @@ class SyncHandler:
     def get_status(self) -> dict[str, Any]:
         api_key = self._state.app_settings.palette_api_key
         # #84: session tokens cover credits/sync, but v2 generation only takes
-        # real dp_ keys — surface which mode we're in so the UI can walk the
-        # user through the ONE missing paste instead of failing per-job.
-        generation_ready = api_key.startswith("dp_")
+        # real dp_ keys — the dedicated generation field (with a pre-split
+        # fallback) decides readiness, so signing in never flips this off.
+        generation_ready = bool(effective_generation_key(self._state.app_settings))
         if not api_key:
             return {"connected": False, "user": None, "generationReady": False}
         if self._cached_user is not None:
@@ -127,14 +128,26 @@ class SyncHandler:
 
         A refresh_token may accompany a Supabase JWT obtained via the browser sign-in
         bridge (Google/email); storing it lets the session renew after the JWT expires.
+
+        Credential split (#84): dp_ keys ALSO land in palette_generation_key,
+        and a session sign-in NEVER touches that field — before the split every
+        sign-in overwrote the pasted dp_ key and silently killed cloud
+        generation. A dp_ key still stored the old single-field way is promoted
+        before the JWT lands on top of it.
         """
         try:
             user = self._client.validate_connection(api_key=token)
         except Exception as exc:
             return {"connected": False, "error": str(exc)}
-        self._state.app_settings.palette_api_key = token
+        settings = self._state.app_settings
+        if token.startswith("dp_"):
+            settings.palette_generation_key = token
+        elif settings.palette_api_key.startswith("dp_") and not settings.palette_generation_key:
+            # Session sign-in arriving on top of a pre-split dp_ key: rescue it.
+            settings.palette_generation_key = settings.palette_api_key
+        settings.palette_api_key = token
         if refresh_token:
-            self._state.app_settings.palette_refresh_token = refresh_token
+            settings.palette_refresh_token = refresh_token
         self._cached_user = user
         return {"connected": True, "user": user}
 
@@ -167,15 +180,20 @@ class SyncHandler:
             result = self._client.sign_in_with_email(email=email, password=password)
         except Exception as exc:
             return {"connected": False, "error": str(exc)}
-        self._state.app_settings.palette_api_key = result["access_token"]
-        self._state.app_settings.palette_refresh_token = result["refresh_token"]
+        settings = self._state.app_settings
+        if settings.palette_api_key.startswith("dp_") and not settings.palette_generation_key:
+            # Pre-split dp_ key in the session slot — rescue it before the JWT lands.
+            settings.palette_generation_key = settings.palette_api_key
+        settings.palette_api_key = result["access_token"]
+        settings.palette_refresh_token = result["refresh_token"]
         self._cached_user = result["user"]
         return {"connected": True, "user": result["user"]}
 
     def disconnect(self) -> dict[str, Any]:
-        """Clear the stored auth token and cached user."""
+        """Sign out fully: session AND generation key (explicit user intent)."""
         self._state.app_settings.palette_api_key = ""
         self._state.app_settings.palette_refresh_token = ""
+        self._state.app_settings.palette_generation_key = ""
         self._cached_user = None
         return {"connected": False, "user": None}
 

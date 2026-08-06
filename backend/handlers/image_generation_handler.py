@@ -19,6 +19,7 @@ from handlers.pipelines_handler import PipelinesHandler
 from server_utils.media_validation import validate_image_file
 from server_utils.output_naming import make_output_path
 from services.interfaces import ImageAPIClient, PaletteImageClient
+from state.app_settings import effective_generation_key
 from state.app_state_types import AppState
 
 if TYPE_CHECKING:
@@ -332,14 +333,18 @@ class ImageGenerationHandler(StateHandlerBase):
             self._generation.start_api_generation(generation_id)
             self._generation.update_progress("validating_request", 5, None, None)
 
+            # v2 generation/upload only accept real dp_ keys; the dedicated
+            # generation field survives session sign-ins (#84 split), with a
+            # pre-split fallback to a dp_ key still in the session slot.
+            generation_key = effective_generation_key(settings)
             if use_palette:
-                if not settings.palette_api_key.strip():
+                if not settings.palette_api_key.strip() and not generation_key:
                     raise HTTPError(400, "DIRECTORS_PALETTE_NOT_CONNECTED")
                 # Email login stores a Supabase session token, which the desktop
                 # routes (credits/sync) accept — but Palette's v2 generation and
                 # upload APIs only accept real dp_ API keys. Fail with the actual
                 # problem instead of a downstream 401 dressed as an upload error.
-                if not settings.palette_api_key.startswith("dp_"):
+                if not generation_key:
                     raise HTTPError(
                         400,
                         "PALETTE_API_KEY_REQUIRED: You're signed in with email login, "
@@ -361,7 +366,7 @@ class ImageGenerationHandler(StateHandlerBase):
                 # v2 rejects inline base64 (SSRF guard), so local reference images are
                 # uploaded to Palette storage first and referenced by their public URL.
                 palette_ref_urls = self._upload_palette_references(
-                    settings.palette_api_key, reference_image_paths or []
+                    generation_key, reference_image_paths or []
                 )
                 if palette_model == "qwen-image-edit" and not palette_ref_urls:
                     raise HTTPError(400, "CAMERA_ANGLE_REQUIRES_REFERENCE")
@@ -387,7 +392,7 @@ class ImageGenerationHandler(StateHandlerBase):
                     # Camera Angle: gizmo azimuth/elevation/distance → synchronous v2 route
                     # (it builds the <sks> prompt + injects the multi-angle LoRA itself).
                     image_bytes = self._palette_image_client.generate_camera_angle(
-                        api_key=settings.palette_api_key,
+                        api_key=generation_key,
                         should_cancel=self._generation.is_generation_cancelled,
                         image_url=palette_ref_urls[0],
                         azimuth=_as_float(params.get("azimuth"), 0.0),
@@ -400,7 +405,7 @@ class ImageGenerationHandler(StateHandlerBase):
                     )
                 elif use_palette:
                     image_bytes = self._palette_image_client.generate_image(
-                        api_key=settings.palette_api_key,
+                        api_key=generation_key,
                         should_cancel=self._generation.is_generation_cancelled,
                         model=palette_model,
                         prompt=prompt,

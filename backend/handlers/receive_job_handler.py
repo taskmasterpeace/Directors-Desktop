@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 
 from _routes._errors import HTTPError
 from api_types import ReceiveJobRequest, ReceiveJobResponse
+from state.app_settings import effective_generation_key
 
 if TYPE_CHECKING:
     from services.interfaces import HTTPClient
@@ -30,7 +31,10 @@ class ReceiveJobHandler:
         self._job_queue = job_queue
 
     def receive_job(self, req: ReceiveJobRequest) -> ReceiveJobResponse:
-        api_key = self._state.app_settings.palette_api_key
+        api_key = (
+            effective_generation_key(self._state.app_settings)
+            or self._state.app_settings.palette_api_key
+        )
         if not api_key:
             raise HTTPError(403, "Not connected to Director's Palette. Set a palette API key first.")
 

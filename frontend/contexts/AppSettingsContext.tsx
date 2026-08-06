@@ -33,6 +33,7 @@ export interface AppSettings {
   hasReplicateApiKey: boolean
   hasFalApiKey: boolean
   hasPaletteApiKey: boolean
+  hasPaletteGenerationKey: boolean
   imageModel: string
   videoModel: string
   hasGeminiApiKey: boolean
@@ -59,6 +60,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   hasReplicateApiKey: false,
   hasFalApiKey: false,
   hasPaletteApiKey: false,
+  hasPaletteGenerationKey: false,
   imageModel: 'flux-klein-9b',
   videoModel: 'ltx-fast',
   hasGeminiApiKey: false,
@@ -123,6 +125,7 @@ function normalizeAppSettings(data: Partial<AppSettings>): AppSettings {
     hasReplicateApiKey: data.hasReplicateApiKey ?? DEFAULT_APP_SETTINGS.hasReplicateApiKey,
     hasFalApiKey: data.hasFalApiKey ?? DEFAULT_APP_SETTINGS.hasFalApiKey,
     hasPaletteApiKey: data.hasPaletteApiKey ?? DEFAULT_APP_SETTINGS.hasPaletteApiKey,
+    hasPaletteGenerationKey: data.hasPaletteGenerationKey ?? DEFAULT_APP_SETTINGS.hasPaletteGenerationKey,
     // Migrate retired ids (e.g. the withdrawn dp-flux-2-klein-9b) so a stored
     // model that no longer exists can't strand generation on a dead option.
     imageModel: migrateImageModelId(data.imageModel ?? DEFAULT_APP_SETTINGS.imageModel),
@@ -275,7 +278,7 @@ export function AppSettingsProvider({ children }: { children: ReactNode }) {
     if (!backendUrl || !isLoaded || backendProcessStatus !== 'alive') return
     const syncTimer = setTimeout(async () => {
       try {
-        const { hasLtxApiKey: _a, hasReplicateApiKey: _b, hasGeminiApiKey: _c, hasPaletteApiKey: _d, hasFalApiKey: _e, hasOpenrouterApiKey: _f, ...syncPayload } = settings
+        const { hasLtxApiKey: _a, hasReplicateApiKey: _b, hasGeminiApiKey: _c, hasPaletteApiKey: _d, hasFalApiKey: _e, hasOpenrouterApiKey: _f, hasPaletteGenerationKey: _g, ...syncPayload } = settings
         await fetch(`${backendUrl}/api/settings`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

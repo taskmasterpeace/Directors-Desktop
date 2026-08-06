@@ -68,6 +68,11 @@ class AppSettings(SettingsBaseModel):
     fal_api_key: str = ""
     palette_api_key: str = ""
     palette_refresh_token: str = ""
+    # The durable dp_ GENERATION key, kept apart from the session credential:
+    # browser/email sign-ins rewrite palette_api_key with an hourly JWT, and
+    # when both lived in one field every sign-in silently killed cloud
+    # generation (issue #84 — the "ONE paste" could never stick).
+    palette_generation_key: str = ""
     image_model: str = "flux-klein-9b"
     video_model: str = "ltx-fast"
     use_local_text_encoder: bool = True  # LTX cloud encoding is disabled fork-wide; local is the only path
@@ -163,6 +168,7 @@ class SettingsResponse(SettingsBaseModel):
     has_replicate_api_key: bool = False
     has_fal_api_key: bool = False
     has_palette_api_key: bool = False
+    has_palette_generation_key: bool = False
     image_model: str = "flux-klein-9b"
     video_model: str = "ltx-fast"
     use_local_text_encoder: bool = True  # LTX cloud encoding is disabled fork-wide; local is the only path
@@ -194,6 +200,8 @@ def to_settings_response(settings: AppSettings) -> SettingsResponse:
     fal_key = data.pop("fal_api_key", "")
     palette_key = data.pop("palette_api_key", "")
     data.pop("palette_refresh_token", "")
+    generation_key = data.pop("palette_generation_key", "")
+    data["has_palette_generation_key"] = bool(generation_key)
     gemini_key = data.pop("gemini_api_key", "")
     openrouter_key = data.pop("openrouter_api_key", "")
     data["has_ltx_api_key"] = bool(ltx_key)
@@ -211,6 +219,20 @@ def to_settings_response(settings: AppSettings) -> SettingsResponse:
     civitai_key = data.pop("civitai_api_key", "")
     data["has_civitai_api_key"] = bool(civitai_key)
     return SettingsResponse.model_validate(data)
+
+
+def effective_generation_key(settings: AppSettings) -> str:
+    """The dp_ key cloud generation should use, or "" when there is none.
+
+    Prefers the dedicated generation field; falls back to palette_api_key for
+    setups from before the split where the dp_ key lived in the session slot.
+    Session JWTs are never returned — v2 generation only accepts dp_ keys.
+    """
+    if settings.palette_generation_key.startswith("dp_"):
+        return settings.palette_generation_key
+    if settings.palette_api_key.startswith("dp_"):
+        return settings.palette_api_key
+    return ""
 
 
 def should_video_generate_with_ltx_api(*, force_api_generations: bool, settings: AppSettings) -> bool:

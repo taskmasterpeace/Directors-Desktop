@@ -124,3 +124,59 @@ class TestCreditDeductionRetry:
         test_state.sync.deduct_credits("video_i2v", 1, {"job_id": "same-job"})
         job_ids = {c["metadata"]["job_id"] for c in test_state.palette_sync_client.deduct_calls}
         assert job_ids == {"same-job"}
+
+
+class TestGenerationKeySplit:
+    """#84: the dp_ generation key lives apart from the session credential, so
+    signing in can never silently kill cloud generation again."""
+
+    def test_connect_with_dp_key_fills_both_fields(self, client, test_state):
+        resp = client.post("/api/sync/connect", json={"token": "dp_generation_key"})
+        assert resp.json()["connected"] is True
+        assert test_state.state.app_settings.palette_generation_key == "dp_generation_key"
+        assert test_state.state.app_settings.palette_api_key == "dp_generation_key"
+
+    def test_session_connect_preserves_generation_key(self, client, test_state):
+        client.post("/api/sync/connect", json={"token": "dp_generation_key"})
+        resp = client.post("/api/sync/connect", json={"token": "eyJ.session.jwt", "refresh_token": "r1"})
+        assert resp.json()["connected"] is True
+        assert test_state.state.app_settings.palette_api_key == "eyJ.session.jwt"
+        assert test_state.state.app_settings.palette_generation_key == "dp_generation_key"
+        status = client.get("/api/sync/status").json()
+        assert status["generationReady"] is True
+
+    def test_session_connect_promotes_presplit_dp_key(self, client, test_state):
+        # Pre-split state: the dp_ key sits in the session slot only.
+        test_state.state.app_settings.palette_api_key = "dp_old_single_field"
+        test_state.state.app_settings.palette_generation_key = ""
+        client.post("/api/sync/connect", json={"token": "eyJ.session.jwt"})
+        assert test_state.state.app_settings.palette_generation_key == "dp_old_single_field"
+        assert test_state.state.app_settings.palette_api_key == "eyJ.session.jwt"
+
+    def test_login_promotes_presplit_dp_key(self, client, test_state):
+        test_state.state.app_settings.palette_api_key = "dp_old_single_field"
+        client.post("/api/sync/login", json={"email": "a@b.c", "password": "x"})
+        assert test_state.state.app_settings.palette_generation_key == "dp_old_single_field"
+        assert test_state.state.app_settings.palette_api_key == "fake-jwt-token"
+
+    def test_generation_ready_falls_back_to_presplit_key(self, client, test_state):
+        test_state.state.app_settings.palette_api_key = "dp_old_single_field"
+        test_state.state.app_settings.palette_generation_key = ""
+        status = client.get("/api/sync/status").json()
+        assert status["generationReady"] is True
+
+    def test_session_only_is_not_generation_ready(self, client, test_state):
+        test_state.state.app_settings.palette_api_key = "eyJ.session.jwt"
+        status = client.get("/api/sync/status").json()
+        assert status["generationReady"] is False
+
+    def test_disconnect_clears_generation_key_too(self, client, test_state):
+        client.post("/api/sync/connect", json={"token": "dp_generation_key"})
+        client.post("/api/sync/disconnect")
+        assert test_state.state.app_settings.palette_generation_key == ""
+        assert test_state.state.app_settings.palette_api_key == ""
+
+    def test_settings_response_reports_generation_key(self, client):
+        client.post("/api/sync/connect", json={"token": "dp_generation_key"})
+        data = client.get("/api/settings").json()
+        assert data["hasPaletteGenerationKey"] is True

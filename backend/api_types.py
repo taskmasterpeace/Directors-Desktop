@@ -431,6 +431,27 @@ class QueueSubmitRequest(BaseModel):
     # group renders by the project that made them (the Director already tags
     # its jobs ["director", run_id] via JobQueue.submit directly).
     tags: list[str] = []
+    # Chain fields — the worker ALREADY gates on depends_on and resolves
+    # "$dep.result_paths[0]" auto_params at dispatch (the Director uses this
+    # internally); exposing them here unlocks e.g. "generate image, then
+    # animate the result" as two linked queue entries.
+    depends_on: str | None = None
+    auto_params: dict[str, str] = {}
+    batch_id: str | None = None
+    batch_index: int = 0
+
+
+class QueueReorderRequest(BaseModel):
+    """New dispatch order for QUEUED jobs (ids not queued anymore are ignored)."""
+
+    ordered_ids: list[str]
+
+
+class QueueUpdateRequest(BaseModel):
+    """Edit-before-render: only applies while the job is still queued."""
+
+    params: dict[str, object] | None = None
+    model: str | None = None
 
 
 # --- Batch Generation Types ---

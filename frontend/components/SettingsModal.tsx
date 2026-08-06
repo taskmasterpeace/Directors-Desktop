@@ -1297,6 +1297,20 @@ export function SettingsModal({ isOpen, onClose, initialTab }: SettingsModalProp
                         Optional
                       </div>
                     )}
+
+                    {/* Generation-key state — stored SEPARATELY from the sign-in
+                        session, so logging in never removes it (#84). */}
+                    {settings.hasPaletteGenerationKey ? (
+                      <div className="text-xs px-2 py-1.5 rounded bg-emerald-500/10 text-emerald-400 flex items-start gap-1.5">
+                        <Check className="h-3 w-3 mt-0.5 shrink-0" />
+                        <span>Generation key active — cloud image/video generation is enabled, and signing in won't remove it.</span>
+                      </div>
+                    ) : paletteStatus?.connected ? (
+                      <div className="text-xs px-2 py-1.5 rounded bg-amber-500/10 text-amber-400 flex items-start gap-1.5">
+                        <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
+                        <span>Signed in (session only) — cloud generation needs a Palette API key. Paste a dp_ key above; it sticks permanently.</span>
+                      </div>
+                    ) : null}
                   </div>
                 )}
               </div>

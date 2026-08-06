@@ -16,6 +16,7 @@ from _routes._errors import HTTPError
 from handlers.base import StateHandlerBase
 from pydantic import BaseModel, Field, ValidationError
 from services.interfaces import HTTPClient, HttpTimeoutError, JSONValue
+from state.app_settings import effective_generation_key
 from state.app_state_types import AppState
 
 logger = logging.getLogger(__name__)
@@ -294,9 +295,14 @@ class EnhancePromptHandler(StateHandlerBase):
         When *image_path* is provided the handler asks the AI to describe the
         image and craft a motion-aware prompt based on what it sees.
         """
-        palette_api_key = self.state.app_settings.palette_api_key
-        if palette_api_key:
-            return self._enhance_via_palette(prompt, palette_api_key, mode, model)
+        # Prefer the durable dp_ generation key; the session JWT still works
+        # for enhance (desktop routes accept both), so it stays the fallback.
+        palette_key = (
+            effective_generation_key(self.state.app_settings)
+            or self.state.app_settings.palette_api_key
+        )
+        if palette_key:
+            return self._enhance_via_palette(prompt, palette_key, mode, model)
 
         gemini_api_key = self.state.app_settings.gemini_api_key
         if gemini_api_key:
