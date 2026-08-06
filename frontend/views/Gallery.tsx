@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { ArrowLeft, Image as ImageIcon, Film, Trash2, Download, X, ChevronLeft, ChevronRight, Sparkles , UserPlus, Images, FolderInput, Check } from 'lucide-react'
+import { ArrowLeft, Image as ImageIcon, Film, Trash2, Download, X, ChevronLeft, ChevronRight, Sparkles , UserPlus, Images, FolderInput, Check, Copy } from 'lucide-react'
 import { useConfirm } from '../components/ConfirmDialog'
 import { SaveToLibraryModal, type SaveToLibraryRequest } from '../components/SaveToLibraryModal'
 import { useProjects } from '../contexts/ProjectContext'
@@ -85,6 +85,7 @@ export function Gallery() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [previewItem, setPreviewItem] = useState<GalleryItem | null>(null)
+  const [copiedPrompt, setCopiedPrompt] = useState(false)
   const [backendUrl, setBackendUrl] = useState<string>('')
   // Bulk erase: selection mode with per-card checkboxes and one delete.
   const [selectMode, setSelectMode] = useState(false)
@@ -707,6 +708,17 @@ export function Gallery() {
                 <p className="flex-1 text-xs text-zinc-400 line-clamp-3" title={previewItem.prompt}>
                   {previewItem.prompt}
                 </p>
+                <button
+                  onClick={() => {
+                    void navigator.clipboard.writeText(previewItem.prompt!)
+                    setCopiedPrompt(true)
+                    setTimeout(() => setCopiedPrompt(false), 1500)
+                  }}
+                  className="shrink-0 p-1.5 rounded-lg border border-zinc-700 text-zinc-400 hover:text-white hover:border-zinc-500 transition-colors"
+                  title="Copy prompt"
+                >
+                  {copiedPrompt ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                </button>
                 <button
                   onClick={() => {
                     setPendingRemix({ prompt: previewItem.prompt! })
