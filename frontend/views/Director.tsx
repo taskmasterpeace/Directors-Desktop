@@ -497,7 +497,7 @@ export function Director() {
         <LtxLogo className="h-5" />
         <div className="flex items-center gap-2">
           <Clapperboard className="h-4 w-4 text-amber-400" />
-          <h1 className="text-sm font-semibold tracking-tight">Director</h1>
+          <h1 className="text-sm font-semibold tracking-tight">Music Video</h1>
           <span className="text-[11px] text-zinc-500">song in → music video out</span>
         </div>
       </div>

@@ -414,7 +414,7 @@ export function Home() {
               title="Song in, music video out"
             >
               <Clapperboard className="h-4 w-4" />
-              Director
+              Music Video
             </button>
             <button
               onClick={openPlayground}
