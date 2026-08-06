@@ -20,7 +20,7 @@ interface ProjectContextType {
   createProject: (name: string, assetSavePath?: string) => Project
   deleteProject: (id: string) => void
   renameProject: (id: string, name: string) => void
-  updateProject: (id: string, updates: Partial<Pick<Project, 'assetSavePath' | 'storyDocs' | 'cast'>>) => void
+  updateProject: (id: string, updates: Partial<Pick<Project, 'assetSavePath' | 'storyDocs' | 'cast' | 'assets'>>) => void
   
   // Assets
   addAsset: (projectId: string, asset: Omit<Asset, 'id' | 'createdAt'>) => Asset
@@ -305,7 +305,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     ))
   }, [])
 
-  const updateProject = useCallback((id: string, updates: Partial<Pick<Project, 'assetSavePath' | 'storyDocs' | 'cast'>>) => {
+  const updateProject = useCallback((id: string, updates: Partial<Pick<Project, 'assetSavePath' | 'storyDocs' | 'cast' | 'assets'>>) => {
     setProjects(prev => prev.map(p =>
       p.id === id ? { ...p, ...updates, updatedAt: Date.now() } : p
     ))
@@ -597,7 +597,9 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       name,
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      assets: [],
+      // Beat shots are real assets (origin: palette-mv) — takes + Regenerate
+      // Shot work on imported music videos like on anything generated here.
+      assets: loaded.assets,
       timelines: [loaded.timeline],
       activeTimelineId: loaded.timeline.id,
     }

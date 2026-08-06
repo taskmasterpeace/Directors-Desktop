@@ -74,4 +74,23 @@ describe('loadStoryToTimeline — Palette MV import', () => {
     expect(audio).toBeTruthy()
     expect(audio!.importedUrl).toBe('https://pub-xyz.r2.dev/song.mp3')
   })
+
+  it('every beat shot is a real Asset with origin + local regen params — takes work on MV imports', () => {
+    expect(loaded.assets).toHaveLength(2)
+    const videoClips = loaded.timeline.clips.filter((c) => c.type === 'video')
+    for (const clip of videoClips) {
+      const asset = loaded.assets.find((a) => a.id === clip.assetId)!
+      expect(asset, `clip ${clip.id} must reference an asset`).toBeDefined()
+      expect(asset.origin!.app).toBe('palette-mv')
+    }
+    const first = loaded.assets.find((a) => a.origin!.beatId === 'chunk-0')!
+    expect(first.prompt).toBe('performance shot prompt')
+    // Remote still -> the local regen falls back to T2V (no unreachable image path)
+    expect(first.generationParams).toMatchObject({
+      mode: 'text-to-video',
+      model: 'h3-local',
+      duration: 15,
+    })
+    expect(first.generationParams!.inputImageUrl).toBeUndefined()
+  })
 })

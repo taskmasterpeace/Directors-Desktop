@@ -17,6 +17,7 @@
  * Beat text rides the subtitles[] array (trackIndex 0) so it shows synced to the playhead.
  */
 import {
+  Asset,
   Timeline,
   TimelineClip,
   SubtitleClip,
@@ -90,6 +91,9 @@ export interface BeatInfo {
 
 export interface LoadedStory {
   timeline: Timeline
+  /** Real Assets for the beat video shots — takes + Regenerate Shot live on
+   *  these (origin: palette-mv). Empty on stories with no videos. */
+  assets: Asset[]
   beats: BeatInfo[]
   /** Absolute path of the story file this was loaded from (for write-back). */
   storyPath: string
@@ -158,6 +162,7 @@ export function loadStoryToTimeline(story: StoryFile, storyAbsPath: string): Loa
   const clips: TimelineClip[] = []
   const subtitles: SubtitleClip[] = []
   const beatInfos: BeatInfo[] = []
+  const assets: Asset[] = []
 
   for (const b of beats) {
     const start = b.slot.start_seconds
@@ -181,18 +186,50 @@ export function loadStoryToTimeline(story: StoryFile, storyAbsPath: string): Loa
 
     // V2 video overlay (preview duration = window; the exporter probes real frames
     // and caps to the window, so app preview length matches export intent).
+    // Each shot is a real Asset: origin identifies the beat, and when the still
+    // is local, generationParams let "Regenerate Shot" re-render it locally
+    // (h3-local — free) as a NEW take. Palette-side server regen is a named
+    // deferral (no v2 video endpoint yet); this is DD's own generator filling in.
     if (b.video) {
-      clips.push(
-        baseClip({
+      const mediaUrl = abs(b.video)
+      const prompt = (b.notes || b.text || b.beat_id).trim()
+      const localStill = b.still && !/^https?:\/\//i.test(b.still) ? abs(b.still) : null
+      const asset: Asset = {
+        id: `mvasset-${b.beat_id}`,
+        type: 'video',
+        path: /^https?:/i.test(mediaUrl) ? mediaUrl : b.video,
+        url: mediaUrl,
+        prompt,
+        resolution: '',
+        duration: dur,
+        createdAt: Date.now(),
+        origin: { app: 'palette-mv', beatId: b.beat_id, prompt },
+        generationParams: {
+          mode: localStill ? 'image-to-video' : 'text-to-video',
+          prompt,
+          model: 'h3-local',
+          duration: Math.min(15, Math.max(2, Math.ceil(dur))),
+          resolution: '480p',
+          fps: 24,
+          audio: false,
+          cameraMotion: 'none',
+          ...(localStill ? { inputImageUrl: localStill } : {}),
+        },
+      }
+      assets.push(asset)
+      clips.push({
+        ...baseClip({
           id: `v2-${b.beat_id}`,
           type: 'video',
           startTime: start,
           duration: dur,
           trackIndex: 1,
-          importedUrl: abs(b.video),
+          importedUrl: mediaUrl,
           importedName: basename(b.video),
-        })
-      )
+        }),
+        assetId: asset.id,
+        asset,
+      })
     }
 
     // Beat text → subtitle cue on the V1 subtitle lane
@@ -248,5 +285,5 @@ export function loadStoryToTimeline(story: StoryFile, storyAbsPath: string): Loa
     subtitles,
   }
 
-  return { timeline, beats: beatInfos, storyPath: storyAbsPath, repoRoot, durationSeconds: runtime, characters: cast }
+  return { timeline, assets, beats: beatInfos, storyPath: storyAbsPath, repoRoot, durationSeconds: runtime, characters: cast }
 }

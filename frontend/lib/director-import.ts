@@ -10,7 +10,7 @@
  */
 
 import { baseClip } from './story-loader'
-import { DEFAULT_TRACKS, type MarkerColor, type Timeline, type TimelineClip, type TimelineMarker, type Track } from '../types/project'
+import { DEFAULT_TRACKS, type Asset, type MarkerColor, type Timeline, type TimelineClip, type TimelineMarker, type Track } from '../types/project'
 
 export interface DirectorRunForImport {
   id: string
@@ -20,6 +20,10 @@ export interface DirectorRunForImport {
   sections: { start: number; end: number; label: string }[] | null
   aspect?: string
   beats?: number[] | null
+  /** Generation model/resolution of the run — carried onto each shot's asset
+   *  so "Regenerate Shot" can re-render it as a NEW TAKE with the same params. */
+  model?: string
+  resolution?: string
   shots: {
     index: number
     start: number
@@ -28,6 +32,8 @@ export interface DirectorRunForImport {
     shotType: string
     prompt: string
     resultPath: string | null
+    keyframePath?: string | null
+    generateSeconds?: number
   }[]
 }
 
@@ -86,25 +92,65 @@ export function directorRunToAlternateTrack(
   return { track, clips, trackIndex }
 }
 
-export function directorRunToTimeline(run: DirectorRunForImport): Timeline {
+export function directorRunToTimeline(run: DirectorRunForImport): { timeline: Timeline; assets: Asset[] } {
   const clips: TimelineClip[] = []
+  const assets: Asset[] = []
 
   // V1: each rendered shot at its planned beat-snapped position, trimmed to
-  // the exact cut length (the generated file is always >= the window).
+  // the exact cut length (the generated file is always >= the window). Every
+  // shot is a REAL Asset with generationParams, so "Regenerate Shot" re-renders
+  // it with the run's own model/prompt/keyframe and lands the result as a NEW
+  // take — the old render is never overwritten (unlike the run-level reroll).
   for (const shot of run.shots) {
     if (!shot.resultPath) continue
-    clips.push(
-      baseClip({
+    const window = Math.max(0.04, shot.end - shot.start)
+    const asset: Asset = {
+      id: `dasset-${run.id}-${shot.index}`,
+      type: 'video',
+      path: shot.resultPath,
+      url: pathToFileUrl(shot.resultPath),
+      prompt: shot.prompt,
+      resolution: run.resolution || '',
+      duration: window,
+      createdAt: Date.now(),
+      origin: {
+        app: 'director',
+        runId: run.id,
+        shotIndex: shot.index,
+        prompt: shot.prompt,
+        model: run.model,
+      },
+      ...(run.model
+        ? {
+            generationParams: {
+              mode: shot.keyframePath ? ('image-to-video' as const) : ('text-to-video' as const),
+              prompt: shot.prompt,
+              model: run.model,
+              duration: shot.generateSeconds ?? Math.ceil(window),
+              resolution: run.resolution || '480p',
+              fps: 24,
+              audio: false,
+              cameraMotion: 'none',
+              ...(shot.keyframePath ? { inputImageUrl: pathToFileUrl(shot.keyframePath) } : {}),
+            },
+          }
+        : {}),
+    }
+    assets.push(asset)
+    clips.push({
+      ...baseClip({
         id: `dshot-${run.id}-${shot.index}`,
         type: 'video',
         startTime: shot.start,
-        duration: Math.max(0.04, shot.end - shot.start),
+        duration: window,
         trackIndex: 0,
         muted: true, // the song is the soundtrack; generated clips stay silent
         importedUrl: pathToFileUrl(shot.resultPath),
         importedName: `Shot ${shot.index + 1} · ${shot.sectionLabel}`,
-      })
-    )
+      }),
+      assetId: asset.id,
+      asset,
+    })
   }
 
   // A1: the song, one clip spanning the full runtime.
@@ -136,14 +182,17 @@ export function directorRunToTimeline(run: DirectorRunForImport): Timeline {
   }))
 
   return {
-    id: `director-${run.id}`,
-    name: run.concept.slice(0, 40) || 'Director cut',
-    createdAt: Date.now(),
-    tracks: DEFAULT_TRACKS.map((t) => ({ ...t })),
-    clips,
-    subtitles: [],
-    markers,
-    aspectRatio: run.aspect === '9:16' ? '9:16' : '16:9',
-    beats: run.beats ?? undefined,
+    timeline: {
+      id: `director-${run.id}`,
+      name: run.concept.slice(0, 40) || 'Director cut',
+      createdAt: Date.now(),
+      tracks: DEFAULT_TRACKS.map((t) => ({ ...t })),
+      clips,
+      subtitles: [],
+      markers,
+      aspectRatio: run.aspect === '9:16' ? '9:16' : '16:9',
+      beats: run.beats ?? undefined,
+    },
+    assets,
   }
 }

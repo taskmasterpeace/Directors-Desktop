@@ -93,7 +93,7 @@ async function backendBase(): Promise<string> {
 }
 
 export function Director() {
-  const { goHome, createProject, updateTimeline, openProject, setCurrentTab, projects, pendingDirectorAudio, setPendingDirectorAudio } = useProjects()
+  const { goHome, createProject, updateProject, updateTimeline, openProject, setCurrentTab, projects, pendingDirectorAudio, setPendingDirectorAudio } = useProjects()
   const [audioPath, setAudioPath] = useState<string | null>(null)
   const [concept, setConcept] = useState('')
   const [model, setModel] = useState('ltx-fast')
@@ -324,7 +324,7 @@ export function Director() {
   // runs too — whatever rendered gets placed.
   const openInEditor = useCallback(() => {
     if (!run) return
-    const timeline = directorRunToTimeline(run)
+    const { timeline, assets } = directorRunToTimeline(run)
     const songName = run.audioPath.split(/[\\/]/).pop() || 'song'
     const project = createProject(`Director — ${songName.replace(/\.[^.]+$/, '')}`)
     // Use the RETURNED project's default timeline id — getActiveTimeline reads
@@ -338,9 +338,12 @@ export function Director() {
         markers: timeline.markers,
       })
     }
+    // Shots are real assets with generationParams — Regenerate Shot in the
+    // editor re-renders any of them as a NEW take with the run's own params.
+    updateProject(project.id, { assets })
     openProject(project.id)
     setCurrentTab('video-editor')
-  }, [run, createProject, updateTimeline, openProject, setCurrentTab])
+  }, [run, createProject, updateTimeline, updateProject, openProject, setCurrentTab])
 
   // Wardrobe -> mannequin: render the described look on the neutral three-view
   // mannequin sheet (Palette points) so you can SEE it, swap it, approve it.
