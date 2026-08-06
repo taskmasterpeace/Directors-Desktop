@@ -9,7 +9,9 @@ export interface QueueJob {
   type: string
   model: string
   params: Record<string, unknown>
-  status: string
+  /** Mirrors backend job_queue.py's Literal — nolc(8) shipped a filter on a
+   *  nonexistent 'failed' status that plain `string` let through silently. */
+  status: 'queued' | 'running' | 'complete' | 'error' | 'cancelled'
   slot: string
   progress: number
   phase: string
