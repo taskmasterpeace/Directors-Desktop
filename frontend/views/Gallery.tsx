@@ -411,7 +411,7 @@ export function Gallery() {
       <div className="flex-1 overflow-auto p-6">
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="h-8 w-8 border-2 border-zinc-600 border-t-blue-500 rounded-full animate-spin" />
+            <div className="h-8 w-8 border-2 border-zinc-600 border-t-amber-500 rounded-full animate-spin" />
           </div>
         ) : error ? (
           <div className="text-center py-16">
@@ -489,7 +489,7 @@ export function Gallery() {
                     <p className="text-xs text-white font-medium truncate">{item.filename}</p>
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                       {item.model_name && (
-                        <span className="text-[10px] bg-blue-500/20 text-blue-400 rounded px-1.5 py-0.5 font-medium">
+                        <span className="text-[10px] bg-amber-500/15 text-amber-400 rounded px-1.5 py-0.5 font-medium">
                           {item.model_name}
                         </span>
                       )}
