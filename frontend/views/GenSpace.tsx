@@ -966,8 +966,8 @@ function PromptBar({
               : mode === 'image'
                 ? editSourceImage
                   ? "Describe your edit — e.g. make the sky a dramatic sunset..."
-                  : "A close-up of a woman talking on the phone..."
-                : "The woman sips from a cup of coffee..."
+                  : "A close-up of a woman talking on the phone... (type @ for your Characters)"
+                : "The woman sips from a cup of coffee... (type @ for your Characters)"
             }
             className="w-full bg-transparent text-white text-sm placeholder:text-zinc-500 focus:outline-none pl-2 pr-8 py-2 resize-none overflow-y-auto h-[70px] leading-5"
           />
