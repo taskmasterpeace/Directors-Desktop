@@ -48,8 +48,8 @@ export function I2vGenerationModal({
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
           <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-blue-600/20">
-              <Film className="h-3.5 w-3.5 text-blue-400" />
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center bg-amber-600/20">
+              <Film className="h-3.5 w-3.5 text-amber-400" />
             </div>
             <div>
               <h2 className="text-sm font-semibold text-white">Image to Video</h2>
@@ -88,7 +88,7 @@ export function I2vGenerationModal({
               onChange={(e) => setI2vPrompt(e.target.value)}
               onKeyDown={(e) => e.stopPropagation()}
               placeholder="Describe the motion and action for the video..."
-              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-sm text-white resize-none focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/30 placeholder-zinc-600"
+              className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-3 text-sm text-white resize-none focus:outline-none focus:border-amber-500/50 focus:ring-1 focus:ring-amber-500/30 placeholder-zinc-600"
               rows={3}
             />
           </div>
@@ -111,12 +111,12 @@ export function I2vGenerationModal({
           {isRegenerating && i2vClipId && (
             <div className="bg-zinc-800 rounded-lg p-3 border border-zinc-700">
               <div className="flex items-center gap-2 mb-2">
-                <Loader2 className="h-3.5 w-3.5 text-blue-400 animate-spin" />
+                <Loader2 className="h-3.5 w-3.5 text-amber-400 animate-spin" />
                 <span className="text-xs text-zinc-300">{regenStatusMessage || 'Generating video...'}</span>
               </div>
               <div className="h-1.5 bg-zinc-700 rounded-full overflow-hidden">
                 <div 
-                  className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                  className="h-full bg-amber-500 rounded-full transition-all duration-300"
                   style={{ width: `${regenProgress}%` }}
                 />
               </div>
@@ -139,7 +139,7 @@ export function I2vGenerationModal({
             <button
               onClick={handleI2vGenerate}
               disabled={isRegenerating || !i2vPrompt.trim()}
-              className="px-4 py-1.5 rounded-lg bg-blue-600 text-white text-xs hover:bg-blue-500 transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+              className="px-4 py-1.5 rounded-lg bg-amber-500 text-zinc-950 text-xs hover:bg-amber-500 transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
             >
               {isRegenerating ? (
                 <>

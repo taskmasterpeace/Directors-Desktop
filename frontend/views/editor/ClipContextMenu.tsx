@@ -383,7 +383,7 @@ function SingleClipMenu({
             }}
             className={`px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors ${
               contextClip.speed === speed
-                ? 'bg-blue-600 text-white'
+                ? 'bg-amber-500 text-zinc-950'
                 : 'bg-zinc-700 text-zinc-400 hover:bg-zinc-600 hover:text-white'
             }`}
           >
@@ -392,7 +392,7 @@ function SingleClipMenu({
         ))}
       </div>
       <MenuItem icon={RotateCcw} label="Reverse"
-        badge={contextClip.reversed ? 'ON' : undefined} badgeClass="text-blue-400"
+        badge={contextClip.reversed ? 'ON' : undefined} badgeClass="text-amber-400"
         onClick={() => { updateClip(contextClip.id, { reversed: !contextClip.reversed }); close() }} />
       <MenuItem
         icon={contextClip.muted ? VolumeX : Volume2}
@@ -504,7 +504,7 @@ function SingleClipMenu({
           {contextClip.isRegenerating ? (
             <MenuItem icon={X} iconClass="text-red-400" label="Cancel Regeneration" onClick={() => { handleCancelRegeneration(); close() }} />
           ) : (
-            <MenuItem icon={RefreshCw} iconClass="text-blue-400" label="Regenerate Shot"
+            <MenuItem icon={RefreshCw} iconClass="text-amber-400" label="Regenerate Shot"
               disabled={isRegenerating} onClick={() => { handleRegenerate(contextClip.assetId!, contextClip.id); close() }} />
           )}
 
@@ -539,13 +539,13 @@ function SingleClipMenu({
           )}
 
           {isImage && (
-            <MenuItem icon={Film} iconClass="text-blue-400" label="Image to Video (I2V)"
+            <MenuItem icon={Film} iconClass="text-amber-400" label="Image to Video (I2V)"
               disabled={isRegenerating && i2vClipId === contextClip.id}
               onClick={() => { setI2vClipId(contextClip.id); setI2vPrompt(contextClip.asset?.prompt || ''); close() }} />
           )}
           {isVideo && contextClip.assetId && (
             <>
-              <MenuItem icon={Film} iconClass="text-blue-400" label="Retake Section"
+              <MenuItem icon={Film} iconClass="text-amber-400" label="Retake Section"
                 onClick={() => { onRetakeClip(contextClip); close() }} />
               <MenuItem icon={UserRound} iconClass="text-emerald-400" label="Replace Person..."
                 onClick={() => { onReplacePerson(contextClip); close() }} />
@@ -585,10 +585,10 @@ function SingleClipMenu({
                   onClick={() => { onCaptureFrameQuickMode(contextClip, 'location'); close() }} />
                 <MenuItem icon={Palette} iconClass="text-amber-400" label="Style Guide from Frame"
                   onClick={() => { onCaptureFrameQuickMode(contextClip, 'style'); close() }} />
-                <MenuItem icon={Video} iconClass="text-blue-400" label="Generate Video in Gen Space"
+                <MenuItem icon={Video} iconClass="text-amber-400" label="Generate Video in Gen Space"
                   onClick={() => { onCaptureFrameForVideo(contextClip); close() }} />
                 {isImage && (
-                  <MenuItem icon={Film} iconClass="text-blue-400" label="Image to Video (I2V)"
+                  <MenuItem icon={Film} iconClass="text-amber-400" label="Image to Video (I2V)"
                     disabled={isRegenerating && i2vClipId === contextClip.id}
                     onClick={() => { setI2vClipId(contextClip.id); setI2vPrompt(contextClip.asset?.prompt || ''); close() }} />
                 )}
@@ -743,7 +743,7 @@ function MultiClipMenu({
         badge={allMuted ? 'ALL MUTED' : undefined} badgeClass="text-red-400"
         onClick={() => batchUpdate({ muted: !allMuted })} />
       <MenuItem icon={RotateCcw} label={allReversed ? 'Un-reverse All' : 'Reverse All'}
-        badge={allReversed ? 'ALL ON' : undefined} badgeClass="text-blue-400"
+        badge={allReversed ? 'ALL ON' : undefined} badgeClass="text-amber-400"
         onClick={() => batchUpdate({ reversed: !allReversed })} />
 
       <Divider />

@@ -15,8 +15,8 @@ export function EffectsBrowser({ onClose, selectedClip, addEffectToClip }: Effec
     <div className="w-56 flex-shrink-0 bg-zinc-950 border-r border-zinc-800/80 flex flex-col overflow-hidden">
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2.5 border-b border-zinc-800/80 bg-zinc-900/50">
-        <div className="w-5 h-5 rounded bg-blue-600/20 flex items-center justify-center">
-          <Sparkles className="h-3 w-3 text-blue-400" />
+        <div className="w-5 h-5 rounded bg-amber-600/20 flex items-center justify-center">
+          <Sparkles className="h-3 w-3 text-amber-400" />
         </div>
         <span className="text-[11px] font-semibold text-zinc-200 flex-1">Effects</span>
         <button onClick={onClose} className="text-zinc-600 hover:text-zinc-300 transition-colors">
@@ -32,7 +32,7 @@ export function EffectsBrowser({ onClose, selectedClip, addEffectToClip }: Effec
             placeholder="Search effects..."
             value={effectsSearchQuery}
             onChange={(e) => setEffectsSearchQuery(e.target.value)}
-            className="w-full pl-7 pr-2 py-1.5 bg-zinc-800/70 rounded-md text-[11px] text-white placeholder-zinc-600 outline-none border border-zinc-700/40 focus:border-blue-500/50 focus:bg-zinc-800 transition-colors"
+            className="w-full pl-7 pr-2 py-1.5 bg-zinc-800/70 rounded-md text-[11px] text-white placeholder-zinc-600 outline-none border border-zinc-700/40 focus:border-amber-500/50 focus:bg-zinc-800 transition-colors"
           />
         </div>
       </div>
@@ -66,10 +66,10 @@ export function EffectsBrowser({ onClose, selectedClip, addEffectToClip }: Effec
                     'blur': 'B', 'sharpen': 'S', 'glow': 'G', 'vignette': 'V', 'grain': 'N',
                   }
                   const filterColor: Record<string, string> = {
-                    'blur': 'from-blue-500/20 to-blue-600/10 text-blue-400',
+                    'blur': 'from-amber-500/20 to-amber-600/10 text-amber-400',
                     'sharpen': 'from-cyan-500/20 to-cyan-600/10 text-cyan-400',
                     'glow': 'from-amber-500/20 to-amber-600/10 text-amber-400',
-                    'vignette': 'from-blue-500/20 to-blue-600/10 text-blue-400',
+                    'vignette': 'from-amber-500/20 to-amber-600/10 text-amber-400',
                     'grain': 'from-stone-500/20 to-stone-600/10 text-stone-400',
                   }
 

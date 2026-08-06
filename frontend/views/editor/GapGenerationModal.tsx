@@ -163,10 +163,10 @@ export function GapGenerationModal({
             <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
               <div className="flex items-center gap-3">
                 <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                  isVideoMode ? 'bg-blue-600/20' : 'bg-emerald-600/20'
+                  isVideoMode ? 'bg-amber-600/20' : 'bg-emerald-600/20'
                 }`}>
                   {isVideoMode
-                    ? <Video className="h-4 w-4 text-blue-400" />
+                    ? <Video className="h-4 w-4 text-amber-400" />
                     : <Image className="h-4 w-4 text-emerald-400" />}
                 </div>
                 <div>
@@ -256,7 +256,7 @@ export function GapGenerationModal({
                     </div>
                     {/* Selection border */}
                     {startFrameEnabled && (
-                      <div className="absolute inset-0 rounded-l-xl border-2 border-blue-500 pointer-events-none" />
+                      <div className="absolute inset-0 rounded-l-xl border-2 border-amber-500 pointer-events-none" />
                     )}
                   </div>
                 ) : (
@@ -270,7 +270,7 @@ export function GapGenerationModal({
                   {isVideoMode && gapImageFile && gapImageUrl ? (
                     <div className="relative w-full h-full group/center">
                       <img src={gapImageUrl} alt="" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 ring-2 ring-inset ring-blue-500/50 pointer-events-none" />
+                      <div className="absolute inset-0 ring-2 ring-inset ring-amber-500/50 pointer-events-none" />
                       <button
                         onClick={() => setGapImageFile(null)}
                         className="absolute top-1 right-1 p-0.5 rounded-full bg-black/70 text-white/70 hover:text-red-400 opacity-0 group-hover/center:opacity-100 transition-opacity"
@@ -278,7 +278,7 @@ export function GapGenerationModal({
                         <X className="h-2.5 w-2.5" />
                       </button>
                       <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent py-1 px-2 flex items-center justify-center">
-                        <span className="text-[8px] text-blue-200/90 font-medium">
+                        <span className="text-[8px] text-amber-200/90 font-medium">
                           Source frame
                         </span>
                       </div>
@@ -288,7 +288,7 @@ export function GapGenerationModal({
                       <div className="absolute inset-0 bg-zinc-800/70" />
                       <div className="absolute inset-0 border border-dashed border-zinc-700" />
                       <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 px-3">
-                        <Sparkles className="h-3.5 w-3.5 text-blue-400/40" />
+                        <Sparkles className="h-3.5 w-3.5 text-amber-400/40" />
                         <span className="text-xs text-zinc-500 font-medium text-center">AI fills this gap</span>
                       </div>
                     </div>
@@ -322,7 +322,7 @@ export function GapGenerationModal({
                     </div>
                     {/* Selection border */}
                     {endFrameEnabled && (
-                      <div className="absolute inset-0 rounded-r-xl border-2 border-blue-500 pointer-events-none" />
+                      <div className="absolute inset-0 rounded-r-xl border-2 border-amber-500 pointer-events-none" />
                     )}
                   </div>
                 ) : (
@@ -383,7 +383,7 @@ export function GapGenerationModal({
                     className={`w-full bg-zinc-800 border rounded-xl p-3 text-sm text-white resize-none focus:outline-none focus:ring-1 placeholder-zinc-600 ${
                       gapSuggesting
                         ? 'border-amber-600/40 focus:border-amber-500/50 focus:ring-amber-500/30 animate-pulse'
-                        : 'border-zinc-700 focus:border-blue-500/50 focus:ring-blue-500/30'
+                        : 'border-zinc-700 focus:border-amber-500/50 focus:ring-amber-500/30'
                     }`}
                     rows={3}
                   />
@@ -422,7 +422,7 @@ export function GapGenerationModal({
                         value={gapChunkLength}
                         onChange={(e) => setGapChunkLength(Number(e.target.value))}
                         onKeyDown={(e) => e.stopPropagation()}
-                        className="bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 text-[10px] text-white focus:outline-none focus:border-blue-500/50"
+                        className="bg-zinc-800 border border-zinc-700 rounded px-1.5 py-1 text-[10px] text-white focus:outline-none focus:border-amber-500/50"
                       >
                         <option value={0}>1 clip (whole gap)</option>
                         <option value={3}>3s clips</option>
@@ -461,7 +461,7 @@ export function GapGenerationModal({
                       onClick={() => {
                         window.dispatchEvent(new CustomEvent('open-settings', { detail: { tab: 'apiKeys' } }))
                       }}
-                      className="px-2.5 py-1 bg-blue-600 text-white text-[10px] rounded hover:bg-blue-500 transition-colors"
+                      className="px-2.5 py-1 bg-amber-500 text-zinc-950 text-[10px] rounded hover:bg-amber-500 transition-colors"
                     >
                       Configure in Settings
                     </button>
@@ -495,7 +495,7 @@ export function GapGenerationModal({
                     <p className="text-[10px] text-zinc-500 mt-0.5">Place the generated audio as a linked clip on the audio track</p>
                   </div>
                   <div className={`relative w-9 h-5 rounded-full transition-colors flex-shrink-0 ${
-                    gapApplyAudioToTrack ? 'bg-blue-600' : 'bg-zinc-700'
+                    gapApplyAudioToTrack ? 'bg-amber-600' : 'bg-zinc-700'
                   }`}>
                     <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform pointer-events-none ${
                       gapApplyAudioToTrack ? 'translate-x-4' : 'translate-x-0'
@@ -508,12 +508,12 @@ export function GapGenerationModal({
               {isRegenerating && (
                 <div className="bg-zinc-800 rounded-xl p-3 border border-zinc-700">
                   <div className="flex items-center gap-2 mb-2">
-                    <Loader2 className="h-3.5 w-3.5 text-blue-400 animate-spin" />
+                    <Loader2 className="h-3.5 w-3.5 text-amber-400 animate-spin" />
                     <span className="text-xs text-zinc-300">{regenStatusMessage || 'Generating...'}</span>
                   </div>
                   <div className="h-1.5 bg-zinc-700 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                      className="h-full bg-amber-500 rounded-full transition-all duration-300"
                       style={{ width: `${regenProgress * 100}%` }}
                     />
                   </div>
@@ -545,7 +545,7 @@ export function GapGenerationModal({
               <button
                 onClick={handleGapGenerate}
                 disabled={isRegenerating || !gapPrompt.trim()}
-                className="px-4 py-1.5 rounded-md bg-blue-600 text-white text-sm hover:bg-blue-500 transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                className="px-4 py-1.5 rounded-md bg-amber-500 text-zinc-950 text-sm hover:bg-amber-500 transition-colors font-medium disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
               >
                 {isRegenerating ? (
                   <>

@@ -94,7 +94,7 @@ export function TakeContextMenu({
           }
           setTakeContextMenu(null)
         }}
-        className="w-full text-left px-3 py-1.5 text-blue-300 hover:bg-zinc-700 flex items-center gap-3"
+        className="w-full text-left px-3 py-1.5 text-amber-300 hover:bg-zinc-700 flex items-center gap-3"
       >
         <Copy className="h-3.5 w-3.5" />
         <span>Create New Asset from Take</span>

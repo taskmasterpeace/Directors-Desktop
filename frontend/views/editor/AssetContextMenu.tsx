@@ -62,7 +62,7 @@ export function AssetContextMenu({
       onClick={(e) => e.stopPropagation()}
     >
       {isMulti && (
-        <div className="px-3 py-1 text-[10px] text-blue-400 font-medium">
+        <div className="px-3 py-1 text-[10px] text-amber-400 font-medium">
           {targetIds.length} assets selected
         </div>
       )}
@@ -350,7 +350,7 @@ export function AssetContextMenu({
               setSelectedAssetIds(new Set())
               setAssetContextMenu(null)
             }}
-            className="w-full text-left px-3 py-1.5 text-blue-300 hover:bg-zinc-700 flex items-center gap-3"
+            className="w-full text-left px-3 py-1.5 text-amber-300 hover:bg-zinc-700 flex items-center gap-3"
           >
             <GitMerge className="h-3.5 w-3.5" />
             <span>Group as Takes</span>

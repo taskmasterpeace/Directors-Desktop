@@ -86,7 +86,7 @@ export function ClipPropertiesPanel(props: ClipPropertiesPanelProps) {
         <button
           className={`px-3 py-1.5 text-xs font-semibold transition-colors border-b-2 ${
             propertiesTab === 'properties'
-              ? 'text-white border-blue-500'
+              ? 'text-white border-amber-500'
               : 'text-zinc-500 border-transparent hover:text-zinc-300'
           }`}
           onClick={() => setPropertiesTab('properties')}
@@ -96,7 +96,7 @@ export function ClipPropertiesPanel(props: ClipPropertiesPanelProps) {
         <button
           className={`px-3 py-1.5 text-xs font-semibold transition-colors border-b-2 ${
             propertiesTab === 'metadata'
-              ? 'text-white border-blue-500'
+              ? 'text-white border-amber-500'
               : 'text-zinc-500 border-transparent hover:text-zinc-300'
           }`}
           onClick={() => setPropertiesTab('metadata')}
@@ -336,10 +336,10 @@ export function ClipPropertiesPanel(props: ClipPropertiesPanelProps) {
             updateClip(selectedClip.id, { letterbox: { ...lb, ...patch } })
           }
           return (
-            <div className="bg-blue-950/30 border border-blue-700/30 rounded-lg p-3 space-y-3">
+            <div className="bg-amber-950/30 border border-amber-700/30 rounded-lg p-3 space-y-3">
               <div className="flex items-center gap-2 mb-1">
-                <Layers className="h-4 w-4 text-blue-400" />
-                <h4 className="text-xs font-semibold text-blue-300">Adjustment Layer</h4>
+                <Layers className="h-4 w-4 text-amber-400" />
+                <h4 className="text-xs font-semibold text-amber-300">Adjustment Layer</h4>
               </div>
 
               {/* Letterbox toggle */}
@@ -349,7 +349,7 @@ export function ClipPropertiesPanel(props: ClipPropertiesPanelProps) {
                   onClick={() => updateLetterbox({ enabled: !lb.enabled })}
                   className={`px-2.5 py-0.5 rounded text-[10px] border transition-colors ${
                     lb.enabled
-                      ? 'bg-blue-600/30 text-blue-300 border-blue-500/40'
+                      ? 'bg-amber-600/30 text-amber-300 border-amber-500/40'
                       : 'bg-zinc-800 text-zinc-500 border-zinc-700'
                   }`}
                 >
@@ -365,7 +365,7 @@ export function ClipPropertiesPanel(props: ClipPropertiesPanelProps) {
                     <select
                       value={lb.aspectRatio}
                       onChange={e => updateLetterbox({ aspectRatio: e.target.value as LetterboxSettings['aspectRatio'] })}
-                      className="bg-zinc-800 border border-zinc-700 rounded px-2 py-0.5 text-[10px] text-white focus:outline-none focus:border-blue-500/50"
+                      className="bg-zinc-800 border border-zinc-700 rounded px-2 py-0.5 text-[10px] text-white focus:outline-none focus:border-amber-500/50"
                     >
                       <option value="2.39:1">2.39:1 (Anamorphic)</option>
                       <option value="2.35:1">2.35:1 (Cinemascope)</option>
@@ -388,7 +388,7 @@ export function ClipPropertiesPanel(props: ClipPropertiesPanelProps) {
                         value={lb.customRatio || 2.35}
                         onChange={e => updateLetterbox({ customRatio: parseFloat(e.target.value) || 2.35 })}
                         onKeyDown={e => e.stopPropagation()}
-                        className="w-20 bg-zinc-800 border border-zinc-700 rounded px-2 py-0.5 text-[10px] text-white text-center focus:outline-none focus:border-blue-500/50"
+                        className="w-20 bg-zinc-800 border border-zinc-700 rounded px-2 py-0.5 text-[10px] text-white text-center focus:outline-none focus:border-amber-500/50"
                       />
                     </div>
                   )}
@@ -411,7 +411,7 @@ export function ClipPropertiesPanel(props: ClipPropertiesPanelProps) {
                       <input
                         type="range" min={0} max={100} value={lb.opacity}
                         onChange={e => updateLetterbox({ opacity: parseInt(e.target.value) })}
-                        className="w-20 accent-blue-500"
+                        className="w-20 accent-amber-500"
                       />
                       <span className="text-[10px] text-zinc-300 w-8 text-right tabular-nums">{lb.opacity}%</span>
                     </div>
@@ -615,7 +615,7 @@ export function ClipPropertiesPanel(props: ClipPropertiesPanelProps) {
               setI2vPrompt(selectedClip.asset?.prompt || '')
             }}
             disabled={isRegenerating && i2vClipId === selectedClip.id}
-            className="w-full px-3 py-2 rounded-lg bg-blue-600/15 border border-blue-500/30 text-blue-400 text-xs hover:bg-blue-600/25 hover:border-blue-500/50 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full px-3 py-2 rounded-lg bg-amber-600/15 border border-amber-500/30 text-amber-400 text-xs hover:bg-amber-600/25 hover:border-amber-500/50 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Film className="h-3.5 w-3.5" />
             {isRegenerating && i2vClipId === selectedClip.id ? 'Generating Video...' : 'Generate Video (I2V)'}
@@ -756,7 +756,7 @@ export function ClipPropertiesPanel(props: ClipPropertiesPanelProps) {
             step={1}
             value={selectedClip.opacity ?? 100}
             onChange={(e) => updateClip(selectedClip.id, { opacity: parseInt(e.target.value) })}
-            className="w-full h-1.5 accent-blue-500"
+            className="w-full h-1.5 accent-amber-500"
           />
           <div className="flex justify-between text-[9px] text-zinc-600 mt-0.5">
             <span>0%</span>
@@ -906,13 +906,13 @@ export function ClipPropertiesPanel(props: ClipPropertiesPanelProps) {
             <Palette className="h-3.5 w-3.5" />
             Color Correction
             {selectedClip.colorCorrection && Object.values(selectedClip.colorCorrection).some(v => v !== 0) && (
-              <span className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-500 flex-shrink-0" />
+              <span className="ml-auto w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />
             )}
           </button>
           {showColorCorrection && (
             <div className="space-y-2.5 pl-1">
               <button
-                className="flex items-center gap-1.5 text-[10px] text-zinc-500 hover:text-blue-400 transition-colors"
+                className="flex items-center gap-1.5 text-[10px] text-zinc-500 hover:text-amber-400 transition-colors"
                 onClick={() => updateClip(selectedClip.id, { colorCorrection: { ...DEFAULT_COLOR_CORRECTION } })}
               >
                 <RotateCcw className="h-3 w-3" />
@@ -936,7 +936,7 @@ export function ClipPropertiesPanel(props: ClipPropertiesPanelProps) {
                   onChange={(e) => updateClip(selectedClip.id, {
                     colorCorrection: { ...(selectedClip.colorCorrection || DEFAULT_COLOR_CORRECTION), exposure: parseInt(e.target.value) }
                   })}
-                  className="w-full h-1.5 accent-blue-500"
+                  className="w-full h-1.5 accent-amber-500"
                 />
               </div>
 
@@ -957,7 +957,7 @@ export function ClipPropertiesPanel(props: ClipPropertiesPanelProps) {
                   onChange={(e) => updateClip(selectedClip.id, {
                     colorCorrection: { ...(selectedClip.colorCorrection || DEFAULT_COLOR_CORRECTION), brightness: parseInt(e.target.value) }
                   })}
-                  className="w-full h-1.5 accent-blue-500"
+                  className="w-full h-1.5 accent-amber-500"
                 />
               </div>
 
@@ -978,7 +978,7 @@ export function ClipPropertiesPanel(props: ClipPropertiesPanelProps) {
                   onChange={(e) => updateClip(selectedClip.id, {
                     colorCorrection: { ...(selectedClip.colorCorrection || DEFAULT_COLOR_CORRECTION), contrast: parseInt(e.target.value) }
                   })}
-                  className="w-full h-1.5 accent-blue-500"
+                  className="w-full h-1.5 accent-amber-500"
                 />
               </div>
 
@@ -999,7 +999,7 @@ export function ClipPropertiesPanel(props: ClipPropertiesPanelProps) {
                   onChange={(e) => updateClip(selectedClip.id, {
                     colorCorrection: { ...(selectedClip.colorCorrection || DEFAULT_COLOR_CORRECTION), saturation: parseInt(e.target.value) }
                   })}
-                  className="w-full h-1.5 accent-blue-500"
+                  className="w-full h-1.5 accent-amber-500"
                 />
               </div>
 
@@ -1020,7 +1020,7 @@ export function ClipPropertiesPanel(props: ClipPropertiesPanelProps) {
                   onChange={(e) => updateClip(selectedClip.id, {
                     colorCorrection: { ...(selectedClip.colorCorrection || DEFAULT_COLOR_CORRECTION), temperature: parseInt(e.target.value) }
                   })}
-                  className="w-full h-1.5 accent-blue-500"
+                  className="w-full h-1.5 accent-amber-500"
                 />
                 <div className="flex justify-between text-[9px] text-zinc-600 mt-0.5">
                   <span>Cool</span>
@@ -1045,7 +1045,7 @@ export function ClipPropertiesPanel(props: ClipPropertiesPanelProps) {
                   onChange={(e) => updateClip(selectedClip.id, {
                     colorCorrection: { ...(selectedClip.colorCorrection || DEFAULT_COLOR_CORRECTION), tint: parseInt(e.target.value) }
                   })}
-                  className="w-full h-1.5 accent-blue-500"
+                  className="w-full h-1.5 accent-amber-500"
                 />
                 <div className="flex justify-between text-[9px] text-zinc-600 mt-0.5">
                   <span>Green</span>
@@ -1070,7 +1070,7 @@ export function ClipPropertiesPanel(props: ClipPropertiesPanelProps) {
                   onChange={(e) => updateClip(selectedClip.id, {
                     colorCorrection: { ...(selectedClip.colorCorrection || DEFAULT_COLOR_CORRECTION), highlights: parseInt(e.target.value) }
                   })}
-                  className="w-full h-1.5 accent-blue-500"
+                  className="w-full h-1.5 accent-amber-500"
                 />
               </div>
 
@@ -1091,7 +1091,7 @@ export function ClipPropertiesPanel(props: ClipPropertiesPanelProps) {
                   onChange={(e) => updateClip(selectedClip.id, {
                     colorCorrection: { ...(selectedClip.colorCorrection || DEFAULT_COLOR_CORRECTION), shadows: parseInt(e.target.value) }
                   })}
-                  className="w-full h-1.5 accent-blue-500"
+                  className="w-full h-1.5 accent-amber-500"
                 />
               </div>
             </div>

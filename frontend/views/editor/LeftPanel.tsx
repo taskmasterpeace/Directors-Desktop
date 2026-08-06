@@ -254,7 +254,7 @@ export function LeftPanel(props: LeftPanelProps) {
                 onClick={() => setSelectedBin(null)}
                 className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors flex items-center gap-1 ${
                   selectedBin === null
-                    ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
+                    ? 'bg-amber-600/30 text-amber-300 border border-amber-500/40'
                     : 'bg-zinc-800 text-zinc-500 hover:text-zinc-300 border border-transparent'
                 }`}
               >
@@ -271,14 +271,14 @@ export function LeftPanel(props: LeftPanelProps) {
                   }}
                   onDragOver={(e) => {
                     e.preventDefault()
-                    e.currentTarget.classList.add('ring-2', 'ring-blue-400')
+                    e.currentTarget.classList.add('ring-2', 'ring-amber-400')
                   }}
                   onDragLeave={(e) => {
-                    e.currentTarget.classList.remove('ring-2', 'ring-blue-400')
+                    e.currentTarget.classList.remove('ring-2', 'ring-amber-400')
                   }}
                   onDrop={(e) => {
                     e.preventDefault()
-                    e.currentTarget.classList.remove('ring-2', 'ring-blue-400')
+                    e.currentTarget.classList.remove('ring-2', 'ring-amber-400')
                     if (!currentProjectId) return
                     pushAssetUndoRef.current()
                     // Handle multi-asset drag
@@ -296,7 +296,7 @@ export function LeftPanel(props: LeftPanelProps) {
                   }}
                   className={`px-2 py-0.5 rounded text-[10px] font-medium transition-colors flex items-center gap-1 group/bin ${
                     selectedBin === bin
-                      ? 'bg-blue-600/30 text-blue-300 border border-blue-500/40'
+                      ? 'bg-amber-600/30 text-amber-300 border border-amber-500/40'
                       : 'bg-zinc-800 text-zinc-500 hover:text-zinc-300 border border-transparent'
                   }`}
                 >
@@ -341,7 +341,7 @@ export function LeftPanel(props: LeftPanelProps) {
                       setNewBinName('')
                     }}
                     placeholder="Bin name..."
-                    className="w-20 px-1.5 py-0.5 rounded text-[10px] bg-zinc-800 border border-zinc-600 text-white placeholder-zinc-600 focus:outline-none focus:border-blue-500"
+                    className="w-20 px-1.5 py-0.5 rounded text-[10px] bg-zinc-800 border border-zinc-600 text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500"
                   />
                 </div>
               )}
@@ -405,7 +405,7 @@ export function LeftPanel(props: LeftPanelProps) {
                     <button
                       onClick={() => handleRegenerate(takesAsset.id)}
                       disabled={isRegenerating}
-                      className="px-2 py-1 rounded-lg bg-blue-600/20 text-blue-300 hover:bg-blue-600/40 transition-colors text-[10px] font-medium flex items-center gap-1 disabled:opacity-50"
+                      className="px-2 py-1 rounded-lg bg-amber-600/20 text-amber-300 hover:bg-amber-600/40 transition-colors text-[10px] font-medium flex items-center gap-1 disabled:opacity-50"
                     >
                       <RefreshCw className="h-3 w-3" />
                       New Take
@@ -423,7 +423,7 @@ export function LeftPanel(props: LeftPanelProps) {
                       key={idx}
                       className={`relative group rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${
                         isActive
-                          ? 'border-blue-500 ring-2 ring-blue-500/40 shadow-lg shadow-blue-500/20'
+                          ? 'border-amber-500 ring-2 ring-amber-500/40 shadow-lg shadow-amber-500/20'
                           : 'border-zinc-800 hover:border-zinc-600'
                       }`}
                       onClick={() => {
@@ -456,14 +456,14 @@ export function LeftPanel(props: LeftPanelProps) {
                       
                       {/* Active overlay */}
                       {isActive && (
-                        <div className="absolute inset-0 bg-blue-600/15 pointer-events-none" />
+                        <div className="absolute inset-0 bg-amber-600/15 pointer-events-none" />
                       )}
                       
                       {/* Take label */}
                       <div className="absolute bottom-1 left-1 flex items-center gap-1.5">
                         <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
                           isActive
-                            ? 'bg-blue-500 text-white'
+                            ? 'bg-amber-500 text-zinc-950'
                             : 'bg-black/70 text-zinc-300'
                         }`}>
                           Take {idx + 1}
@@ -472,7 +472,7 @@ export function LeftPanel(props: LeftPanelProps) {
                       
                       {/* Active badge */}
                       {isActive && (
-                        <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-blue-500 text-white text-[9px] font-semibold">
+                        <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-amber-500 text-zinc-950 text-[9px] font-semibold">
                           Active
                         </div>
                       )}
@@ -516,10 +516,10 @@ export function LeftPanel(props: LeftPanelProps) {
                       
                       {/* Regenerating overlay */}
                       {isRegenerating && regeneratingAssetId === takesAsset.id && idx === takesAsset.takes!.length - 1 && (
-                        <div className="absolute inset-0 bg-blue-900/40 backdrop-blur-sm flex flex-col items-center justify-center z-20">
-                          <Loader2 className="h-5 w-5 text-blue-300 animate-spin mb-1" />
-                          <span className="text-[9px] text-blue-200 font-medium">{regenProgress}%</span>
-                          <span className="text-[8px] text-blue-300/70 mb-1.5">{regenStatusMessage}</span>
+                        <div className="absolute inset-0 bg-amber-900/40 backdrop-blur-sm flex flex-col items-center justify-center z-20">
+                          <Loader2 className="h-5 w-5 text-amber-300 animate-spin mb-1" />
+                          <span className="text-[9px] text-amber-200 font-medium">{regenProgress}%</span>
+                          <span className="text-[8px] text-amber-300/70 mb-1.5">{regenStatusMessage}</span>
                           <button
                             onClick={(e) => { e.stopPropagation(); handleCancelRegeneration() }}
                             className="px-2 py-0.5 rounded bg-zinc-800/80 border border-zinc-600/60 text-[9px] text-zinc-300 hover:text-red-400 hover:border-red-500/50 hover:bg-red-900/30 transition-colors"
@@ -601,7 +601,7 @@ export function LeftPanel(props: LeftPanelProps) {
             if (width < 3 && height < 3) return null
             return (
               <div
-                className="absolute border border-blue-400 bg-blue-500/15 rounded-sm pointer-events-none z-30"
+                className="absolute border border-amber-400 bg-amber-500/15 rounded-sm pointer-events-none z-30"
                 style={{ left, top, width, height }}
               />
             )
@@ -630,7 +630,7 @@ export function LeftPanel(props: LeftPanelProps) {
                   data-asset-id={asset.id}
                   className={`relative group cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
                     selectedAssetIds.has(asset.id)
-                      ? 'border-blue-500 ring-2 ring-blue-500/40 shadow-lg shadow-blue-500/20'
+                      ? 'border-amber-500 ring-2 ring-amber-500/40 shadow-lg shadow-amber-500/20'
                       : 'border-zinc-800 hover:border-zinc-600'
                   }`}
                   draggable
@@ -713,15 +713,15 @@ export function LeftPanel(props: LeftPanelProps) {
                       </p>
                     </div>
                   ) : asset.type === 'adjustment' ? (
-                    <div className="w-full aspect-video bg-gradient-to-br from-blue-900/40 to-zinc-900 flex flex-col items-center justify-center gap-1.5 border border-dashed border-blue-500/30">
-                      <Layers className="h-6 w-6 text-blue-400" />
-                      <p className="text-[9px] text-blue-300/70 font-medium">Adjustment Layer</p>
+                    <div className="w-full aspect-video bg-gradient-to-br from-amber-900/40 to-zinc-900 flex flex-col items-center justify-center gap-1.5 border border-dashed border-amber-500/30">
+                      <Layers className="h-6 w-6 text-amber-400" />
+                      <p className="text-[9px] text-amber-300/70 font-medium">Adjustment Layer</p>
                     </div>
                   ) : (
                     <img src={asset.url} alt="" className="w-full aspect-video object-cover" />
                   )}
                   {selectedAssetIds.has(asset.id) && (
-                    <div className="absolute inset-0 bg-blue-600/25 pointer-events-none z-[1]" />
+                    <div className="absolute inset-0 bg-amber-600/25 pointer-events-none z-[1]" />
                   )}
                   {!selectedAssetIds.has(asset.id) && (
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none" />
@@ -737,8 +737,8 @@ export function LeftPanel(props: LeftPanelProps) {
                           disabled={isRegenerating}
                           className={`p-1 rounded bg-black/70 transition-colors ${
                             isRegenerating && regeneratingAssetId === asset.id
-                              ? 'text-blue-400 animate-spin'
-                              : 'text-zinc-400 hover:text-blue-400 hover:bg-blue-900/50'
+                              ? 'text-amber-400 animate-spin'
+                              : 'text-zinc-400 hover:text-amber-400 hover:bg-amber-900/50'
                           }`}
                         >
                           <RefreshCw className="h-3 w-3" />
@@ -759,10 +759,10 @@ export function LeftPanel(props: LeftPanelProps) {
                     </Tooltip>
                   </div>
                   {isRegenerating && regeneratingAssetId === asset.id && (
-                    <div className="absolute inset-0 bg-blue-900/40 backdrop-blur-sm flex flex-col items-center justify-center z-20">
-                      <Loader2 className="h-5 w-5 text-blue-300 animate-spin mb-1" />
-                      <span className="text-[9px] text-blue-200 font-medium">{regenProgress}%</span>
-                      <span className="text-[8px] text-blue-300/70 mb-1.5">{regenStatusMessage}</span>
+                    <div className="absolute inset-0 bg-amber-900/40 backdrop-blur-sm flex flex-col items-center justify-center z-20">
+                      <Loader2 className="h-5 w-5 text-amber-300 animate-spin mb-1" />
+                      <span className="text-[9px] text-amber-200 font-medium">{regenProgress}%</span>
+                      <span className="text-[8px] text-amber-300/70 mb-1.5">{regenStatusMessage}</span>
                       <button
                         onClick={(e) => { e.stopPropagation(); handleCancelRegeneration() }}
                         className="px-2 py-0.5 rounded bg-zinc-800/80 border border-zinc-600/60 text-[9px] text-zinc-300 hover:text-red-400 hover:border-red-500/50 hover:bg-red-900/30 transition-colors"
@@ -784,7 +784,7 @@ export function LeftPanel(props: LeftPanelProps) {
                             }
                           }}
                           disabled={(asset.activeTakeIndex ?? 0) === 0}
-                          className="p-0.5 text-blue-300 hover:text-white disabled:text-zinc-600 transition-colors"
+                          className="p-0.5 text-amber-300 hover:text-white disabled:text-zinc-600 transition-colors"
                         >
                           <ChevronLeft className="h-3 w-3" />
                         </button>
@@ -798,8 +798,8 @@ export function LeftPanel(props: LeftPanelProps) {
                         className="px-0.5 cursor-pointer hover:text-white transition-colors flex items-center gap-1"
                         title="View all takes"
                       >
-                        <Layers className="h-2.5 w-2.5 text-blue-400" />
-                        <span className="text-[9px] text-blue-300 font-medium">
+                        <Layers className="h-2.5 w-2.5 text-amber-400" />
+                        <span className="text-[9px] text-amber-300 font-medium">
                           {(asset.activeTakeIndex ?? 0) + 1}/{asset.takes.length}
                         </span>
                       </button>
@@ -814,7 +814,7 @@ export function LeftPanel(props: LeftPanelProps) {
                             }
                           }}
                           disabled={asset.takes && (asset.activeTakeIndex ?? 0) >= asset.takes.length - 1}
-                          className="p-0.5 text-blue-300 hover:text-white disabled:text-zinc-600 transition-colors"
+                          className="p-0.5 text-amber-300 hover:text-white disabled:text-zinc-600 transition-colors"
                         >
                           <ChevronRight className="h-3 w-3" />
                         </button>
@@ -822,7 +822,7 @@ export function LeftPanel(props: LeftPanelProps) {
                     </div>
                   )}
                   {asset.bin && (
-                    <div className="absolute top-1.5 left-8 flex items-center gap-0.5 px-1 py-0.5 rounded bg-black/70 text-[9px] text-blue-300 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                    <div className="absolute top-1.5 left-8 flex items-center gap-0.5 px-1 py-0.5 rounded bg-black/70 text-[9px] text-amber-300 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                       <Folder className="h-2.5 w-2.5" />
                       {asset.bin}
                     </div>
@@ -853,7 +853,7 @@ export function LeftPanel(props: LeftPanelProps) {
                     key={col}
                     onClick={() => toggleSort(col)}
                     className={`${flex} flex items-center gap-0.5 text-[9px] font-semibold uppercase tracking-wider transition-colors cursor-pointer select-none ${
-                      listSortCol === col ? 'text-blue-400' : 'text-zinc-500 hover:text-zinc-300'
+                      listSortCol === col ? 'text-amber-400' : 'text-zinc-500 hover:text-zinc-300'
                     }`}
                   >
                     <span className="truncate">{label}</span>
@@ -878,7 +878,7 @@ export function LeftPanel(props: LeftPanelProps) {
                     data-asset-id={asset.id}
                     className={`group flex items-center gap-1 px-2 py-1 cursor-pointer transition-all ${
                       selectedAssetIds.has(asset.id)
-                        ? 'bg-blue-600/20 ring-1 ring-blue-500/50'
+                        ? 'bg-amber-600/20 ring-1 ring-amber-500/50'
                         : 'hover:bg-zinc-800/60'
                     }`}
                     draggable
@@ -949,7 +949,7 @@ export function LeftPanel(props: LeftPanelProps) {
                       ) : asset.type === 'audio' ? (
                         <div className="w-full h-full flex items-center justify-center bg-emerald-900/40"><Music className="h-2.5 w-2.5 text-emerald-400" /></div>
                       ) : asset.type === 'adjustment' ? (
-                        <div className="w-full h-full flex items-center justify-center bg-blue-900/30"><Layers className="h-2.5 w-2.5 text-blue-400" /></div>
+                        <div className="w-full h-full flex items-center justify-center bg-amber-900/30"><Layers className="h-2.5 w-2.5 text-amber-400" /></div>
                       ) : (
                         <img src={asset.url} alt="" className="w-full h-full object-cover" />
                       )}
@@ -958,7 +958,7 @@ export function LeftPanel(props: LeftPanelProps) {
                     <div className="flex-1 min-w-0">
                       <p className="text-[10px] text-zinc-200 truncate leading-tight">{name}</p>
                       {asset.takes && asset.takes.length > 1 && (
-                        <span className="text-[8px] text-blue-400">{asset.takes.length} takes</span>
+                        <span className="text-[8px] text-amber-400">{asset.takes.length} takes</span>
                       )}
                     </div>
                     {/* Type column */}
@@ -1004,7 +1004,7 @@ export function LeftPanel(props: LeftPanelProps) {
       
       {/* Resize handle between Assets and Timelines */}
       <div
-        className="h-1 flex-shrink-0 cursor-row-resize bg-transparent hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors relative group z-10"
+        className="h-1 flex-shrink-0 cursor-row-resize bg-transparent hover:bg-amber-500/40 active:bg-amber-500/60 transition-colors relative group z-10"
         onMouseDown={(e) => handleResizeDragStart('assets', e)}
       >
         <div className="absolute inset-x-0 -top-1 -bottom-1" />
@@ -1059,7 +1059,7 @@ export function LeftPanel(props: LeftPanelProps) {
                 key={tl.id}
                 className={`group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-colors ${
                   isActive 
-                    ? 'bg-blue-600/20 border border-blue-500/40' 
+                    ? 'bg-amber-600/20 border border-amber-500/40' 
                     : 'hover:bg-zinc-800 border border-transparent'
                 }`}
                 draggable={!isActive}
@@ -1072,7 +1072,7 @@ export function LeftPanel(props: LeftPanelProps) {
                 onDoubleClick={() => handleStartRename(tl.id, tl.name, 'panel')}
                 onContextMenu={(e) => handleTimelineTabContextMenu(e, tl.id)}
               >
-                <Film className={`h-4 w-4 flex-shrink-0 ${isActive ? 'text-blue-400' : 'text-zinc-500'}`} />
+                <Film className={`h-4 w-4 flex-shrink-0 ${isActive ? 'text-amber-400' : 'text-zinc-500'}`} />
                 <div className="flex-1 min-w-0">
                   {renamingTimelineId === tl.id && renameSource === 'panel' ? (
                     <input
@@ -1084,7 +1084,7 @@ export function LeftPanel(props: LeftPanelProps) {
                         if (e.key === 'Enter') handleFinishRename()
                         if (e.key === 'Escape') { setRenamingTimelineId(null); setRenameValue('') }
                       }}
-                      className="bg-zinc-900 border border-blue-500 rounded px-1 py-0.5 outline-none text-white text-xs w-full"
+                      className="bg-zinc-900 border border-amber-500 rounded px-1 py-0.5 outline-none text-white text-xs w-full"
                       autoFocus
                       onClick={(e) => e.stopPropagation()}
                       onDoubleClick={(e) => e.stopPropagation()}
@@ -1105,7 +1105,7 @@ export function LeftPanel(props: LeftPanelProps) {
                   </div>
                 </div>
                 {isActive ? (
-                  <span className="text-[9px] text-blue-400 font-medium uppercase tracking-wider flex-shrink-0">Active</span>
+                  <span className="text-[9px] text-amber-400 font-medium uppercase tracking-wider flex-shrink-0">Active</span>
                 ) : openTimelineIds.has(tl.id) ? (
                   <span className="w-1.5 h-1.5 rounded-full bg-zinc-500 flex-shrink-0" title="Open in tabs" />
                 ) : null}

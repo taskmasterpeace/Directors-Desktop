@@ -2309,7 +2309,7 @@ export function VideoEditor() {
                   <input
                     ref={presetNameInputRef}
                     autoFocus
-                    className="w-full bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-[13px] text-white outline-none focus:border-blue-500"
+                    className="w-full bg-zinc-800 border border-zinc-600 rounded px-2 py-1 text-[13px] text-white outline-none focus:border-amber-500"
                     value={savingPresetName}
                     onChange={e => setSavingPresetName(e.target.value)}
                     onKeyDown={e => {
@@ -2351,14 +2351,14 @@ export function VideoEditor() {
                       setSavingPresetName('')
                       requestAnimationFrame(() => presetNameInputRef.current?.focus())
                     }}
-                    className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-zinc-200 hover:bg-blue-600 hover:text-white transition-colors"
+                    className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-zinc-200 hover:bg-amber-500 hover:text-zinc-950 transition-colors"
                   >
                     <Save className="h-3.5 w-3.5" />
                     Save Current Layout...
                   </button>
                   <button
                     onClick={() => { handleResetLayout(); setShowLayoutMenu(false) }}
-                    className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-zinc-200 hover:bg-blue-600 hover:text-white transition-colors"
+                    className="w-full flex items-center gap-2.5 px-3 py-1.5 text-[13px] text-zinc-200 hover:bg-amber-500 hover:text-zinc-950 transition-colors"
                   >
                     <RotateCcw className="h-3.5 w-3.5" />
                     Reset to Default
@@ -2370,7 +2370,7 @@ export function VideoEditor() {
                       {layoutPresets.map(preset => (
                         <div
                           key={preset.id}
-                          className="flex items-center group hover:bg-blue-600 transition-colors"
+                          className="flex items-center group hover:bg-amber-600 transition-colors"
                         >
                           <button
                             onClick={() => { handleApplyLayoutPreset(preset); setShowLayoutMenu(false) }}
@@ -2463,7 +2463,7 @@ export function VideoEditor() {
       />
       {/* Left resize handle */}
       <div
-        className="w-1 flex-shrink-0 cursor-col-resize bg-transparent hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors relative group z-10"
+        className="w-1 flex-shrink-0 cursor-col-resize bg-transparent hover:bg-amber-500/40 active:bg-amber-500/60 transition-colors relative group z-10"
         onMouseDown={(e) => handleResizeDragStart('left', e)}
       >
         <div className="absolute inset-y-0 -left-1 -right-1" />
@@ -2501,7 +2501,7 @@ export function VideoEditor() {
           {/* Resize handle between panels */}
           {showSourceMonitor && (
             <div
-              className="w-1.5 flex-shrink-0 cursor-col-resize bg-transparent hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors relative group z-10"
+              className="w-1.5 flex-shrink-0 cursor-col-resize bg-transparent hover:bg-amber-500/40 active:bg-amber-500/60 transition-colors relative group z-10"
               onMouseDown={(e) => {
                 e.preventDefault()
                 e.stopPropagation()
@@ -2599,7 +2599,7 @@ export function VideoEditor() {
         
         {/* Timeline resize handle — above the timeline tabs */}
         <div
-          className="h-1 flex-shrink-0 cursor-row-resize bg-transparent hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors relative group z-10"
+          className="h-1 flex-shrink-0 cursor-row-resize bg-transparent hover:bg-amber-500/40 active:bg-amber-500/60 transition-colors relative group z-10"
           onMouseDown={(e) => handleResizeDragStart('timeline', e)}
         >
           <div className="absolute inset-x-0 -top-1 -bottom-1" />
@@ -2630,7 +2630,7 @@ export function VideoEditor() {
                     if (e.key === 'Enter') handleFinishRename()
                     if (e.key === 'Escape') { setRenamingTimelineId(null); setRenameValue('') }
                   }}
-                  className="bg-transparent border-b border-blue-500 outline-none text-white text-xs w-20"
+                  className="bg-transparent border-b border-amber-500 outline-none text-white text-xs w-20"
                   autoFocus
                   onClick={(e) => e.stopPropagation()}
                 />
@@ -2780,7 +2780,7 @@ export function VideoEditor() {
                   onClick={() => setActiveTool(tool.id)}
                   className={`p-1.5 rounded-lg transition-colors relative group flex-shrink-0 ${
                     activeTool === tool.id
-                      ? 'bg-blue-600 text-white'
+                      ? 'bg-amber-500 text-zinc-950'
                       : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
                   }`}
                 >
@@ -2831,7 +2831,7 @@ export function VideoEditor() {
                       data-trim-group-btn=""
                       className={`p-1.5 rounded-lg transition-colors relative group ${
                         isTrimActive
-                          ? 'bg-blue-600 text-white'
+                          ? 'bg-amber-500 text-zinc-950'
                           : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
                       }`}
                     >
@@ -2861,7 +2861,7 @@ export function VideoEditor() {
                                 setShowTrimFlyout(false)
                               }}
                               className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors ${
-                                activeTool === t.id ? 'bg-blue-600/30 text-white' : 'text-zinc-300 hover:bg-zinc-700'
+                                activeTool === t.id ? 'bg-amber-600/30 text-white' : 'text-zinc-300 hover:bg-zinc-700'
                               }`}
                             >
                               <t.icon className="h-3.5 w-3.5" />
@@ -2977,7 +2977,7 @@ export function VideoEditor() {
               onClick={() => setShowEffectsBrowser(!showEffectsBrowser)}
               className={`p-1.5 rounded-lg transition-colors flex-shrink-0 text-[10px] font-bold ${
                 showEffectsBrowser
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-amber-500 text-zinc-950'
                   : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
               }`}
               title="Effects Browser"
@@ -3027,7 +3027,7 @@ export function VideoEditor() {
               <button
                 onClick={() => setShowPropertiesPanel(p => !p)}
                 className={`p-1.5 rounded-lg transition-colors flex-shrink-0 group relative ${
-                  showPropertiesPanel ? 'bg-blue-600 text-white' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                  showPropertiesPanel ? 'bg-amber-500 text-zinc-950' : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
                 }`}
               >
                 <PanelRight className="h-4 w-4" />
@@ -3325,7 +3325,7 @@ export function VideoEditor() {
                   <div className="w-px h-3 bg-zinc-700" />
                   <button 
                     onClick={() => createAdjustmentLayerAsset()}
-                    className="text-[10px] text-blue-400/70 hover:text-blue-300 flex items-center gap-0.5"
+                    className="text-[10px] text-amber-400/70 hover:text-amber-300 flex items-center gap-0.5"
                     title="Create adjustment layer asset"
                   >
                     <Layers className="h-3 w-3" />
@@ -3339,7 +3339,7 @@ export function VideoEditor() {
                     {/* Draggable divider between video and audio sections */}
                     {displayRow === audioDividerDisplayRow && (
                       <div 
-                        className="flex-shrink-0 bg-zinc-700/60 relative cursor-row-resize hover:bg-blue-500/30 transition-colors group/divider"
+                        className="flex-shrink-0 bg-zinc-700/60 relative cursor-row-resize hover:bg-amber-500/30 transition-colors group/divider"
                         style={{ height: DIVIDER_H }}
                         onMouseDown={(e) => {
                           e.preventDefault()
@@ -3364,8 +3364,8 @@ export function VideoEditor() {
                       >
                         <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex items-center justify-center">
                           <div className="flex flex-col items-center gap-[1px]">
-                            <div className="w-8 h-[1px] bg-zinc-500 group-hover/divider:bg-blue-400 transition-colors rounded-full" />
-                            <div className="w-8 h-[1px] bg-zinc-500 group-hover/divider:bg-blue-400 transition-colors rounded-full" />
+                            <div className="w-8 h-[1px] bg-zinc-500 group-hover/divider:bg-amber-400 transition-colors rounded-full" />
+                            <div className="w-8 h-[1px] bg-zinc-500 group-hover/divider:bg-amber-400 transition-colors rounded-full" />
                           </div>
                         </div>
                         <span className="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 text-[7px] font-bold text-zinc-400 bg-zinc-800 px-1.5 rounded-sm leading-none pointer-events-none">V | A</span>
@@ -3450,7 +3450,7 @@ export function VideoEditor() {
                               track.sourcePatched !== false
                                 ? track.kind === 'audio'
                                   ? 'text-emerald-400 hover:text-emerald-300'
-                                  : 'text-blue-400 hover:text-blue-300'
+                                  : 'text-amber-400 hover:text-amber-300'
                                 : 'text-zinc-600 hover:text-zinc-400'
                             }`}
                           >
@@ -3534,7 +3534,7 @@ export function VideoEditor() {
                       )}
                       {/* Track height resize handle */}
                       <div
-                        className="absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize z-10 group/resize hover:bg-blue-500/40 transition-colors"
+                        className="absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize z-10 group/resize hover:bg-amber-500/40 transition-colors"
                         onMouseDown={(e) => {
                           e.preventDefault()
                           e.stopPropagation()
@@ -3557,7 +3557,7 @@ export function VideoEditor() {
                           window.addEventListener('mouseup', onUp)
                         }}
                       >
-                        <div className="mx-auto w-6 h-0.5 bg-zinc-600 rounded-full mt-0.5 group-hover/resize:bg-blue-400 transition-colors" />
+                        <div className="mx-auto w-6 h-0.5 bg-zinc-600 rounded-full mt-0.5 group-hover/resize:bg-amber-400 transition-colors" />
                       </div>
                     </div>
                   </React.Fragment>
@@ -3704,7 +3704,7 @@ export function VideoEditor() {
                   {/* In/Out range highlight on tracks */}
                   {(inPoint !== null || outPoint !== null) && (
                     <div
-                      className="absolute top-0 bottom-0 border-l-2 border-r-2 border-blue-400/40 pointer-events-none z-[5]"
+                      className="absolute top-0 bottom-0 border-l-2 border-r-2 border-amber-400/40 pointer-events-none z-[5]"
                       style={{
                         left: `${(inPoint ?? 0) * pixelsPerSecond}px`,
                         width: `${((outPoint ?? totalDuration) - (inPoint ?? 0)) * pixelsPerSecond}px`,
@@ -3714,14 +3714,14 @@ export function VideoEditor() {
                   {/* In point line on tracks */}
                   {inPoint !== null && (
                     <div 
-                      className="absolute top-0 bottom-0 w-0.5 bg-blue-400/60 z-[15] pointer-events-none"
+                      className="absolute top-0 bottom-0 w-0.5 bg-amber-400/60 z-[15] pointer-events-none"
                       style={{ left: `${inPoint * pixelsPerSecond}px` }}
                     />
                   )}
                   {/* Out point line on tracks */}
                   {outPoint !== null && (
                     <div 
-                      className="absolute top-0 bottom-0 w-0.5 bg-blue-400/60 z-[15] pointer-events-none"
+                      className="absolute top-0 bottom-0 w-0.5 bg-amber-400/60 z-[15] pointer-events-none"
                       style={{ left: `${outPoint * pixelsPerSecond}px` }}
                     />
                   )}
@@ -3732,7 +3732,7 @@ export function VideoEditor() {
                       {/* Divider between video and audio sections */}
                       {displayRow === audioDividerDisplayRow && (
                         <div
-                          className="bg-zinc-700/60 cursor-row-resize hover:bg-blue-500/30 transition-colors"
+                          className="bg-zinc-700/60 cursor-row-resize hover:bg-amber-500/30 transition-colors"
                           style={{ height: DIVIDER_H }}
                           onMouseDown={(e) => {
                             e.preventDefault()
@@ -3797,7 +3797,7 @@ export function VideoEditor() {
                     const y2 = Math.max(lassoRect.startY, lassoRect.currentY) - origin.containerTop + scrollTop
                     return (
                       <div
-                        className="absolute border border-blue-400 bg-blue-500/10 z-30 pointer-events-none rounded-sm"
+                        className="absolute border border-amber-400 bg-amber-500/10 z-30 pointer-events-none rounded-sm"
                         style={{
                           left: x1,
                           top: y1,
@@ -3816,11 +3816,11 @@ export function VideoEditor() {
                       key={clip.id}
                       className={`absolute rounded border-2 transition-all overflow-hidden select-none ${
                         selectedClipIds.has(clip.id) 
-                          ? 'border-blue-500 shadow-lg shadow-blue-500/20' 
+                          ? 'border-amber-500 shadow-lg shadow-amber-500/20' 
                           : clipColor
                             ? `hover:brightness-125`
                             : 'border-zinc-600 hover:border-zinc-500'
-                      } ${!clipColor ? (clip.type === 'audio' ? 'bg-green-900/50' : clip.type === 'adjustment' ? 'bg-blue-900/40 border-dashed' : clip.type === 'text' ? 'bg-cyan-900/50 border-cyan-600/40' : 'bg-zinc-800') : ''} ${
+                      } ${!clipColor ? (clip.type === 'audio' ? 'bg-green-900/50' : clip.type === 'adjustment' ? 'bg-amber-900/40 border-dashed' : clip.type === 'text' ? 'bg-cyan-900/50 border-cyan-600/40' : 'bg-zinc-800') : ''} ${
                         activeTool === 'select' || activeTool === 'ripple' || activeTool === 'roll' ? 'cursor-grab' : ''
                       } ${
                         activeTool === 'slip' ? 'cursor-ew-resize' : ''
@@ -3890,8 +3890,8 @@ export function VideoEditor() {
                       
                       <div className="h-full flex items-center pl-5 pr-2 gap-2">
                         {clip.type === 'adjustment' ? (
-                          <div className="h-8 w-8 flex-shrink-0 rounded bg-blue-800/30 border border-blue-600/30 flex items-center justify-center">
-                            <Layers className="h-4 w-4 text-blue-400" />
+                          <div className="h-8 w-8 flex-shrink-0 rounded bg-amber-800/30 border border-amber-600/30 flex items-center justify-center">
+                            <Layers className="h-4 w-4 text-amber-400" />
                           </div>
                         ) : clip.type === 'text' ? (
                           <div className="h-8 w-8 flex-shrink-0 rounded bg-cyan-800/30 border border-cyan-600/30 flex items-center justify-center">
@@ -3912,7 +3912,7 @@ export function VideoEditor() {
                           )
                         )}
                         <div className={`flex-1 min-w-0 ${clip.type === 'audio' ? 'relative z-10' : ''}`}>
-                          <p className={`text-[10px] truncate ${clip.type === 'adjustment' ? 'text-blue-300' : clip.type === 'text' ? 'text-cyan-300' : clip.type === 'audio' ? 'text-emerald-300' : 'text-zinc-300'}`}>
+                          <p className={`text-[10px] truncate ${clip.type === 'adjustment' ? 'text-amber-300' : clip.type === 'text' ? 'text-cyan-300' : clip.type === 'audio' ? 'text-emerald-300' : 'text-zinc-300'}`}>
                             {clip.type === 'adjustment' ? 'Adjustment Layer' : clip.type === 'text' ? (clip.textStyle?.text?.slice(0, 30) || 'Text') : clip.asset?.prompt?.slice(0, 30) || clip.importedName || 'Clip'}
                           </p>
                           <div className="flex items-center gap-2 text-[9px] text-zinc-500">
@@ -3923,11 +3923,11 @@ export function VideoEditor() {
                               return <span style={{ color: resInfo.color }} className="font-semibold">{resInfo.height >= 2160 ? '4K' : `${resInfo.height}p`}</span>
                             })()}
                             {clip.speed !== 1 && <span className="text-yellow-400">{clip.speed}x</span>}
-                            {clip.reversed && <span className="text-blue-400">REV</span>}
+                            {clip.reversed && <span className="text-amber-400">REV</span>}
                             {clip.muted && <span className="text-red-400">M</span>}
                             {(clip.flipH || clip.flipV) && <span className="text-cyan-400">FLIP</span>}
                             {clip.colorCorrection && Object.values(clip.colorCorrection).some(v => v !== 0) && <span className="text-orange-400">CC</span>}
-                            {clip.letterbox?.enabled && <span className="text-blue-400">LB</span>}
+                            {clip.letterbox?.enabled && <span className="text-amber-400">LB</span>}
                             {clip.linkedClipIds?.length && <Link2 className="h-2.5 w-2.5 text-zinc-500 inline" />}
                           </div>
                         </div>
@@ -3980,8 +3980,8 @@ export function VideoEditor() {
                                   disabled={isRegenerating}
                                   className={`p-0.5 rounded transition-colors ${
                                     clip.isRegenerating
-                                      ? 'text-blue-400'
-                                      : 'hover:bg-white/10 text-zinc-500 hover:text-blue-400'
+                                      ? 'text-amber-400'
+                                      : 'hover:bg-white/10 text-zinc-500 hover:text-amber-400'
                                   }`}
                                 >
                                   <RefreshCw className={`h-3 w-3 ${clip.isRegenerating ? 'animate-spin' : ''}`} />
@@ -3991,7 +3991,7 @@ export function VideoEditor() {
                                 <Tooltip content="Retake section" side="top">
                                   <button
                                     onClick={() => handleRetakeClip(clip)}
-                                    className="p-0.5 rounded transition-colors hover:bg-white/10 text-zinc-500 hover:text-blue-400"
+                                    className="p-0.5 rounded transition-colors hover:bg-white/10 text-zinc-500 hover:text-amber-400"
                                   >
                                     <Film className="h-3 w-3" />
                                   </button>
@@ -4004,10 +4004,10 @@ export function VideoEditor() {
                       
                       {/* Regenerating overlay on the clip */}
                       {clip.isRegenerating && (
-                        <div className="absolute inset-0 bg-blue-900/30 backdrop-blur-[2px] flex items-center justify-center rounded-lg z-10">
-                          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-blue-900/80 border border-blue-500/40">
-                            <Loader2 className="h-3 w-3 text-blue-300 animate-spin" />
-                            <span className="text-[9px] text-blue-200 font-medium">
+                        <div className="absolute inset-0 bg-amber-900/30 backdrop-blur-[2px] flex items-center justify-center rounded-lg z-10">
+                          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-amber-900/80 border border-amber-500/40">
+                            <Loader2 className="h-3 w-3 text-amber-300 animate-spin" />
+                            <span className="text-[9px] text-amber-200 font-medium">
                               {regenProgress > 0 ? `${regenProgress}%` : 'Regenerating...'}
                             </span>
                             <button
@@ -4087,8 +4087,8 @@ export function VideoEditor() {
                       <div 
                         className={`absolute left-0 top-0 bottom-0 w-3 ${activeTool === 'trackForward' || activeTool === 'blade' ? '' : 'cursor-ew-resize'} transition-colors flex items-center justify-center ${
                           resizingClip?.clipId === clip.id && resizingClip?.edge === 'left'
-                            ? activeTool === 'roll' ? 'bg-yellow-500' : activeTool === 'ripple' ? 'bg-green-500' : 'bg-blue-500'
-                            : activeTool === 'roll' ? 'hover:bg-yellow-500/50' : activeTool === 'ripple' ? 'hover:bg-green-500/50' : 'hover:bg-blue-500/50'
+                            ? activeTool === 'roll' ? 'bg-yellow-500' : activeTool === 'ripple' ? 'bg-green-500' : 'bg-amber-500'
+                            : activeTool === 'roll' ? 'hover:bg-yellow-500/50' : activeTool === 'ripple' ? 'hover:bg-green-500/50' : 'hover:bg-amber-500/50'
                         }`}
                         style={activeTool === 'blade' ? { cursor: SCISSORS_CURSOR } : activeTool === 'trackForward' ? { cursor: bladeShiftHeld ? TRACK_FWD_ONE_CURSOR : TRACK_FWD_ALL_CURSOR } : {}}
                         onMouseDown={(e) => handleResizeStart(e, clip, 'left')}
@@ -4100,8 +4100,8 @@ export function VideoEditor() {
                       <div 
                         className={`absolute right-0 top-0 bottom-0 w-3 ${activeTool === 'trackForward' || activeTool === 'blade' ? '' : 'cursor-ew-resize'} transition-colors flex items-center justify-center ${
                           resizingClip?.clipId === clip.id && resizingClip?.edge === 'right'
-                            ? activeTool === 'roll' ? 'bg-yellow-500' : activeTool === 'ripple' ? 'bg-green-500' : 'bg-blue-500'
-                            : activeTool === 'roll' ? 'hover:bg-yellow-500/50' : activeTool === 'ripple' ? 'hover:bg-green-500/50' : 'hover:bg-blue-500/50'
+                            ? activeTool === 'roll' ? 'bg-yellow-500' : activeTool === 'ripple' ? 'bg-green-500' : 'bg-amber-500'
+                            : activeTool === 'roll' ? 'hover:bg-yellow-500/50' : activeTool === 'ripple' ? 'hover:bg-green-500/50' : 'hover:bg-amber-500/50'
                         }`}
                         style={activeTool === 'blade' ? { cursor: SCISSORS_CURSOR } : activeTool === 'trackForward' ? { cursor: bladeShiftHeld ? TRACK_FWD_ONE_CURSOR : TRACK_FWD_ALL_CURSOR } : {}}
                         onMouseDown={(e) => handleResizeStart(e, clip, 'right')}
@@ -4134,10 +4134,10 @@ export function VideoEditor() {
                         key={`gap-${i}`}
                         className={`absolute rounded cursor-pointer transition-all group ${
                           isGeneratingHere
-                            ? 'bg-blue-500/15 border-2 border-dashed border-blue-400/60 shadow-inner'
+                            ? 'bg-amber-500/15 border-2 border-dashed border-amber-400/60 shadow-inner'
                             : isSelected
-                            ? 'bg-blue-500/20 border-2 border-dashed border-blue-400/60 shadow-inner'
-                            : 'border-2 border-dashed border-transparent hover:bg-blue-500/10 hover:border-blue-400/30'
+                            ? 'bg-amber-500/20 border-2 border-dashed border-amber-400/60 shadow-inner'
+                            : 'border-2 border-dashed border-transparent hover:bg-amber-500/10 hover:border-amber-400/30'
                         }`}
                         style={{
                           left: `${leftPx}px`,
@@ -4168,16 +4168,16 @@ export function VideoEditor() {
                       >
                         {isGeneratingHere ? (
                           <div className="absolute inset-0 flex flex-col items-center justify-center gap-0.5">
-                            <Loader2 className="h-3 w-3 text-blue-400 animate-spin pointer-events-none" />
+                            <Loader2 className="h-3 w-3 text-amber-400 animate-spin pointer-events-none" />
                             {widthPx > 50 && (
-                              <span className="text-[9px] text-blue-300 font-medium pointer-events-none">
+                              <span className="text-[9px] text-amber-300 font-medium pointer-events-none">
                                 {gapRegenProgress > 0 ? `${gapRegenProgress}%` : 'Generating...'}
                               </span>
                             )}
                             {widthPx > 30 && (
-                              <div className="w-3/4 h-0.5 bg-blue-900/40 rounded-full overflow-hidden pointer-events-none">
+                              <div className="w-3/4 h-0.5 bg-amber-900/40 rounded-full overflow-hidden pointer-events-none">
                                 <div
-                                  className="h-full bg-blue-400 rounded-full transition-all duration-300"
+                                  className="h-full bg-amber-400 rounded-full transition-all duration-300"
                                   style={{ width: `${Math.max(gapRegenProgress, 2)}%` }}
                                 />
                               </div>
@@ -4196,7 +4196,7 @@ export function VideoEditor() {
                           <div className={`absolute inset-0 flex items-center justify-center pointer-events-none transition-opacity ${
                             isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
                           }`}>
-                            <span className="text-[9px] font-medium text-blue-400">
+                            <span className="text-[9px] font-medium text-amber-400">
                               {(gap.endTime - gap.startTime).toFixed(1)}s
                             </span>
                           </div>
@@ -4369,7 +4369,7 @@ export function VideoEditor() {
                         {/* Visible indicator line */}
                         <div 
                           className={`absolute top-6 bottom-0 w-0.5 transition-colors ${
-                            isHovered ? 'bg-blue-400' : cp.hasDissolve ? 'bg-blue-500/60' : 'bg-transparent'
+                            isHovered ? 'bg-amber-400' : cp.hasDissolve ? 'bg-amber-500/60' : 'bg-transparent'
                           }`}
                           style={{ left: `${cp.hasDissolve ? dissolveWidthPx : 10}px`, transform: 'translateX(-50%)' }}
                         />
@@ -4400,14 +4400,14 @@ export function VideoEditor() {
                                 height: '48px',
                               }}
                             >
-                              <span className="text-[9px] text-blue-300 font-medium bg-blue-900/60 px-1.5 py-0.5 rounded">
+                              <span className="text-[9px] text-amber-300 font-medium bg-amber-900/60 px-1.5 py-0.5 rounded">
                                 {dissolveDur.toFixed(1)}s
                               </span>
                             </div>
                             
                             {/* Left drag handle */}
                             <div
-                              className="absolute top-6 bottom-0 w-2 cursor-ew-resize hover:bg-blue-500/40 transition-colors z-30"
+                              className="absolute top-6 bottom-0 w-2 cursor-ew-resize hover:bg-amber-500/40 transition-colors z-30"
                               style={{ left: 0 }}
                               onMouseDown={(e) => {
                                 e.stopPropagation()
@@ -4437,12 +4437,12 @@ export function VideoEditor() {
                                 document.body.style.userSelect = 'none'
                               }}
                             >
-                              <div className="absolute inset-y-0 left-0 w-0.5 bg-blue-400 rounded-full" />
+                              <div className="absolute inset-y-0 left-0 w-0.5 bg-amber-400 rounded-full" />
                             </div>
                             
                             {/* Right drag handle */}
                             <div
-                              className="absolute top-6 bottom-0 w-2 cursor-ew-resize hover:bg-blue-500/40 transition-colors z-30"
+                              className="absolute top-6 bottom-0 w-2 cursor-ew-resize hover:bg-amber-500/40 transition-colors z-30"
                               style={{ right: 0 }}
                               onMouseDown={(e) => {
                                 e.stopPropagation()
@@ -4472,7 +4472,7 @@ export function VideoEditor() {
                                 document.body.style.userSelect = 'none'
                               }}
                             >
-                              <div className="absolute inset-y-0 right-0 w-0.5 bg-blue-400 rounded-full" />
+                              <div className="absolute inset-y-0 right-0 w-0.5 bg-amber-400 rounded-full" />
                             </div>
                             
                             {/* Remove button (shown on hover, positioned inside the zone) */}
@@ -4604,7 +4604,7 @@ export function VideoEditor() {
               step={5}
               value={Math.round(zoom * 100)}
               onChange={(e) => { centerOnPlayheadRef.current = true; setZoom(Math.max(getMinZoom(), +(parseInt(e.target.value) / 100).toFixed(2))) }}
-              className="w-28 h-1 accent-blue-500 cursor-pointer"
+              className="w-28 h-1 accent-amber-500 cursor-pointer"
               title={`Zoom: ${Math.round(zoom * 100)}%`}
             />
             <Tooltip content="Zoom in (+)" side="top">
@@ -4633,7 +4633,7 @@ export function VideoEditor() {
         <>
         {/* Right resize handle with collapse button */}
         <div
-          className="w-1 flex-shrink-0 cursor-col-resize bg-transparent hover:bg-blue-500/40 active:bg-blue-500/60 transition-colors relative group z-10"
+          className="w-1 flex-shrink-0 cursor-col-resize bg-transparent hover:bg-amber-500/40 active:bg-amber-500/60 transition-colors relative group z-10"
           onMouseDown={(e) => handleResizeDragStart('right', e)}
         >
           <div className="absolute inset-y-0 -left-1 -right-1" />
@@ -4973,7 +4973,7 @@ export function VideoEditor() {
                       type="text"
                       defaultValue={projectAssetPath}
                       placeholder="Not set — uses default backend location"
-                      className="flex-1 px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 text-sm placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 truncate"
+                      className="flex-1 px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 text-sm placeholder:text-zinc-600 focus:outline-none focus:border-amber-500 truncate"
                       onBlur={e => {
                         if (currentProjectId && e.target.value !== projectAssetPath) {
                           updateProject(currentProjectId, { assetSavePath: e.target.value.trim() || undefined })

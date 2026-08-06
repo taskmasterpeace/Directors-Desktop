@@ -74,7 +74,7 @@ export function SourceMonitor({
 
   return (
     <div
-      className={`flex flex-col ${activePanel === 'source' ? 'ring-2 ring-blue-500 ring-inset' : 'border-r border-zinc-800'}`}
+      className={`flex flex-col ${activePanel === 'source' ? 'ring-2 ring-amber-500 ring-inset' : 'border-r border-zinc-800'}`}
       style={{ width: `${sourceSplitPercent}%` }}
       onMouseDown={() => setActivePanel('source')}
     >
@@ -164,13 +164,13 @@ export function SourceMonitor({
             {/* Selected range highlight */}
             {(sourceIn !== null || sourceOut !== null) && (
               <div
-                className="absolute top-0 bottom-0 border-t-2 border-b-2 border-blue-400/70"
+                className="absolute top-0 bottom-0 border-t-2 border-b-2 border-amber-400/70"
                 style={{
                   left: `${((sourceIn ?? 0) / (sourceAsset!.duration || 5)) * 100}%`,
                   width: `${(((sourceOut ?? sourceAsset!.duration ?? 5) - (sourceIn ?? 0)) / (sourceAsset!.duration || 5)) * 100}%`,
                 }}
               >
-                <div className="absolute inset-0 top-1/2 -translate-y-1/2 h-1 bg-blue-400/40 rounded-full" />
+                <div className="absolute inset-0 top-1/2 -translate-y-1/2 h-1 bg-amber-400/40 rounded-full" />
               </div>
             )}
 
@@ -181,9 +181,9 @@ export function SourceMonitor({
                 style={{ left: `calc(${(sourceIn / (sourceAsset!.duration || 5)) * 100}% - 8px)`, width: 14 }}
                 onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setDraggingMarker('sourceIn') }}
               >
-                <div className="w-1.5 h-full bg-blue-400 rounded-l-sm flex flex-col justify-between py-0.5 pointer-events-none ml-auto">
-                  <div className="w-2.5 h-0.5 bg-blue-400 rounded-r" />
-                  <div className="w-2.5 h-0.5 bg-blue-400 rounded-r" />
+                <div className="w-1.5 h-full bg-amber-400 rounded-l-sm flex flex-col justify-between py-0.5 pointer-events-none ml-auto">
+                  <div className="w-2.5 h-0.5 bg-amber-400 rounded-r" />
+                  <div className="w-2.5 h-0.5 bg-amber-400 rounded-r" />
                 </div>
               </div>
             )}
@@ -195,9 +195,9 @@ export function SourceMonitor({
                 style={{ left: `${(sourceOut / (sourceAsset!.duration || 5)) * 100}%`, width: 14 }}
                 onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setDraggingMarker('sourceOut') }}
               >
-                <div className="w-1.5 h-full bg-blue-400 rounded-r-sm flex flex-col justify-between py-0.5 pointer-events-none">
-                  <div className="w-2.5 h-0.5 bg-blue-400 rounded-l -ml-1" />
-                  <div className="w-2.5 h-0.5 bg-blue-400 rounded-l -ml-1" />
+                <div className="w-1.5 h-full bg-amber-400 rounded-r-sm flex flex-col justify-between py-0.5 pointer-events-none">
+                  <div className="w-2.5 h-0.5 bg-amber-400 rounded-l -ml-1" />
+                  <div className="w-2.5 h-0.5 bg-amber-400 rounded-l -ml-1" />
                 </div>
               </div>
             )}
@@ -207,15 +207,15 @@ export function SourceMonitor({
               className="absolute top-0 bottom-0 z-20"
               style={{ left: `${(sourceTime / (sourceAsset.duration || 5)) * 100}%` }}
             >
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 bg-blue-400 clip-triangle" style={{ clipPath: 'polygon(50% 100%, 0% 0%, 100% 0%)' }} />
-              <div className="absolute top-2 bottom-0 left-1/2 -translate-x-1/2 w-px bg-blue-400" />
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-2 h-2 bg-amber-400 clip-triangle" style={{ clipPath: 'polygon(50% 100%, 0% 0%, 100% 0%)' }} />
+              <div className="absolute top-2 bottom-0 left-1/2 -translate-x-1/2 w-px bg-amber-400" />
             </div>
           </div>
 
           {/* In/Out timecode labels below scrub bar */}
           {(sourceIn !== null || sourceOut !== null) && (
             <div className="flex justify-between items-center mt-0.5 h-3.5">
-              <span className="text-[9px] font-mono text-blue-400/80">
+              <span className="text-[9px] font-mono text-amber-400/80">
                 {sourceIn !== null ? `IN ${formatTime(sourceIn)}` : ''}
               </span>
               <span className="text-[9px] font-mono text-zinc-500">
@@ -224,7 +224,7 @@ export function SourceMonitor({
                   : ''
                 }
               </span>
-              <span className="text-[9px] font-mono text-blue-400/80">
+              <span className="text-[9px] font-mono text-amber-400/80">
                 {sourceOut !== null ? `OUT ${formatTime(sourceOut)}` : ''}
               </span>
             </div>
@@ -286,7 +286,7 @@ export function SourceMonitor({
                   setSourceReversePlaying(true)
                 }
               }}
-              className={`h-6 w-6 flex items-center justify-center rounded transition-colors ${sourceReversePlaying ? 'text-blue-400' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'}`}
+              className={`h-6 w-6 flex items-center justify-center rounded transition-colors ${sourceReversePlaying ? 'text-amber-400' : 'text-zinc-500 hover:text-white hover:bg-zinc-800'}`}
             >
               <Play className="h-3 w-3 mr-0.5 rotate-180" />
             </button>

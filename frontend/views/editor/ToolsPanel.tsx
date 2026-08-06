@@ -42,7 +42,7 @@ export function ToolsPanel({
             onClick={() => setActiveTool(tool.id)}
             className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${
               activeTool === tool.id
-                ? 'bg-blue-600 text-white'
+                ? 'bg-amber-500 text-zinc-950'
                 : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
             }`}
           >
@@ -93,7 +93,7 @@ export function ToolsPanel({
                 data-trim-group-btn=""
                 className={`p-1.5 rounded-lg transition-colors relative ${
                   isTrimActive
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-amber-500 text-zinc-950'
                     : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
                 }`}
               >
@@ -120,7 +120,7 @@ export function ToolsPanel({
                           setShowTrimFlyout(false)
                         }}
                         className={`w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 transition-colors ${
-                          activeTool === t.id ? 'bg-blue-600/30 text-white' : 'text-zinc-300 hover:bg-zinc-700'
+                          activeTool === t.id ? 'bg-amber-600/30 text-white' : 'text-zinc-300 hover:bg-zinc-700'
                         }`}
                       >
                         <t.icon className="h-3.5 w-3.5" />
@@ -143,7 +143,7 @@ export function ToolsPanel({
           onClick={() => setSnapEnabled(!snapEnabled)}
           className={`p-1.5 rounded-lg transition-colors flex-shrink-0 ${
             snapEnabled
-              ? 'bg-blue-600 text-white'
+              ? 'bg-amber-500 text-zinc-950'
               : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
           }`}
         >
@@ -159,7 +159,7 @@ export function ToolsPanel({
           onClick={() => setShowEffectsBrowser(!showEffectsBrowser)}
           className={`p-1.5 rounded-lg transition-colors flex-shrink-0 text-[10px] font-bold ${
             showEffectsBrowser
-              ? 'bg-blue-600 text-white'
+              ? 'bg-amber-500 text-zinc-950'
               : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
           }`}
         >

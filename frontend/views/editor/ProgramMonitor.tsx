@@ -177,7 +177,7 @@ export function ProgramMonitor({
 
   return (
     <div
-        className={`flex flex-col ${showSourceMonitor ? '' : 'flex-1'} min-w-0 min-h-0 ${showSourceMonitor && activePanel === 'timeline' ? 'ring-2 ring-blue-500 ring-inset' : ''}`}
+        className={`flex flex-col ${showSourceMonitor ? '' : 'flex-1'} min-w-0 min-h-0 ${showSourceMonitor && activePanel === 'timeline' ? 'ring-2 ring-amber-500 ring-inset' : ''}`}
         style={showSourceMonitor ? { width: `${100 - sourceSplitPercent}%` } : undefined}
         onMouseDown={() => setActivePanel('timeline')}
       >
@@ -676,13 +676,13 @@ export function ProgramMonitor({
               {/* In/Out range highlight */}
               {(inPoint !== null || outPoint !== null) && (
                 <div
-                  className="absolute top-0 bottom-0 border-t-2 border-b-2 border-blue-400/70 pointer-events-none"
+                  className="absolute top-0 bottom-0 border-t-2 border-b-2 border-amber-400/70 pointer-events-none"
                   style={{
                     left: `${((inPoint ?? 0) / totalDuration) * 100}%`,
                     width: `${(((outPoint ?? totalDuration) - (inPoint ?? 0)) / totalDuration) * 100}%`,
                   }}
                 >
-                  <div className="absolute inset-0 top-1/2 -translate-y-1/2 h-1 bg-blue-400/30 rounded-full" />
+                  <div className="absolute inset-0 top-1/2 -translate-y-1/2 h-1 bg-amber-400/30 rounded-full" />
                 </div>
               )}
               {/* In bracket — draggable */}
@@ -692,9 +692,9 @@ export function ProgramMonitor({
                   style={{ left: `calc(${(inPoint / totalDuration) * 100}% - 6px)`, width: 12 }}
                   onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setDraggingMarker('timelineIn') }}
                 >
-                  <div className="w-1 h-full bg-blue-400 rounded-l-sm flex flex-col justify-between py-0.5 pointer-events-none ml-auto">
-                    <div className="w-2 h-0.5 bg-blue-400 rounded-r" />
-                    <div className="w-2 h-0.5 bg-blue-400 rounded-r" />
+                  <div className="w-1 h-full bg-amber-400 rounded-l-sm flex flex-col justify-between py-0.5 pointer-events-none ml-auto">
+                    <div className="w-2 h-0.5 bg-amber-400 rounded-r" />
+                    <div className="w-2 h-0.5 bg-amber-400 rounded-r" />
                   </div>
                 </div>
               )}
@@ -705,9 +705,9 @@ export function ProgramMonitor({
                   style={{ left: `${(outPoint / totalDuration) * 100}%`, width: 12 }}
                   onMouseDown={(e) => { e.stopPropagation(); e.preventDefault(); setDraggingMarker('timelineOut') }}
                 >
-                  <div className="w-1 h-full bg-blue-400 rounded-r-sm flex flex-col justify-between py-0.5 pointer-events-none">
-                    <div className="w-2 h-0.5 bg-blue-400 rounded-l -ml-1" />
-                    <div className="w-2 h-0.5 bg-blue-400 rounded-l -ml-1" />
+                  <div className="w-1 h-full bg-amber-400 rounded-r-sm flex flex-col justify-between py-0.5 pointer-events-none">
+                    <div className="w-2 h-0.5 bg-amber-400 rounded-l -ml-1" />
+                    <div className="w-2 h-0.5 bg-amber-400 rounded-l -ml-1" />
                   </div>
                 </div>
               )}
@@ -723,13 +723,13 @@ export function ProgramMonitor({
             {/* Timecode labels */}
             {(inPoint !== null || outPoint !== null) && (
               <div className="flex justify-between items-center mt-0.5 h-3">
-                <span className="text-[9px] font-mono text-blue-400/80">
+                <span className="text-[9px] font-mono text-amber-400/80">
                   {inPoint !== null ? `IN ${formatTime(inPoint)}` : ''}
                 </span>
                 <span className="text-[9px] font-mono text-zinc-500">
                   {inPoint !== null && outPoint !== null ? `Duration: ${formatTime(outPoint - inPoint)}` : ''}
                 </span>
-                <span className="text-[9px] font-mono text-blue-400/80">
+                <span className="text-[9px] font-mono text-amber-400/80">
                   {outPoint !== null ? `OUT ${formatTime(outPoint)}` : ''}
                 </span>
               </div>
@@ -776,11 +776,11 @@ export function ProgramMonitor({
                     onClick={() => { setPreviewZoom(opt.value); setPreviewZoomOpen(false) }}
                     className={`w-full text-left px-3 py-1.5 text-[11px] flex items-center gap-2 transition-colors ${
                       previewZoom === opt.value
-                        ? 'text-blue-300 bg-blue-600/20'
+                        ? 'text-amber-300 bg-amber-600/20'
                         : 'text-zinc-300 hover:bg-zinc-800'
                     }`}
                   >
-                    {previewZoom === opt.value && <span className="text-blue-400">&#10003;</span>}
+                    {previewZoom === opt.value && <span className="text-amber-400">&#10003;</span>}
                     <span className={previewZoom === opt.value ? '' : 'ml-5'}>{opt.label}</span>
                   </button>
                 ))}
@@ -941,15 +941,15 @@ export function ProgramMonitor({
                     onClick={() => { setPlaybackResolution(opt.value); setPlaybackResOpen(false) }}
                     className={`w-full text-left px-3 py-1.5 text-[11px] flex flex-col gap-0 transition-colors ${
                       playbackResolution === opt.value
-                        ? 'text-blue-300 bg-blue-600/20'
+                        ? 'text-amber-300 bg-amber-600/20'
                         : 'text-zinc-300 hover:bg-zinc-800'
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      {playbackResolution === opt.value && <span className="text-blue-400">&#10003;</span>}
+                      {playbackResolution === opt.value && <span className="text-amber-400">&#10003;</span>}
                       <span className={playbackResolution === opt.value ? '' : 'ml-5'}>{opt.label}</span>
                     </div>
-                    <span className={`text-[10px] ${playbackResolution === opt.value ? 'text-blue-400/60' : 'text-zinc-500'} ml-5`}>{opt.desc}</span>
+                    <span className={`text-[10px] ${playbackResolution === opt.value ? 'text-amber-400/60' : 'text-zinc-500'} ml-5`}>{opt.desc}</span>
                   </button>
                 ))}
               </div>

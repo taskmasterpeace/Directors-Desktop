@@ -120,7 +120,7 @@ export function VideoThumbnailCard({ url, thumbnailUrl }: { url: string; thumbna
       {isHovering && (
         <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-black/40">
           <div
-            className="h-full bg-blue-500 transition-none"
+            className="h-full bg-amber-500 transition-none"
             style={{ width: `${scrubProgress * 100}%` }}
           />
         </div>
