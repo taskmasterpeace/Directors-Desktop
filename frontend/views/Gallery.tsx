@@ -709,6 +709,7 @@ export function Gallery() {
             </button>
             {previewItem.type === 'video' ? (
               <video
+                key={previewItem.id}
                 src={mediaSrc(previewItem)}
                 controls
                 autoPlay
