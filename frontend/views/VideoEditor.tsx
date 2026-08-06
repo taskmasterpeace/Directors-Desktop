@@ -52,6 +52,8 @@ import { sourceToTimeline, segmentClipAtOffsets } from '../lib/clip-time'
 import { StoryCastPanel } from './editor/StoryCastPanel'
 import { useAgentActions } from './editor/useAgentActions'
 import { ReplacePersonModal } from './editor/ReplacePersonModal'
+import { DramatisTakeModal } from './editor/DramatisTakeModal'
+import { requestDramatisTake, selectDramatisTake, takeRecordToAssetTake } from '../lib/dramatis-studio'
 import { captionsFromWords, wordPopCues } from '../lib/captions-from-transcript'
 import { generateFromPrompt } from '../lib/transcript-generate'
 import { copyToAssetFolder } from '../lib/asset-copy'
@@ -1972,6 +1974,41 @@ export function VideoEditor() {
     }, 2000)
     return () => clearInterval(interval)
   }, [recastJobs, currentProjectId, currentProject?.assetSavePath, assets, addTakeToAsset, setClips])
+
+  // Dramatis surgical takes: the Studio re-renders ONE line with a director
+  // note; the result lands as a NEW take on the clip's asset (recast pattern),
+  // and dramatis records the selection so its next produce matches the edit.
+  const [dramatisTakeClip, setDramatisTakeClip] = useState<TimelineClip | null>(null)
+  const handleDramatisTakeSubmit = useCallback(async (clip: TimelineClip, note: string) => {
+    const liveAsset = clip.assetId ? assets.find((a) => a.id === clip.assetId) : clip.asset
+    const origin = liveAsset?.origin
+    if (!liveAsset || !origin || !currentProjectId) return
+    setDramatisTakeClip(null)
+    setClips((prev) => prev.map((c) => (c.id === clip.id ? { ...c, isRegenerating: true, generatingLabel: 'New take…' } : c)))
+    try {
+      const record = await requestDramatisTake(origin, note)
+      const takeMedia = takeRecordToAssetTake(record)
+      const existingIndex = (liveAsset.takes ?? []).findIndex((t) => t.path === takeMedia.path)
+      let newTakeIndex: number
+      if (existingIndex >= 0) {
+        // Same direction, same cache key — dramatis returned the recorded take.
+        newTakeIndex = existingIndex
+        setFrameActionMsg({ kind: 'ok', text: `That direction already has a take (${existingIndex + 1}) — switched to it.` })
+      } else {
+        newTakeIndex = liveAsset.takes ? liveAsset.takes.length : 1
+        addTakeToAsset(currentProjectId, liveAsset.id, takeMedia)
+        setFrameActionMsg({
+          kind: 'ok',
+          text: `New take ${newTakeIndex + 1} (${record.engine}${record.note ? ` — “${record.note}”` : ' — re-roll'}) — the old read is kept, flip takes to compare.`,
+        })
+      }
+      setClips((prev) => prev.map((c) => (c.id === clip.id ? { ...c, isRegenerating: false, generatingLabel: undefined, takeIndex: newTakeIndex } : c)))
+      selectDramatisTake(origin, record.key)
+    } catch (e) {
+      setClips((prev) => prev.map((c) => (c.id === clip.id ? { ...c, isRegenerating: false, generatingLabel: undefined } : c)))
+      setFrameActionMsg({ kind: 'error', text: e instanceof Error ? e.message : 'Take failed' })
+    }
+  }, [assets, currentProjectId, addTakeToAsset, setClips])
 
   // #60: caption the whole cut in one action — every clip that has words,
   // through the batch-safe engine (one subtitle track, one undo step).
@@ -4900,6 +4937,7 @@ export function VideoEditor() {
             castEntries={currentProject?.cast ?? []}
             onGenerateWithCastMember={handleGenerateWithCastMember}
             onReplacePerson={setReplacePersonClip}
+            onDramatisTake={setDramatisTakeClip}
             setIcLoraSourceClipId={_setIcLoraSourceClipId}
             setShowICLoraPanel={_setShowICLoraPanel}
             onCaptureFrameForVideo={handleCaptureFrameForVideo}
@@ -4941,6 +4979,18 @@ export function VideoEditor() {
         onImport={handleImportTimeline}
       />
       
+      {/* Dramatis surgical take — direct one line, keep every read */}
+      {dramatisTakeClip && (() => {
+        const a = dramatisTakeClip.assetId ? assets.find((x) => x.id === dramatisTakeClip.assetId) : dramatisTakeClip.asset
+        return a?.origin ? (
+          <DramatisTakeModal
+            origin={a.origin}
+            onClose={() => setDramatisTakeClip(null)}
+            onSubmit={(note) => { void handleDramatisTakeSubmit(dramatisTakeClip, note) }}
+          />
+        ) : null
+      })()}
+
       {/* Project Settings Modal */}
       {replacePersonClip && (
         <ReplacePersonModal

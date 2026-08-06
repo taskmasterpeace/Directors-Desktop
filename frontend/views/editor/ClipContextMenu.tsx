@@ -10,6 +10,7 @@ import {
 import type { Asset, CastEntry, TimelineClip, Track, TextOverlayStyle } from '../../types/project'
 import { TEXT_PRESETS } from '../../types/project'
 import { COLOR_LABELS } from './video-editor-utils'
+import { canRequestDramatisTake } from '../../lib/dramatis-studio'
 
 export interface ClipContextMenuProps {
   clipContextMenu: { clipId: string; x: number; y: number }
@@ -54,6 +55,8 @@ export interface ClipContextMenuProps {
   castEntries: CastEntry[]
   onGenerateWithCastMember: (entry: CastEntry) => void
   onReplacePerson: (clip: TimelineClip) => void
+  /** Surgical regeneration of a dramatis line via the Studio (new take). */
+  onDramatisTake: (clip: TimelineClip) => void
   setIcLoraSourceClipId: (v: string | null) => void
   setShowICLoraPanel: (v: boolean) => void
   onCaptureFrameForVideo: (clip: TimelineClip) => void
@@ -139,6 +142,7 @@ export function ClipContextMenu({
   castEntries,
   onGenerateWithCastMember,
   onReplacePerson,
+  onDramatisTake,
   setIcLoraSourceClipId, // IC-LORA HIDDEN: still passed to SingleClipMenu
   setShowICLoraPanel, // IC-LORA HIDDEN: still passed to SingleClipMenu
   onCaptureFrameForVideo,
@@ -262,6 +266,7 @@ export function ClipContextMenu({
           castEntries={castEntries}
           onGenerateWithCastMember={onGenerateWithCastMember}
           onReplacePerson={onReplacePerson}
+          onDramatisTake={onDramatisTake}
           setIcLoraSourceClipId={setIcLoraSourceClipId}
           setShowICLoraPanel={setShowICLoraPanel}
           onCaptureFrameForVideo={onCaptureFrameForVideo}
@@ -298,7 +303,7 @@ function SingleClipMenu({
   duplicateClip, splitClipAtPlayhead, removeClip, updateClip,
   getLiveAsset, getMaxClipDuration,
   setAssetFilter, setSelectedBin, setTakesViewAssetId, setSelectedAssetIds,
-  setI2vClipId, setI2vPrompt, onRetakeClip, castEntries, onGenerateWithCastMember, onReplacePerson, setIcLoraSourceClipId: _setIcLoraSourceClipId, setShowICLoraPanel: _setShowICLoraPanel, // IC-LORA HIDDEN
+  setI2vClipId, setI2vPrompt, onRetakeClip, castEntries, onGenerateWithCastMember, onReplacePerson, onDramatisTake, setIcLoraSourceClipId: _setIcLoraSourceClipId, setShowICLoraPanel: _setShowICLoraPanel, // IC-LORA HIDDEN
   onCaptureFrameForVideo,
   onCaptureFrameAsReference,
   onCaptureFrameToReferences,
@@ -336,6 +341,7 @@ function SingleClipMenu({
   castEntries: CastEntry[]
   onGenerateWithCastMember: (entry: CastEntry) => void
   onReplacePerson: (clip: TimelineClip) => void
+  onDramatisTake: (clip: TimelineClip) => void
   setIcLoraSourceClipId: (v: string | null) => void
   setShowICLoraPanel: (v: boolean) => void
   onCaptureFrameForVideo: (clip: TimelineClip) => void
@@ -501,12 +507,31 @@ function SingleClipMenu({
           <Divider />
           <SectionLabel>AI Tools</SectionLabel>
 
-          {contextClip.isRegenerating ? (
-            <MenuItem icon={X} iconClass="text-red-400" label="Cancel Regeneration" onClick={() => { handleCancelRegeneration(); close() }} />
-          ) : (
-            <MenuItem icon={RefreshCw} iconClass="text-amber-400" label="Regenerate Shot"
-              disabled={isRegenerating} onClick={() => { handleRegenerate(contextClip.assetId!, contextClip.id); close() }} />
-          )}
+          {(() => {
+            // Dramatis lines regenerate through the Studio (surgical takes),
+            // never through the video regen flow — this REPLACES Regenerate
+            // Shot for them, and shows what the clip IS (provenance).
+            const origin = liveAsset?.origin
+            if (canRequestDramatisTake(origin)) {
+              return (
+                <>
+                  <div className="px-3 py-1 text-[10px] text-zinc-500 leading-snug">
+                    {origin!.entity} · {origin!.bookId} ch.{origin!.chapterNumber} · {origin!.lineId}
+                    {origin!.engine ? ` · ${origin!.engine}` : ''}
+                  </div>
+                  <MenuItem icon={RefreshCw} iconClass="text-amber-400" label="New Take (Dramatis)..."
+                    disabled={!!contextClip.isRegenerating}
+                    onClick={() => { onDramatisTake(contextClip); close() }} />
+                </>
+              )
+            }
+            return contextClip.isRegenerating ? (
+              <MenuItem icon={X} iconClass="text-red-400" label="Cancel Regeneration" onClick={() => { handleCancelRegeneration(); close() }} />
+            ) : (
+              <MenuItem icon={RefreshCw} iconClass="text-amber-400" label="Regenerate Shot"
+                disabled={isRegenerating} onClick={() => { handleRegenerate(contextClip.assetId!, contextClip.id); close() }} />
+            )
+          })()}
 
           {/* Take navigation */}
           {liveAsset!.takes && liveAsset!.takes.length > 1 && (
