@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, Copy, Film, FolderOpen, Link2, ListVideo, Loader2, Pencil, X } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowUp, Copy, Film, FolderOpen, Link2, ListVideo, Loader2, Pencil, X } from 'lucide-react'
 import { getEstimatedSeconds, type QueueJob } from '../hooks/use-generation'
 import { getPersonalEtaSeconds } from '../lib/model-timing'
 import { getVideoModel } from '../lib/video-models'
@@ -72,6 +72,12 @@ export function PlaygroundQueueStrip({ onEditJob }: PlaygroundQueueStripProps) {
     .filter(j => j.status === 'complete' && j.result_paths.length > 0 && !dismissed.has(j.id))
     .slice(-3)
     .reverse()
+  // A dead render must say so where the user is looking — failed jobs used to
+  // vanish from this strip entirely (only running/queued/complete rendered).
+  const failed = videoJobs
+    .filter(j => j.status === 'failed' && !dismissed.has(j.id))
+    .slice(-2)
+    .reverse()
 
   const api = useCallback(async (path: string, init?: RequestInit) => {
     const backendUrl = await window.electronAPI.getBackendUrl()
@@ -127,7 +133,7 @@ export function PlaygroundQueueStrip({ onEditJob }: PlaygroundQueueStripProps) {
     }
   }, [api, refresh])
 
-  if (running.length === 0 && queued.length === 0 && finished.length === 0) return null
+  if (running.length === 0 && queued.length === 0 && finished.length === 0 && failed.length === 0) return null
 
   // Projected finish clocks: running job's remainder, then queued jobs stacked
   // in order (personal average first, table estimate as fallback).
@@ -240,6 +246,40 @@ export function PlaygroundQueueStrip({ onEditJob }: PlaygroundQueueStripProps) {
           </div>
         )
       })}
+
+      {/* Failed — a dead render says so here instead of silently vanishing */}
+      {failed.length > 0 && (
+        <div className="pt-1 border-t border-zinc-800/70 space-y-1">
+          {failed.map(job => (
+            <div key={job.id} className="flex items-center gap-2.5 px-2 py-1">
+              <AlertTriangle className="w-3.5 h-3.5 text-red-400 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] text-zinc-400 truncate">
+                  {typeof job.params.prompt === 'string' ? job.params.prompt : job.id}
+                </p>
+                <p className="text-[10px] text-red-400/90 truncate" title={job.error ?? undefined}>
+                  {job.error ?? 'render failed'}
+                </p>
+              </div>
+              <button
+                onClick={() => void duplicateJob(job)}
+                disabled={busyId === job.id}
+                className="shrink-0 text-[10px] text-amber-400 hover:text-amber-300 px-1.5 py-0.5 rounded hover:bg-zinc-800 disabled:opacity-50"
+                title="Resubmit this shot with a fresh seed"
+              >
+                Retry
+              </button>
+              <button
+                onClick={() => setDismissed(prev => new Set([...prev, job.id]))}
+                className="shrink-0 p-0.5 rounded text-zinc-600 hover:text-zinc-300"
+                title="Dismiss"
+              >
+                <X className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Recently finished — the "where do I actually get it" trail */}
       {finished.length > 0 && (
