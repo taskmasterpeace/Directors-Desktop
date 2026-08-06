@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Plus, Folder, FolderOpen, MoreVertical, Trash2, Pencil, Sparkles, Image, UserCircle, ImageIcon, NotebookText, Braces, BookOpen, LogOut, LogIn, Key, Scissors, Clapperboard } from 'lucide-react'
+import { Plus, Folder, FolderOpen, MoreVertical, Trash2, Pencil, Sparkles, Image, UserCircle, ImageIcon, NotebookText, Braces, BookOpen, LogOut, LogIn, Key, Scissors, Clapperboard, Theater } from 'lucide-react'
 import { useProjects } from '../contexts/ProjectContext'
 import { useAppSettings } from '../contexts/AppSettingsContext'
 import { LtxLogo } from '../components/LtxLogo'
@@ -114,7 +114,7 @@ function ProjectCard({ project, onOpen, onDelete, onRename, onSetAssetFolder }: 
 }
 
 export function Home() {
-  const { projects, createProject, deleteProject, renameProject, updateProject, openProject, importPaletteMv, openPlayground, openGallery, openCharacters, openReferences, openRecipes, openWildcards, openPromptLibrary, openClipTool, openDirector, setPendingDirectorAudio } = useProjects()
+  const { projects, createProject, deleteProject, renameProject, updateProject, openProject, importPaletteMv, openPlayground, openGallery, openCharacters, openReferences, openRecipes, openWildcards, openPromptLibrary, openClipTool, openDirector, openStoryStage, setPendingDirectorAudio } = useProjects()
   // #84: does the stored Palette credential cover generation (dp_ key), or
   // only credits/sync (browser-session token)?
   // Live queue count for the Playground nav badge — Home is where you land
@@ -455,6 +455,14 @@ export function Home() {
                   {queueLive.running + queueLive.queued}
                 </span>
               )}
+            </button>
+            <button
+              onClick={openStoryStage}
+              className="w-full px-3 py-2 rounded-lg text-zinc-400 hover:bg-zinc-800 hover:text-white text-left text-sm flex items-center gap-2 transition-colors"
+              title="Character-voiced stories from Audio Movie Studio — placed on your timeline un-mixed"
+            >
+              <Theater className="h-4 w-4" />
+              Story Stage
             </button>
           </div>
 

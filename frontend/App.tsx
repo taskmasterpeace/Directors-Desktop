@@ -11,6 +11,7 @@ import { Home } from './views/Home'
 import { Project } from './views/Project'
 import { Playground } from './views/Playground'
 import { Gallery } from './views/Gallery'
+import { StoryStage } from './views/StoryStage'
 import { Characters } from './views/Characters'
 import { Styles } from './views/Styles'
 import { References } from './views/References'
@@ -504,6 +505,8 @@ function AppContent() {
         return <Project />
       case 'playground':
         return <Playground />
+      case 'story-stage':
+        return <StoryStage />
       case 'gallery':
         return <Gallery />
       case 'characters':

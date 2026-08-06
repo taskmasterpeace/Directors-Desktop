@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import type { Project, Asset, AssetTake, ViewType, ProjectTab, Timeline } from '../types/project'
 import { createDefaultTimeline } from '../types/project'
 import { loadStoryToTimeline, type StoryFile } from '../lib/story-loader'
+import type { LoadedDramatisChapter } from '../lib/dramatis-loader'
 import { logger } from '../lib/logger'
 
 interface ProjectContextType {
@@ -55,6 +56,10 @@ interface ProjectContextType {
   openPromptLibrary: () => void
   openClipTool: () => void
   openDirector: () => void
+  openStoryStage: () => void
+  // Place a dramatis chapter's un-mixed elements as a new project + timeline
+  // (dialogue/SFX/ambience/music as separate clips) and open the editor.
+  importDramatisChapter: (loaded: LoadedDramatisChapter, bookTitle: string) => { ok: boolean; name: string }
   
   // Cross-view communication (editor → gen space)
   genSpaceEditImageUrl: string | null
@@ -649,6 +654,33 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     setCurrentView('director')
   }, [])
 
+  const openStoryStage = useCallback(() => {
+    setCurrentView('story-stage')
+  }, [])
+
+  // Dramatis chapter -> new project with the un-mixed timeline, straight into
+  // the editor. Mirrors importPaletteMv's tail; the loader already did the work.
+  const importDramatisChapter = useCallback((loaded: LoadedDramatisChapter, bookTitle: string): { ok: boolean; name: string } => {
+    const name = `${bookTitle} — ${loaded.timeline.name}`
+    const newProject: Project = {
+      id: `project-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      name,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      assets: [],
+      timelines: [loaded.timeline],
+      activeTimelineId: loaded.timeline.id,
+    }
+    setProjects(prev => [newProject, ...prev])
+    setCurrentProjectId(newProject.id)
+    setCurrentView('project')
+    setCurrentTab('video-editor')
+    logger.info(`importDramatisChapter: opened "${name}" — ${loaded.timeline.clips.length} clips `
+      + `(${loaded.report.lines} lines, ${loaded.report.cues} cues, ${loaded.report.beds} beds, `
+      + `${loaded.report.music} music), ${loaded.report.missingMedia} missing media`)
+    return { ok: true, name }
+  }, [])
+
   // Memoize so consumers only re-render when a value they read actually changes,
   // not on every ProjectProvider render. Setters and useCallback'd handlers are
   // stable; only the state values below drive updates.
@@ -692,6 +724,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     openPromptLibrary,
     openClipTool,
     openDirector,
+    openStoryStage,
+    importDramatisChapter,
     genSpaceEditImageUrl,
     setGenSpaceEditImageUrl,
     genSpaceEditMode,
@@ -721,6 +755,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     getActiveTimeline, openProject, importPaletteMv, goHome, openPlayground,
     openGallery, openCharacters, openStyles, openReferences, openRecipes,
     openWildcards, openPromptLibrary, openClipTool, openDirector,
+    openStoryStage, importDramatisChapter,
     genSpaceEditImageUrl, genSpaceEditMode, genSpaceAudioUrl,
     genSpaceRetakeSource, pendingRetakeUpdate, pendingClipReference, pendingAnimateImage, pendingRemix, pendingDirectorAudio,
     pendingReferenceImage,
