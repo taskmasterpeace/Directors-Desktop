@@ -45,6 +45,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Taskbar progress (Windows icon fill; 0..1, >1 indeterminate, <0 clears)
   setTaskbarProgress: (value: number): Promise<void> => ipcRenderer.invoke('set-taskbar-progress', value),
 
+  // Clipboard paste buttons (image lands as a temp PNG path; null = no image)
+  readClipboardText: (): Promise<string> => ipcRenderer.invoke('clipboard-read-text'),
+  readClipboardImage: (): Promise<string | null> => ipcRenderer.invoke('clipboard-read-image'),
+
   // Log viewer
   getLogs: (): Promise<LogsResponse> => ipcRenderer.invoke('get-logs'),
   getLogPath: (): Promise<{ logPath: string; logDir: string }> => ipcRenderer.invoke('get-log-path'),
@@ -194,6 +198,8 @@ declare global {
       openParentFolderOfFile: (filePath: string) => Promise<void>
       showItemInFolder: (filePath: string) => Promise<void>
       setTaskbarProgress: (value: number) => Promise<void>
+      readClipboardText: () => Promise<string>
+      readClipboardImage: () => Promise<string | null>
       getLogs: () => Promise<LogsResponse>
       getLogPath: () => Promise<{ logPath: string; logDir: string }>
       openLogFolder: () => Promise<boolean>

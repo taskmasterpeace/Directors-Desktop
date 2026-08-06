@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Sparkles, Trash2, Square, ImageIcon, ArrowLeft, Scissors, Wand2, ListPlus, Pencil } from 'lucide-react'
+import { Sparkles, Trash2, Square, ImageIcon, ArrowLeft, Scissors, Wand2, ListPlus, Pencil, ClipboardPaste } from 'lucide-react'
 import { logger } from '../lib/logger'
 import { ImageUploader } from '../components/ImageUploader'
 import { AudioUploader } from '../components/AudioUploader'
@@ -658,6 +658,16 @@ export function Playground() {
                 title={prompt.trim() ? "Enhance prompt with AI" : "Generate a random prompt"}
               >
                 <Wand2 className={`h-4 w-4 ${isEnhancing ? 'animate-spin' : ''}`} />
+              </button>
+              <button
+                onClick={async () => {
+                  const t = (await window.electronAPI.readClipboardText?.())?.trim()
+                  if (t) setPrompt(prev => (prev.trim() ? `${prev}\n${t}` : t))
+                }}
+                className="absolute top-7 right-10 p-1.5 rounded-md text-zinc-500 hover:text-amber-400 hover:bg-zinc-800 transition-colors"
+                title="Paste the prompt on your clipboard (appends if the box has text)"
+              >
+                <ClipboardPaste className="h-4 w-4" />
               </button>
               {atAutocomplete.isOpen && (
                 <AtAutocompleteDropdown

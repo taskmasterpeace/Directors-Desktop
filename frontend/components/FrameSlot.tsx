@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
-import { X, ImageIcon } from 'lucide-react'
+import { X, ImageIcon, ClipboardPaste } from 'lucide-react'
 
 interface FrameSlotProps {
   label: string
@@ -92,6 +92,22 @@ export function FrameSlot({ label, imageUrl, onImageSet, disabled }: FrameSlotPr
     onImageSet(null, null)
   }
 
+  // One-click paste from the OS clipboard (screenshots, copied images). The
+  // main process lands the bitmap as a temp PNG so it flows through the same
+  // path pipeline as a browsed or dropped file.
+  const [pasteNote, setPasteNote] = useState<string | null>(null)
+  const handlePasteButton = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const p = await window.electronAPI.readClipboardImage?.()
+    if (p) {
+      revokeBlob()
+      onImageSet(pathToFileUrl(p), p)
+    } else {
+      setPasteNote('No image on the clipboard')
+      setTimeout(() => setPasteNote(null), 2000)
+    }
+  }
+
   return (
     <div
       className={`relative rounded-lg border-2 border-dashed transition-colors cursor-pointer
@@ -134,7 +150,15 @@ export function FrameSlot({ label, imageUrl, onImageSet, disabled }: FrameSlotPr
         <div className="flex flex-col items-center justify-center py-4 px-2 gap-1.5">
           <ImageIcon className="h-5 w-5 text-zinc-500" />
           <span className="text-xs font-medium text-zinc-400">{label}</span>
-          <span className="text-[10px] text-zinc-600">Paste, drop, or click</span>
+          <span className="text-[10px] text-zinc-600">{pasteNote ?? 'Paste, drop, or click'}</span>
+          <button
+            onClick={handlePasteButton}
+            className="mt-0.5 flex items-center gap-1 px-2 py-0.5 rounded border border-zinc-700 text-[10px] text-zinc-400 hover:text-white hover:border-zinc-500 transition-colors"
+            title="Paste the image on your clipboard"
+          >
+            <ClipboardPaste className="h-3 w-3" />
+            Paste
+          </button>
         </div>
       )}
     </div>

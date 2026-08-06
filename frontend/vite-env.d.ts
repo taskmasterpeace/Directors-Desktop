@@ -32,6 +32,8 @@ interface Window {
     openParentFolderOfFile: (filePath: string) => Promise<void>
     showItemInFolder: (filePath: string) => Promise<void>
     setTaskbarProgress?: (value: number) => Promise<void>
+    readClipboardText?: () => Promise<string>
+    readClipboardImage?: () => Promise<string | null>
     getLogs: () => Promise<LogsResponse>
     getLogPath: () => Promise<{ logPath: string; logDir: string }>
     openLogFolder: () => Promise<boolean>

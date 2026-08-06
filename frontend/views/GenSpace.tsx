@@ -5,7 +5,7 @@ import {
   Clock, Monitor, ChevronUp, Scissors, Music,
   ChevronLeft, ChevronRight, Copy, Check, Wand2,
   FastForward, Frame, SlidersHorizontal, Pencil, Grid3X3
-, UserPlus, Images, FileX, FolderInput } from 'lucide-react'
+, UserPlus, Images, FileX, FolderInput, ClipboardPaste } from 'lucide-react'
 import { useProjects } from '../contexts/ProjectContext'
 import type { GenSpaceRetakeSource } from '../contexts/ProjectContext'
 import { useAppSettings } from '../contexts/AppSettingsContext'
@@ -851,6 +851,16 @@ function PromptBar({
             onDragLeave={() => setIsDragOver(false)}
             onDrop={handleDrop}
             onClick={() => inputRef.current?.click()}
+            onContextMenu={(e) => {
+              // Right-click = paste the clipboard image (the chip is too small
+              // for a button; the tooltip advertises it).
+              e.preventDefault()
+              void (async () => {
+                const p = await window.electronAPI.readClipboardImage?.()
+                if (p) onInputImageChange(p.startsWith('/') ? `file://${p}` : `file:///${p.replace(/\\/g, '/')}`)
+              })()
+            }}
+            title="First frame — click to browse, drop an image, or right-click to paste from clipboard"
           >
             {inputImage ? (
               <>
@@ -987,6 +997,16 @@ function PromptBar({
             title={prompt.trim() ? "Enhance prompt with AI" : "Generate a random prompt"}
           >
             <Wand2 className={`h-3.5 w-3.5 ${isEnhancing ? 'animate-spin' : ''}`} />
+          </button>
+          <button
+            onClick={async () => {
+              const t = (await window.electronAPI.readClipboardText?.())?.trim()
+              if (t) onPromptChange(prompt.trim() ? `${prompt}\n${t}` : t)
+            }}
+            className="absolute top-9 right-1 p-1.5 rounded-md text-zinc-500 hover:text-amber-400 hover:bg-zinc-800 transition-colors"
+            title="Paste the prompt on your clipboard (appends if the box has text)"
+          >
+            <ClipboardPaste className="h-3.5 w-3.5" />
           </button>
         </div>
 
