@@ -482,12 +482,16 @@ export function Gallery() {
                         src={mediaSrc(item)}
                         muted
                         playsInline
+                        loop
                         preload="metadata"
                         className="w-full h-full object-cover"
                         onLoadedMetadata={e => {
                           const el = e.currentTarget
                           setMediaMeta(prev => prev[item.id] ? prev : { ...prev, [item.id]: { sec: el.duration, w: el.videoWidth, h: el.videoHeight } })
                         }}
+                        // Hover = motion preview; leave = back to the first frame.
+                        onMouseEnter={e => { void e.currentTarget.play().catch(() => {}) }}
+                        onMouseLeave={e => { e.currentTarget.pause(); e.currentTarget.currentTime = 0 }}
                       />
                     )}
                     {item.type === 'video' && (
