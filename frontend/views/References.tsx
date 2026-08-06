@@ -203,7 +203,7 @@ export function References() {
   ]
 
   const categoryColors: Record<string, string> = {
-    people: 'bg-blue-500/20 text-blue-400',
+    people: 'bg-amber-500/20 text-amber-400',
     places: 'bg-green-500/20 text-green-400',
     wardrobe: 'bg-amber-500/20 text-amber-400',
     styles: 'bg-rose-500/20 text-rose-400',
@@ -271,7 +271,7 @@ export function References() {
       <div className="flex-1 overflow-auto p-6">
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="h-8 w-8 border-2 border-zinc-600 border-t-blue-500 rounded-full animate-spin" />
+            <div className="h-8 w-8 border-2 border-zinc-600 border-t-amber-500 rounded-full animate-spin" />
           </div>
         ) : error ? (
           <div className="text-center py-16">
@@ -345,7 +345,7 @@ export function References() {
                   value={formName}
                   onChange={e => setFormName(e.target.value)}
                   placeholder="Reference name"
-                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm placeholder:text-zinc-500 focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm placeholder:text-zinc-500 focus:outline-none focus:border-amber-500"
                   autoFocus
                 />
               </div>

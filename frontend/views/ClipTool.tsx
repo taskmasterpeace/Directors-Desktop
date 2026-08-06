@@ -323,7 +323,7 @@ export default function ClipTool() {
           <ArrowLeft className="h-4 w-4" />
         </button>
         <div className="flex items-center gap-2">
-          <Scissors className="h-4 w-4 text-blue-400" />
+          <Scissors className="h-4 w-4 text-amber-400" />
           <h1 className="text-sm font-semibold tracking-tight">Clip Tool</h1>
         </div>
         <span className="text-xs text-zinc-500">
@@ -334,8 +334,8 @@ export default function ClipTool() {
       {!sourcePath ? (
         /* Empty state */
         <div className="flex-1 flex flex-col items-center justify-center gap-5 px-6">
-          <div className="h-20 w-20 rounded-full bg-blue-500/10 flex items-center justify-center">
-            <FileVideo className="h-9 w-9 text-blue-400" />
+          <div className="h-20 w-20 rounded-full bg-amber-500/10 flex items-center justify-center">
+            <FileVideo className="h-9 w-9 text-amber-400" />
           </div>
           <div className="text-center">
             <h2 className="text-lg font-semibold tracking-tight">Load a video to get started</h2>
@@ -423,11 +423,11 @@ export default function ClipTool() {
                 onPointerMove={onTrackPointerMove}
                 onPointerUp={onTrackPointerUp}
                 onKeyDown={onTrackKeyDown}
-                className="relative h-12 rounded-lg bg-zinc-800/70 cursor-pointer select-none outline-none focus-visible:ring-1 focus-visible:ring-blue-500 touch-none"
+                className="relative h-12 rounded-lg bg-zinc-800/70 cursor-pointer select-none outline-none focus-visible:ring-1 focus-visible:ring-amber-500 touch-none"
               >
                 {/* Selected window with resizable edges */}
                 <div
-                  className="absolute top-0 bottom-0 rounded-lg bg-blue-500/25 border border-blue-500"
+                  className="absolute top-0 bottom-0 rounded-lg bg-amber-500/25 border border-amber-500"
                   style={{ left: `${selectionPct.left}%`, width: `${selectionPct.width}%` }}
                 >
                   <div
@@ -435,14 +435,14 @@ export default function ClipTool() {
                     className="absolute -left-1.5 top-0 bottom-0 w-3 cursor-ew-resize"
                     title="Drag to move the start of the clip"
                   >
-                    <div className="absolute inset-y-2 left-1 w-1 rounded-full bg-blue-400" />
+                    <div className="absolute inset-y-2 left-1 w-1 rounded-full bg-amber-400" />
                   </div>
                   <div
                     onPointerDown={onHandlePointerDown('end')}
                     className="absolute -right-1.5 top-0 bottom-0 w-3 cursor-ew-resize"
                     title="Drag to move the end of the clip"
                   >
-                    <div className="absolute inset-y-2 right-1 w-1 rounded-full bg-blue-400" />
+                    <div className="absolute inset-y-2 right-1 w-1 rounded-full bg-amber-400" />
                   </div>
                 </div>
                 {/* Playhead */}
@@ -453,7 +453,7 @@ export default function ClipTool() {
               </div>
               <div className="flex justify-between text-[11px] text-zinc-500">
                 <span>Starts {formatClock(selection.start)}</span>
-                <span className={withinReferenceCap ? 'text-blue-400' : 'text-amber-400'}>
+                <span className={withinReferenceCap ? 'text-emerald-400' : 'text-amber-400'}>
                   Length {formatLength(selection.length)}
                 </span>
                 <span>Ends {formatClock(selection.end)}</span>
@@ -480,7 +480,7 @@ export default function ClipTool() {
                       aria-pressed={active}
                       className={`px-4 h-9 rounded-lg text-sm font-medium transition-colors border ${
                         active
-                          ? 'bg-blue-500 border-blue-500 text-white'
+                          ? 'bg-amber-500 border-amber-500 text-white'
                           : 'bg-zinc-800/70 border-zinc-700 text-zinc-300 hover:bg-zinc-800'
                       }`}
                     >
@@ -539,7 +539,7 @@ export default function ClipTool() {
                 {exportState.status === 'done' && (
                   <button
                     onClick={() => revealOutput(exportState.outputPath)}
-                    className="text-sm text-blue-400 hover:text-blue-300 flex items-center gap-1.5 transition-colors"
+                    className="text-sm text-amber-400 hover:text-amber-300 flex items-center gap-1.5 transition-colors"
                   >
                     <Check className="h-4 w-4" />
                     Saved — show in folder

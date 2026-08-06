@@ -1132,7 +1132,7 @@ function PromptBar({
                       max={100}
                       value={Math.round(editStrength * 100)}
                       onChange={(e) => onEditStrengthChange(Number(e.target.value) / 100)}
-                      className="w-20 h-1 accent-blue-500"
+                      className="w-20 h-1 accent-amber-500"
                     />
                     <span className="text-[10px] text-zinc-300 w-7 text-right">{Math.round(editStrength * 100)}%</span>
                   </div>

@@ -512,7 +512,7 @@ export function Home() {
           {paletteConnected ? (
             <div className="p-3">
               <div className="flex items-center gap-2 mb-2">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                   {(paletteUser?.name || paletteUser?.email || '?')[0].toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -573,7 +573,7 @@ export function Home() {
                     onChange={(e) => { setLoginEmail(e.target.value); setConnectError(null) }}
                     onKeyDown={(e) => { if (e.key === 'Enter') document.getElementById('home-palette-password')?.focus() }}
                     placeholder="Email address"
-                    className="w-full px-2 py-1.5 rounded-md bg-zinc-800 border border-zinc-700 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
+                    className="w-full px-2 py-1.5 rounded-md bg-zinc-800 border border-zinc-700 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-amber-500"
                   />
                   <input
                     id="home-palette-password"
@@ -582,7 +582,7 @@ export function Home() {
                     onChange={(e) => { setLoginPassword(e.target.value); setConnectError(null) }}
                     onKeyDown={(e) => { if (e.key === 'Enter') void handleEmailLogin() }}
                     placeholder="Password"
-                    className="w-full px-2 py-1.5 rounded-md bg-zinc-800 border border-zinc-700 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
+                    className="w-full px-2 py-1.5 rounded-md bg-zinc-800 border border-zinc-700 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-amber-500"
                   />
                   <button
                     onClick={() => void handleEmailLogin()}
@@ -608,7 +608,7 @@ export function Home() {
                           onChange={(e) => { setApiKeyInput(e.target.value); setConnectError(null) }}
                           onKeyDown={(e) => e.key === 'Enter' && handleConnectWithApiKey()}
                           placeholder="Paste API key..."
-                          className="flex-1 min-w-0 px-2 py-1.5 rounded-md bg-zinc-800 border border-zinc-700 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-blue-500"
+                          className="flex-1 min-w-0 px-2 py-1.5 rounded-md bg-zinc-800 border border-zinc-700 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-amber-500"
                         />
                         <button
                           onClick={handleConnectWithApiKey}
@@ -844,7 +844,7 @@ export function Home() {
               value={newProjectName}
               onChange={(e) => setNewProjectName(e.target.value)}
               placeholder="Project name"
-              className="w-full px-4 py-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-blue-500"
+              className="w-full px-4 py-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-amber-500"
               autoFocus
               onKeyDown={(e) => e.key === 'Enter' && handleCreateProject()}
             />
@@ -856,7 +856,7 @@ export function Home() {
                   value={newProjectAssetPath || (newProjectName.trim() ? getDefaultAssetPath(newProjectName.trim()) : '')}
                   onChange={(e) => setNewProjectAssetPath(e.target.value)}
                   placeholder={newProjectName.trim() ? getDefaultAssetPath(newProjectName.trim()) : 'Downloads/Directors Desktop Assets/...'}
-                  className="flex-1 px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 text-sm placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 truncate"
+                  className="flex-1 px-3 py-2 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 text-sm placeholder:text-zinc-600 focus:outline-none focus:border-amber-500 truncate"
                 />
                 <Button
                   variant="outline"
@@ -899,7 +899,7 @@ export function Home() {
               value={renameValue}
               onChange={(e) => setRenameValue(e.target.value)}
               placeholder="Project name"
-              className="w-full px-4 py-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-blue-500"
+              className="w-full px-4 py-3 rounded-lg bg-zinc-800 border border-zinc-700 text-white placeholder:text-zinc-500 focus:outline-none focus:border-amber-500"
               autoFocus
               onKeyDown={(e) => e.key === 'Enter' && submitRename()}
             />
@@ -937,7 +937,7 @@ export function Home() {
                   value={assetFolderPath}
                   onChange={(e) => setAssetFolderPath(e.target.value)}
                   placeholder="Select a folder..."
-                  className="flex-1 px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 text-sm placeholder:text-zinc-600 focus:outline-none focus:border-blue-500 truncate"
+                  className="flex-1 px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-300 text-sm placeholder:text-zinc-600 focus:outline-none focus:border-amber-500 truncate"
                   autoFocus
                   onKeyDown={(e) => e.key === 'Enter' && handleSaveAssetFolder()}
                 />

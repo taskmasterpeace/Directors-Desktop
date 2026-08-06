@@ -138,7 +138,7 @@ export function Styles() {
         <span className="text-zinc-500 text-sm">/</span>
         <h1 className="text-lg font-semibold text-white">Styles</h1>
         <div className="ml-auto">
-          <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-500" size="sm">
+          <Button onClick={openCreate} className="bg-amber-600 hover:bg-amber-500" size="sm">
             <Plus className="h-3.5 w-3.5 mr-1.5" />
             Add Style
           </Button>
@@ -149,7 +149,7 @@ export function Styles() {
       <div className="flex-1 overflow-auto p-6">
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="h-8 w-8 border-2 border-zinc-600 border-t-blue-500 rounded-full animate-spin" />
+            <div className="h-8 w-8 border-2 border-zinc-600 border-t-amber-500 rounded-full animate-spin" />
           </div>
         ) : error ? (
           <div className="text-center py-16">
@@ -165,7 +165,7 @@ export function Styles() {
             </div>
             <h3 className="text-lg font-medium text-zinc-400 mb-2">No styles yet</h3>
             <p className="text-zinc-500 mb-6">Save visual styles with reference images for reuse</p>
-            <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-500">
+            <Button onClick={openCreate} className="bg-amber-600 hover:bg-amber-500">
               <Plus className="h-4 w-4 mr-2" />
               Add Style
             </Button>
@@ -237,7 +237,7 @@ export function Styles() {
                   value={formName}
                   onChange={e => setFormName(e.target.value)}
                   placeholder="Style name"
-                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm placeholder:text-zinc-500 focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm placeholder:text-zinc-500 focus:outline-none focus:border-amber-500"
                   autoFocus
                 />
               </div>
@@ -249,7 +249,7 @@ export function Styles() {
                   onChange={e => setFormDescription(e.target.value)}
                   placeholder="Describe the visual style..."
                   rows={3}
-                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm placeholder:text-zinc-500 focus:outline-none focus:border-blue-500 resize-none"
+                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm placeholder:text-zinc-500 focus:outline-none focus:border-amber-500 resize-none"
                 />
               </div>
 
@@ -284,7 +284,7 @@ export function Styles() {
               <Button
                 onClick={() => void handleSave()}
                 disabled={!formName.trim() || saving}
-                className="flex-1 bg-blue-600 hover:bg-blue-500"
+                className="flex-1 bg-amber-600 hover:bg-amber-500"
               >
                 {saving ? 'Saving...' : editingStyle ? 'Update' : 'Create'}
               </Button>

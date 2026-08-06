@@ -157,7 +157,7 @@ export function Characters() {
       <div className="flex-1 overflow-auto p-6">
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="h-8 w-8 border-2 border-zinc-600 border-t-blue-500 rounded-full animate-spin" />
+            <div className="h-8 w-8 border-2 border-zinc-600 border-t-amber-500 rounded-full animate-spin" />
           </div>
         ) : error ? (
           <div className="text-center py-16">
@@ -206,7 +206,7 @@ export function Characters() {
                 <div className="p-3">
                   <h3 className="text-sm font-semibold text-white">{char.name}</h3>
                   {char.role && (
-                    <span className="inline-block mt-1 text-[10px] bg-blue-500/20 text-blue-400 rounded px-1.5 py-0.5 font-medium">
+                    <span className="inline-block mt-1 text-[10px] bg-amber-500/20 text-amber-400 rounded px-1.5 py-0.5 font-medium">
                       {char.role}
                     </span>
                   )}
@@ -256,7 +256,7 @@ export function Characters() {
                   value={formName}
                   onChange={e => setFormName(e.target.value)}
                   placeholder="Character name"
-                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm placeholder:text-zinc-500 focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm placeholder:text-zinc-500 focus:outline-none focus:border-amber-500"
                   autoFocus
                 />
               </div>
@@ -268,7 +268,7 @@ export function Characters() {
                   value={formRole}
                   onChange={e => setFormRole(e.target.value)}
                   placeholder="e.g. Protagonist, Narrator"
-                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm placeholder:text-zinc-500 focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm placeholder:text-zinc-500 focus:outline-none focus:border-amber-500"
                 />
               </div>
 
@@ -279,7 +279,7 @@ export function Characters() {
                   onChange={e => setFormDescription(e.target.value)}
                   placeholder="Physical appearance, personality traits..."
                   rows={3}
-                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm placeholder:text-zinc-500 focus:outline-none focus:border-blue-500 resize-none"
+                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm placeholder:text-zinc-500 focus:outline-none focus:border-amber-500 resize-none"
                 />
               </div>
 

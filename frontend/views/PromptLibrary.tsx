@@ -145,7 +145,7 @@ export function PromptLibrary() {
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               placeholder="Search prompts..."
-              className="pl-8 pr-3 py-1.5 w-56 rounded-lg bg-zinc-900 border border-zinc-800 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-blue-500"
+              className="pl-8 pr-3 py-1.5 w-56 rounded-lg bg-zinc-900 border border-zinc-800 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:border-amber-500"
             />
           </div>
 
@@ -166,7 +166,7 @@ export function PromptLibrary() {
             ))}
           </div>
 
-          <Button onClick={() => setIsModalOpen(true)} className="bg-blue-600 hover:bg-blue-500" size="sm">
+          <Button onClick={() => setIsModalOpen(true)} className="bg-amber-600 hover:bg-amber-500" size="sm">
             <Plus className="h-3.5 w-3.5 mr-1.5" />
             Save Prompt
           </Button>
@@ -178,7 +178,7 @@ export function PromptLibrary() {
         <div className="max-w-4xl mx-auto">
           {loading ? (
             <div className="flex items-center justify-center h-64">
-              <div className="h-8 w-8 border-2 border-zinc-600 border-t-blue-500 rounded-full animate-spin" />
+              <div className="h-8 w-8 border-2 border-zinc-600 border-t-amber-500 rounded-full animate-spin" />
             </div>
           ) : error ? (
             <div className="text-center py-16">
@@ -201,7 +201,7 @@ export function PromptLibrary() {
                   : 'Try a different search term'}
               </p>
               {prompts.length === 0 && (
-                <Button onClick={() => setIsModalOpen(true)} className="bg-blue-600 hover:bg-blue-500">
+                <Button onClick={() => setIsModalOpen(true)} className="bg-amber-600 hover:bg-amber-500">
                   <Plus className="h-4 w-4 mr-2" />
                   Save Prompt
                 </Button>
@@ -232,7 +232,7 @@ export function PromptLibrary() {
                     {prompt.tags.map(tag => (
                       <span
                         key={tag}
-                        className="text-[10px] bg-blue-500/20 text-blue-400 rounded px-1.5 py-0.5 font-medium"
+                        className="text-[10px] bg-amber-500/20 text-amber-400 rounded px-1.5 py-0.5 font-medium"
                       >
                         {tag}
                       </span>
@@ -268,7 +268,7 @@ export function PromptLibrary() {
                   onChange={e => setFormText(e.target.value)}
                   placeholder="Enter your prompt text..."
                   rows={4}
-                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm placeholder:text-zinc-500 focus:outline-none focus:border-blue-500 resize-none"
+                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm placeholder:text-zinc-500 focus:outline-none focus:border-amber-500 resize-none"
                   autoFocus
                 />
               </div>
@@ -280,7 +280,7 @@ export function PromptLibrary() {
                   value={formTags}
                   onChange={e => setFormTags(e.target.value)}
                   placeholder="e.g. landscape, cinematic, dark"
-                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm placeholder:text-zinc-500 focus:outline-none focus:border-blue-500"
+                  className="w-full px-3 py-2.5 rounded-lg bg-zinc-800 border border-zinc-700 text-white text-sm placeholder:text-zinc-500 focus:outline-none focus:border-amber-500"
                 />
               </div>
             </div>
@@ -296,7 +296,7 @@ export function PromptLibrary() {
               <Button
                 onClick={() => void handleSave()}
                 disabled={!formText.trim() || saving}
-                className="flex-1 bg-blue-600 hover:bg-blue-500"
+                className="flex-1 bg-amber-600 hover:bg-amber-500"
               >
                 {saving ? 'Saving...' : 'Save'}
               </Button>
