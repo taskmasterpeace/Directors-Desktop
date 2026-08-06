@@ -26,6 +26,40 @@ export interface AssetTake {
   path: string
   thumbnail?: string
   createdAt: number
+  /** Director note that produced this take ("with more anger") — shown in take UIs. */
+  note?: string
+}
+
+/**
+ * Where a generated asset CAME from — the provenance half of the production
+ * pipeline (docs/plans/2026-08-06-production-pipeline-manifest-takes.md).
+ * An asset with an origin is addressable in its source app: a dramatis line
+ * can be surgically regenerated ("Scene 14, Maya's third line, more anger"),
+ * a director/MV shot can be re-rendered as a new take from its stored params.
+ */
+export interface AssetOrigin {
+  app: 'dramatis' | 'palette-mv' | 'director'
+  // dramatis
+  bookId?: string
+  /** 1-based chapter ordinal — what the takes API addresses (the manifest's
+   *  `chapter` field is the TITLE, not this). */
+  chapterNumber?: number
+  lineId?: string
+  entity?: string
+  sceneId?: string
+  elementKind?: 'line' | 'cue' | 'bed' | 'music'
+  text?: string
+  engine?: string
+  voiceKey?: string
+  cacheKey?: string
+  /** Sans-takes config fingerprint — regen requests against a different one are stale. */
+  configHash?: string
+  // director / palette-mv
+  runId?: string
+  shotIndex?: number
+  beatId?: string
+  prompt?: string
+  model?: string
 }
 
 /** One transcribed word in SOURCE-media seconds (survives trim/split/speed). */
@@ -69,6 +103,8 @@ export interface Asset {
   activeTakeIndex?: number // Which take is currently active (default = 0 / latest)
   colorLabel?: string // Color label for organization (e.g. 'slate', 'blue', 'green', 'yellow', 'red', 'rose', 'orange', 'mango')
   transcript?: TranscriptData
+  /** Provenance: what this asset IS in its source app (enables surgical regen). */
+  origin?: AssetOrigin
 }
 
 export interface Track {

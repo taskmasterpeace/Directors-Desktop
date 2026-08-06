@@ -20,6 +20,8 @@
  * Pure + framework-free like story-loader: parsed export in, Timeline out.
  */
 import {
+  Asset,
+  AssetOrigin,
   Timeline,
   TimelineClip,
   SubtitleClip,
@@ -43,6 +45,16 @@ export interface DramatisScene {
   ambience: string
 }
 
+/** Generation record a v2 manifest carries per line (null on v1 exports). */
+export interface DramatisGen {
+  engine: string
+  engineTag: string
+  voiceKey: string
+  key: string
+  direction: string | null
+  rawWav: string
+}
+
 export interface DramatisLine {
   id: string
   entity: string
@@ -51,6 +63,12 @@ export interface DramatisLine {
   text: string
   wav: string
   missing?: boolean
+  // v2 manifest fields — absent on v1 exports, every consumer tolerates that
+  kind?: string | null
+  sceneId?: string | null
+  cite?: [number, number] | null
+  emotion?: Record<string, number> | null
+  gen?: DramatisGen | null
 }
 
 export interface DramatisCue {
@@ -89,6 +107,13 @@ export interface DramatisExport {
   version: number
   book: string
   chapter: string
+  // v2 manifest header (+ chapterNumber injected by the DD backend — the
+  // 1-based ordinal the takes API addresses; `chapter` is the TITLE)
+  sourceApp?: string
+  generatedAt?: string
+  bookTitle?: string | null
+  configHash?: string | null
+  chapterNumber?: number
   durationSec: number
   stemGains: { ambience: number; sfx: number; music: number }
   entities: DramatisEntity[]
@@ -111,6 +136,10 @@ export interface DramatisCastMember {
 
 export interface LoadedDramatisChapter {
   timeline: Timeline
+  /** Real Assets, one per placed element — clips reference them by id, so the
+   *  whole takes machinery (stepper, addTakeToAsset, regen) works on imported
+   *  dramatis audio exactly like on generated video. */
+  assets: Asset[]
   cast: DramatisCastMember[]
   scenes: DramatisScene[]
   durationSeconds: number
@@ -175,6 +204,7 @@ function snippet(text: string, max = 42): string {
 export function loadDramatisChapter(data: DramatisExport): LoadedDramatisChapter {
   const clips: TimelineClip[] = []
   const subtitles: SubtitleClip[] = []
+  const assets: Asset[] = []
   let missingMedia = 0
 
   const flag = (missing: boolean | undefined, name: string): string => {
@@ -183,63 +213,126 @@ export function loadDramatisChapter(data: DramatisExport): LoadedDramatisChapter
     return `MISSING — ${name}`
   }
 
+  // Every element becomes a REAL Asset the clip references: takes, the take
+  // stepper and surgical regeneration all live on assets, and provenance
+  // (origin) is what lets DD say "Scene 14, Maya's third line, qwen3" instead
+  // of audio_48392.wav. importedUrl stays as the media fallback.
+  const makeAsset = (id: string, filePath: string, prompt: string, dur: number, origin: AssetOrigin): Asset => {
+    const asset: Asset = {
+      id,
+      type: 'audio',
+      path: filePath,
+      url: pathToFileUrl(filePath),
+      prompt,
+      resolution: '',
+      duration: dur,
+      createdAt: Date.now(),
+      origin,
+    }
+    assets.push(asset)
+    return asset
+  }
+  const common = {
+    app: 'dramatis' as const,
+    bookId: data.book,
+    chapterNumber: data.chapterNumber,
+    configHash: data.configHash ?? undefined,
+  }
+
   for (const line of data.lines) {
     const who = speakerName(line.entity, data.entities)
-    clips.push(baseClip({
-      id: `dram-line-${line.id}`,
-      type: 'audio',
-      startTime: line.start,
-      duration: Math.max(0.04, line.dur),
-      trackIndex: TRACK_DIALOGUE,
-      importedUrl: pathToFileUrl(line.wav),
-      importedName: flag(line.missing, `${who}: ${snippet(line.text)}`),
-    }))
+    const dur = Math.max(0.04, line.dur)
+    const asset = makeAsset(`dram-asset-${line.id}`, line.wav, line.text, dur, {
+      ...common,
+      elementKind: 'line',
+      lineId: line.id,
+      entity: line.entity,
+      sceneId: line.sceneId ?? undefined,
+      text: line.text,
+      engine: line.gen?.engine,
+      voiceKey: line.gen?.voiceKey,
+      cacheKey: line.gen?.key,
+    })
+    clips.push({
+      ...baseClip({
+        id: `dram-line-${line.id}`,
+        type: 'audio',
+        startTime: line.start,
+        duration: dur,
+        trackIndex: TRACK_DIALOGUE,
+        importedUrl: pathToFileUrl(line.wav),
+        importedName: flag(line.missing, `${who}: ${snippet(line.text)}`),
+      }),
+      assetId: asset.id,
+      asset,
+    })
     subtitles.push({
       id: `dram-sub-${line.id}`,
       text: `${who}: ${line.text}`,
       startTime: line.start,
-      endTime: line.start + Math.max(0.04, line.dur),
+      endTime: line.start + dur,
       trackIndex: 0,
     })
   }
 
   for (const cue of data.cues) {
-    clips.push(baseClip({
-      id: `dram-cue-${cue.id}`,
-      type: 'audio',
-      startTime: cue.at,
-      duration: Math.max(0.04, cue.dur),
-      trackIndex: TRACK_SFX,
-      volume: dbToLinear(cue.gainDb + data.stemGains.sfx),
-      importedUrl: pathToFileUrl(cue.file),
-      importedName: flag(cue.missing, `SFX: ${cue.sfx}`),
-    }))
+    const dur = Math.max(0.04, cue.dur)
+    const asset = makeAsset(`dram-asset-cue-${cue.id}`, cue.file, `SFX: ${cue.sfx}`, dur,
+      { ...common, elementKind: 'cue', text: cue.sfx })
+    clips.push({
+      ...baseClip({
+        id: `dram-cue-${cue.id}`,
+        type: 'audio',
+        startTime: cue.at,
+        duration: dur,
+        trackIndex: TRACK_SFX,
+        volume: dbToLinear(cue.gainDb + data.stemGains.sfx),
+        importedUrl: pathToFileUrl(cue.file),
+        importedName: flag(cue.missing, `SFX: ${cue.sfx}`),
+      }),
+      assetId: asset.id,
+      asset,
+    })
   }
 
   for (const bed of data.beds) {
-    clips.push(baseClip({
-      id: `dram-bed-${bed.sceneId}`,
-      type: 'audio',
-      startTime: bed.start,
-      duration: Math.max(0.04, bed.dur),
-      trackIndex: TRACK_AMBIENCE,
-      volume: dbToLinear(data.stemGains.ambience),
-      importedUrl: pathToFileUrl(bed.file),
-      importedName: flag(bed.missing, `Ambience: ${bed.type} (${bed.sceneId})`),
-    }))
+    const dur = Math.max(0.04, bed.dur)
+    const asset = makeAsset(`dram-asset-bed-${bed.sceneId}`, bed.file, `Ambience: ${bed.type}`, dur,
+      { ...common, elementKind: 'bed', sceneId: bed.sceneId, text: bed.type })
+    clips.push({
+      ...baseClip({
+        id: `dram-bed-${bed.sceneId}`,
+        type: 'audio',
+        startTime: bed.start,
+        duration: dur,
+        trackIndex: TRACK_AMBIENCE,
+        volume: dbToLinear(data.stemGains.ambience),
+        importedUrl: pathToFileUrl(bed.file),
+        importedName: flag(bed.missing, `Ambience: ${bed.type} (${bed.sceneId})`),
+      }),
+      assetId: asset.id,
+      asset,
+    })
   }
 
   for (const mc of data.music) {
-    clips.push(baseClip({
-      id: `dram-music-${mc.id}`,
-      type: 'audio',
-      startTime: mc.at,
-      duration: Math.max(0.04, mc.dur),
-      trackIndex: TRACK_MUSIC,
-      volume: dbToLinear(mc.gainDb + data.stemGains.music),
-      importedUrl: pathToFileUrl(mc.file),
-      importedName: flag(mc.missing, `Score: ${snippet(mc.spec, 36)}`),
-    }))
+    const dur = Math.max(0.04, mc.dur)
+    const asset = makeAsset(`dram-asset-music-${mc.id}`, mc.file, `Score: ${mc.spec}`, dur,
+      { ...common, elementKind: 'music', text: mc.spec })
+    clips.push({
+      ...baseClip({
+        id: `dram-music-${mc.id}`,
+        type: 'audio',
+        startTime: mc.at,
+        duration: dur,
+        trackIndex: TRACK_MUSIC,
+        volume: dbToLinear(mc.gainDb + data.stemGains.music),
+        importedUrl: pathToFileUrl(mc.file),
+        importedName: flag(mc.missing, `Score: ${snippet(mc.spec, 36)}`),
+      }),
+      assetId: asset.id,
+      asset,
+    })
   }
 
   const lineCounts = new Map<string, number>()
@@ -265,6 +358,7 @@ export function loadDramatisChapter(data: DramatisExport): LoadedDramatisChapter
 
   return {
     timeline,
+    assets,
     cast,
     scenes: data.scenes,
     durationSeconds: data.durationSec,

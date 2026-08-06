@@ -211,6 +211,9 @@ def read_export(root: Path, book_dir: str, chapter: int) -> JsonDict | None:
         for item in _dicts(data.get(group)):
             check(item, key)
     data["media"] = {"total": total, "missing": missing}
+    # The manifest's own `chapter` field is the chapter TITLE; the takes API
+    # addresses chapters by 1-based ordinal, so the ordinal rides along here.
+    data["chapterNumber"] = chapter
     book_json = root / "books" / book_dir / "book.json"
     try:
         data["stale"] = dd.stat().st_mtime < book_json.stat().st_mtime

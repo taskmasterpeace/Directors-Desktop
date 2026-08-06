@@ -667,7 +667,9 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
       name,
       createdAt: Date.now(),
       updatedAt: Date.now(),
-      assets: [],
+      // Real assets with provenance (origin): the takes machinery and the
+      // dramatis regen round trip both live on these.
+      assets: loaded.assets,
       timelines: [loaded.timeline],
       activeTimelineId: loaded.timeline.id,
     }
@@ -675,7 +677,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     setCurrentProjectId(newProject.id)
     setCurrentView('project')
     setCurrentTab('video-editor')
-    logger.info(`importDramatisChapter: opened "${name}" — ${loaded.timeline.clips.length} clips `
+    logger.info(`importDramatisChapter: opened "${name}" — ${loaded.timeline.clips.length} clips, `
+      + `${loaded.assets.length} assets `
       + `(${loaded.report.lines} lines, ${loaded.report.cues} cues, ${loaded.report.beds} beds, `
       + `${loaded.report.music} music), ${loaded.report.missingMedia} missing media`)
     return { ok: true, name }

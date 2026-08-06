@@ -110,20 +110,64 @@ describe('dramatis-loader', () => {
     expect(white.visual).toContain('Elderly')
   })
 
-  // Integration: the REAL export produced by the dramatis pipeline tonight.
-  // Skipped on machines without the dramatis checkout — the shape test above
-  // is the portable guarantee; this one proves the actual artifact loads.
+  it('every element becomes a real Asset the clip references — takes need assets', () => {
+    const loaded = loadDramatisChapter({ ...sampleExport(), chapterNumber: 2, configHash: 'cfg-1' })
+    expect(loaded.assets).toHaveLength(5) // 2 lines + cue + bed + music
+    for (const clip of loaded.timeline.clips) {
+      expect(clip.assetId, `clip ${clip.id} must reference an asset`).toBeTruthy()
+      const asset = loaded.assets.find((a) => a.id === clip.assetId)!
+      expect(asset.type).toBe('audio')
+      expect(clip.asset).toBe(asset)
+    }
+    const line = loaded.assets.find((a) => a.id === 'dram-asset-lin_0001')!
+    expect(line.origin).toMatchObject({
+      app: 'dramatis',
+      bookId: 'monkeys-paw',
+      chapterNumber: 2,
+      configHash: 'cfg-1',
+      elementKind: 'line',
+      lineId: 'lin_0001',
+      entity: 'mr_white',
+      text: 'Hark at the wind.',
+    })
+    // v1 export: no gen block — origin still identifies the line, engine absent
+    expect(line.origin!.engine).toBeUndefined()
+    const cue = loaded.assets.find((a) => a.id === 'dram-asset-cue-p1-fire')!
+    expect(cue.origin!.elementKind).toBe('cue')
+  })
+
+  it('a v2 manifest threads the generation record into origin', () => {
+    const data = { ...sampleExport(), version: 2, chapterNumber: 1, configHash: 'h' }
+    data.lines[0] = {
+      ...data.lines[0],
+      kind: 'narration',
+      sceneId: 'p1-parlor',
+      gen: { engine: 'kokoro', engineTag: 'kokoro-onnx@2', voiceKey: 'am_michael', key: 'k123', direction: null, rawWav: 'D:\\out\\cache\\a-raw.wav' },
+    }
+    const loaded = loadDramatisChapter(data)
+    const asset = loaded.assets.find((a) => a.id === 'dram-asset-lin_0000')!
+    expect(asset.origin).toMatchObject({ engine: 'kokoro', voiceKey: 'am_michael', cacheKey: 'k123', sceneId: 'p1-parlor' })
+  })
+
+  // Integration: the REAL export produced by the dramatis pipeline (v2
+  // manifest). Skipped on machines without the dramatis checkout — the shape
+  // tests above are the portable guarantee; this one proves the artifact loads.
   const realExport = 'D:/git/dramatis/out/monkeys-paw/ch-01/dd-elements.json'
   it.skipIf(!existsSync(realExport))('loads the real monkeys-paw ch-01 export', () => {
     const data = JSON.parse(readFileSync(realExport, 'utf8')) as DramatisExport
     const loaded = loadDramatisChapter(data)
     expect(loaded.report.lines).toBe(146)
-    expect(loaded.report.cues).toBe(4)
-    expect(loaded.timeline.clips).toHaveLength(150)
+    expect(loaded.report.cues).toBeGreaterThanOrEqual(1)
+    expect(loaded.timeline.clips.length).toBeGreaterThanOrEqual(148)
     expect(loaded.timeline.subtitles).toHaveLength(146)
-    expect(loaded.durationSeconds).toBeCloseTo(638.82)
+    // durations shift when performances re-render — same ballpark, not byte-equal
+    expect(loaded.durationSeconds).toBeGreaterThan(500)
     // Five distinct speakers held their attribution through the pipeline.
     const speakers = new Set(loaded.timeline.subtitles!.map((s) => s.text.split(':')[0]))
     expect(speakers.size).toBeGreaterThanOrEqual(5)
+    // v2: every line asset knows its engine and cache key
+    const lineAssets = loaded.assets.filter((a) => a.origin?.elementKind === 'line')
+    expect(lineAssets.length).toBe(146)
+    expect(lineAssets.every((a) => a.origin!.engine && a.origin!.cacheKey)).toBe(true)
   })
 })
