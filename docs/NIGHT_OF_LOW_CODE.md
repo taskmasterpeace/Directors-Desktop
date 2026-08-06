@@ -25,6 +25,8 @@ live in the installed app at the next installer swap.
 | 16b | **Process slip, owned**: 16 was committed with a tsc error present (an always-true mode guard, TS2367) because the verify command printed the count but didn't GATE the commit on it. Fixed the guard; the loop's commit step now checks the error count before committing. | 1 | `56897a1` |
 | 17 | **"Try again" in the Enhance Director error strip.** If the phase-1 analyze call died (backend hiccup, LLM timeout) the modal showed an error over an EMPTY panel and the only recovery was close-and-reopen. Phase-2 errors already recovered (directions stay clickable); phase 1 now does too. | ~20 | `ea1329d` |
 
+| 18 | **Aspect ratio on queue-strip rows** ("10s · 480p · 9:16"). Duration/resolution were already there, but a 16:9 and a 9:16 take of the same prompt were indistinguishable in the queue — and portrait-vs-landscape matrixing is exactly how this app gets tested. | 1 | (this commit) |
+
 ## Follow-up: the full de-blue sweep (spun off from rows 2 & 10)
 
 Robert green-lit the deferred sweep as its own task. **411 lines across 41 files** converted from LTX blue to the amber brand — three themed commits: editor (`fbdb68b`, 194 lines), components (`378a628`, 163), views (`bfc0039`, 54). Solid blue+white fills became the app's `bg-amber-500 text-zinc-950` idiom, not just a hue swap.

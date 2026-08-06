@@ -191,6 +191,7 @@ export function PlaygroundQueueStrip({ onEditJob }: PlaygroundQueueStripProps) {
               <p className="text-[10px] text-zinc-500 truncate">
                 {modelLabel(job.model)}
                 {' · '}{String(job.params.duration ?? '?')}s · {String(job.params.resolution ?? '')}
+                {typeof job.params.aspectRatio === 'string' && <> · {job.params.aspectRatio}</>}
                 {seed !== null && <> · seed {seed}</>}
                 {chained && <span className="text-amber-400/80"> · <Link2 className="inline w-2.5 h-2.5" /> waits on image</span>}
               </p>
