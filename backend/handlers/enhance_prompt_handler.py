@@ -367,8 +367,56 @@ class EnhancePromptHandler(StateHandlerBase):
         result = self.enhance("", "image-to-video", "ltx-fast")
         return result.get("enhancedPrompt", "")
 
+    def _scene_caption(self, image_path: str) -> str | None:
+        """SEE the conditioning frame: a 2-3 sentence scene description (who,
+        setting, style, light) the enhance flow grounds its writing in. Motion
+        is the enhancer's job — this is the eyes, not the director. Returns
+        None when there is no vision provider or the image can't be read; the
+        enhance flow degrades to text-only, never blocks."""
+        openrouter_api_key = self.state.app_settings.openrouter_api_key
+        if not openrouter_api_key:
+            return None
+        image_b64 = self._read_image_as_base64(image_path)
+        if not image_b64:
+            return None
+        user_content: list[dict[str, JSONValue]] = [
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_b64}"}},
+            {"type": "text", "text": "Describe this frame."},
+        ]
+        messages: JSONValue = [
+            {"role": "system", "content": (
+                "Describe this image in 2-3 sentences for a film director: the "
+                "subject (age/build/wardrobe if a person), the setting, the "
+                "visual style (photoreal / 3D cartoon / anime / illustration), "
+                "and the light. No motion, no camera — just what is IN frame."
+            )},
+            {"role": "user", "content": user_content},  # type: ignore[dict-item]
+        ]
+        payload: dict[str, JSONValue] = {
+            "model": self.state.app_settings.vision_captioner_model,
+            "messages": messages,
+            "temperature": 0.4,
+            "max_tokens": 220,
+        }
+        try:
+            response = self._http.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                json_payload=payload,
+                headers={"Authorization": f"Bearer {openrouter_api_key}"},
+                timeout=45,
+            )
+            if response.status_code != 200:
+                return None
+            data: Any = response.json()
+            content: Any = data["choices"][0]["message"]["content"]
+            text = content.strip() if isinstance(content, str) else None
+            return text or None
+        except Exception:
+            return None  # eyes failing must never break the enhance button
+
     def enhance_options(
         self, prompt: str, model: str, direction: str | None = None,
+        image_path: str | None = None,
     ) -> dict[str, Any]:
         """The director's enhance flow: analyze -> pick a direction -> four
         visible prompt choices.
@@ -390,8 +438,13 @@ class EnhancePromptHandler(StateHandlerBase):
 
         guide = _guide_for_model(model)
 
+        # The eyes: when a conditioning frame is attached, describe it once and
+        # ground BOTH phases in what is actually in the shot.
+        scene = self._scene_caption(image_path) if image_path else None
+        frame_note = f"\nThe shot's first frame shows: {scene}" if scene else ""
+
         if direction is None:
-            if has_llm and prompt:
+            if has_llm and (prompt or scene):
                 analyzed = self._llm_json(
                     system=(
                         guide
@@ -401,7 +454,7 @@ class EnhancePromptHandler(StateHandlerBase):
                           '{"question": str, "options": [{"id": str, '
                           '"label": str, "hint": str}]} and nothing else.'
                     ),
-                    user=f"Draft prompt: {prompt}",
+                    user=f"Draft prompt: {prompt or '(none yet)'}{frame_note}",
                     gemini_key=gemini_key,
                     openrouter_key=openrouter_key,
                 )
@@ -450,7 +503,7 @@ class EnhancePromptHandler(StateHandlerBase):
                       'STRICT JSON: {"variants": [str, str, str, str]} and '
                       "nothing else."
                 ),
-                user=f"Draft prompt: {prompt or '(write from scratch)'}\nChosen direction: {guidance}",
+                user=f"Draft prompt: {prompt or '(write from scratch)'}\nChosen direction: {guidance}{frame_note}",
                 gemini_key=gemini_key,
                 openrouter_key=openrouter_key,
             )
@@ -475,7 +528,8 @@ class EnhancePromptHandler(StateHandlerBase):
         angles = ["", " Emphasize the light.", " Emphasize the camera move.", " Emphasize the sound and music."]
         variants: list[str] = []
         for angle in angles:
-            guided = f"{prompt or 'A striking performance shot.'} Direction: {guidance}{angle}"
+            grounded = f"First frame: {scene}. " if scene else ""
+            guided = f"{grounded}{prompt or 'A striking performance shot.'} Direction: {guidance}{angle}"
             try:
                 result = self._enhance_via_palette(guided, palette_key, "text-to-video", model)
                 text = result.get("enhancedPrompt", "").strip()

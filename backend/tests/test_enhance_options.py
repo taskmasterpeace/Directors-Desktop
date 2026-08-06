@@ -103,3 +103,64 @@ class TestGuideSelection:
         # Seedance: the formula + timeline prompting + no fast/rapid.
         assert "timeline prompting" in _SEEDANCE_GUIDE
         assert "'fast' and 'rapid'" in _SEEDANCE_GUIDE
+
+
+def _llm_ok(content: str) -> FakeResponse:
+    return FakeResponse(status_code=200, json_payload={
+        "choices": [{"message": {"content": content}}],
+    })
+
+
+class TestVisionGrounding:
+    """The eyes: an attached conditioning frame is captioned once and grounds
+    both phases; no vision provider degrades to text-only, never blocks."""
+
+    def test_frame_caption_grounds_the_variants(self, client, test_state, fake_services, tmp_path):
+        test_state.state.app_settings.openrouter_api_key = "or_key"
+        img = tmp_path / "frame.png"
+        img.write_bytes(b"\x89PNG fake image bytes")
+        http = fake_services.http
+        # Call 1: the vision caption. Call 2: the variants LLM.
+        http.queue("post", _llm_ok("A 3D-cartoon bear in a sunny meadow, soft daylight."))
+        http.queue("post", _llm_ok('{"variants": ["a", "b", "c", "d"]}'))
+        resp = client.post("/api/enhance-prompt/options", json={
+            "prompt": "the bear waves", "model": "h3-local",
+            "direction": "locked", "imagePath": str(img),
+        })
+        assert resp.status_code == 200
+        assert resp.json()["variants"] == ["a", "b", "c", "d"]
+        vision_call = http.calls[0]
+        assert "openrouter" in vision_call.url
+        assert "image_url" in str(vision_call.json_payload)
+        llm_call = http.calls[1]
+        assert "The shot's first frame shows: A 3D-cartoon bear" in str(llm_call.json_payload)
+
+    def test_no_vision_provider_degrades_to_text_only(self, client, test_state, fake_services, tmp_path):
+        test_state.state.app_settings.openrouter_api_key = ""
+        test_state.state.app_settings.palette_api_key = "dp_key"
+        img = tmp_path / "frame.png"
+        img.write_bytes(b"\x89PNG fake image bytes")
+        http = fake_services.http
+        for _ in range(4):
+            http.queue("post", _palette_ok("expanded"))
+        resp = client.post("/api/enhance-prompt/options", json={
+            "prompt": "the bear waves", "model": "h3-local",
+            "direction": "locked", "imagePath": str(img),
+        })
+        assert resp.status_code == 200
+        assert resp.json()["variants"]
+        # No call ever went to a vision endpoint — palette expander only.
+        assert all("openrouter" not in c.url for c in http.calls)
+
+    def test_unreadable_image_never_blocks(self, client, test_state, fake_services):
+        test_state.state.app_settings.openrouter_api_key = "or_key"
+        http = fake_services.http
+        # Only the variants call happens; the missing file skips the vision call.
+        http.queue("post", _llm_ok('{"variants": ["x"]}'))
+        resp = client.post("/api/enhance-prompt/options", json={
+            "prompt": "p", "model": "h3-local",
+            "direction": "locked", "imagePath": "Z:/nope/missing.png",
+        })
+        assert resp.status_code == 200
+        assert resp.json()["variants"] == ["x"]
+        assert len(http.calls) == 1

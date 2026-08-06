@@ -33,6 +33,9 @@ class EnhanceOptionsRequest(BaseModel):
     model: str = "h3-local"
     # Absent = phase 1 (analyze -> direction question); set = phase 2 (variants).
     direction: str | None = None
+    # Conditioning frame the enhancer should SEE (vision caption grounds both
+    # phases); optional — text-only flow when absent or no vision provider.
+    imagePath: str | None = None
 
 
 @router.post("/api/enhance-prompt/options")
@@ -42,7 +45,7 @@ def enhance_prompt_options(
 ):
     """Director's enhance: analyze -> pick a direction -> 4 visible choices."""
     return handler.enhance_prompt.enhance_options(
-        req.prompt, req.model, direction=req.direction,
+        req.prompt, req.model, direction=req.direction, image_path=req.imagePath,
     )
 
 

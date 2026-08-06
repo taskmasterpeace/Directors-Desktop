@@ -11,6 +11,9 @@ interface EnhanceDirectorModalProps {
   open: boolean
   prompt: string
   model: string
+  /** Conditioning frame path — when set, the enhancer SEES the image (vision
+   *  caption grounds the question and all four takes). */
+  imagePath?: string | null
   onClose: () => void
   onApply: (text: string) => void
 }
@@ -22,7 +25,7 @@ interface EnhanceDirectorModalProps {
  * one you want. H3 prompt craft (native audio, spoken quotes, one continuous
  * shot) is baked into the backend prompts.
  */
-export function EnhanceDirectorModal({ open, prompt, model, onClose, onApply }: EnhanceDirectorModalProps) {
+export function EnhanceDirectorModal({ open, prompt, model, imagePath, onClose, onApply }: EnhanceDirectorModalProps) {
   const [phase, setPhase] = useState<'loading' | 'directions' | 'variants'>('loading')
   const [question, setQuestion] = useState('')
   const [options, setOptions] = useState<DirectionOption[]>([])
@@ -35,11 +38,11 @@ export function EnhanceDirectorModal({ open, prompt, model, onClose, onApply }: 
     const res = await fetch(`${backendUrl}/api/enhance-prompt/options`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, ...(imagePath ? { imagePath } : {}) }),
     })
     if (!res.ok) throw new Error((await res.text()) || `HTTP ${res.status}`)
     return res.json() as Promise<{ question?: string; options?: DirectionOption[]; variants?: string[] }>
-  }, [])
+  }, [imagePath])
 
   // Esc closes — same convention as queue editing and the lightbox.
   useEffect(() => {

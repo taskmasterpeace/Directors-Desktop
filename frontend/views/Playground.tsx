@@ -941,6 +941,7 @@ export function Playground() {
             open={showEnhanceDirector}
             prompt={prompt}
             model={String(settings.model)}
+            imagePath={selectedImage ? fileUrlToPath(selectedImage) : firstFramePath}
             onClose={() => setShowEnhanceDirector(false)}
             onApply={setPrompt}
           />
