@@ -43,7 +43,7 @@ import {
   type CameraAngle,
 } from '../lib/shot-creator/camera-angle'
 import { CameraAnglePad } from '../components/CameraAnglePad'
-import { QUICK_MODES, type QuickModeKind } from '../lib/shot-creator/quick-modes'
+import { QUICK_MODES, applyQuickModeFields, missingQuickModeFields, type QuickModeKind } from '../lib/shot-creator/quick-modes'
 import { parseDynamicPrompt, type DynamicPromptResult } from '../lib/shot-creator/dynamic-prompt'
 import { useBatch } from '../hooks/use-batch'
 import { Shirt, UserRound, MapPin, Palette as StylePaletteIcon } from 'lucide-react'
@@ -550,6 +550,8 @@ function PromptBar({
   onBatchClick,
   activeQuickMode,
   onQuickModeToggle,
+  quickFieldValues,
+  onQuickFieldChange,
 }: {
   mode: 'image' | 'video' | 'retake'
   onModeChange: (mode: 'image' | 'video' | 'retake') => void
@@ -578,6 +580,8 @@ function PromptBar({
   onEditImageFile: (fileUrl: string) => void
   activeQuickMode: QuickModeKind | null
   onQuickModeToggle: (kind: QuickModeKind | null) => void
+  quickFieldValues: Record<string, string>
+  onQuickFieldChange: (key: string, value: string) => void
   settings: {
     model: string
     duration: number
@@ -1055,10 +1059,40 @@ function PromptBar({
         {activeQuickMode && !settings.referenceImagePaths?.length && !editSourceImage && (
           <span className="text-[10px] text-amber-400/90">Attach photo(s) — the rest is automatic</span>
         )}
-        {activeQuickMode && (!!settings.referenceImagePaths?.length || !!editSourceImage) && (
+        {activeQuickMode && (!!settings.referenceImagePaths?.length || !!editSourceImage) && !QUICK_MODES[activeQuickMode].fields?.length && (
           <span className="text-[10px] text-emerald-400/90">Photo attached — hit the button, the rest is automatic</span>
         )}
       </div>
+
+      {/* Quick-mode fields (Character / Location) — filled into the recipe so
+          the sheet reads real text, not the placeholder markers. */}
+      {activeQuickMode && QUICK_MODES[activeQuickMode].fields?.length ? (
+        <div className="px-1.5 pb-1 space-y-1.5">
+          {QUICK_MODES[activeQuickMode].fields!.map((f) => {
+            const k = `${activeQuickMode}.${f.key}`
+            const val = quickFieldValues[k] ?? ''
+            return f.multiline ? (
+              <textarea
+                key={k}
+                value={val}
+                onChange={(e) => onQuickFieldChange(k, e.target.value)}
+                rows={2}
+                placeholder={`${f.label}${f.required ? ' *' : ''} — ${f.placeholder ?? ''}`}
+                className="w-full resize-none rounded-md border border-zinc-700 bg-zinc-800/70 px-2.5 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-600 focus:border-amber-500 focus:outline-none"
+              />
+            ) : (
+              <input
+                key={k}
+                type="text"
+                value={val}
+                onChange={(e) => onQuickFieldChange(k, e.target.value)}
+                placeholder={`${f.label}${f.required ? ' *' : ''} — ${f.placeholder ?? ''}`}
+                className="w-full rounded-md border border-zinc-700 bg-zinc-800/70 px-2.5 py-1.5 text-xs text-zinc-200 placeholder:text-zinc-600 focus:border-amber-500 focus:outline-none"
+              />
+            )
+          })}
+        </div>
+      ) : null}
 
       {mode === 'video' && (
         <div className="px-1.5 pb-1">
@@ -1074,8 +1108,9 @@ function PromptBar({
         </div>
       )}
 
-      {/* Bottom row: Mode selector + Settings */}
-      <div className="flex items-center gap-0.5 px-1.5 py-1.5 border-t border-zinc-800/60 text-xs text-zinc-400">
+      {/* Bottom row: Mode selector + Settings. Wraps so the Generate button
+          (flex-shrink-0) never spills off the panel's right edge. */}
+      <div className="flex flex-wrap items-center gap-x-0.5 gap-y-1.5 px-1.5 py-1.5 border-t border-zinc-800/60 text-xs text-zinc-400">
         {/* Mode dropdown */}
         <SettingsDropdown
           title="MODE"
@@ -1491,11 +1526,12 @@ function PromptBar({
           Batch
         </button>
 
-        {/* Generate button */}
+        {/* Generate button — ml-auto keeps it on the right whether the row fits
+            or wraps; it never overflows the panel now. */}
         <button
           onClick={onGenerate}
           disabled={isGenerating || !canGenerate}
-          className={`flex items-center gap-1.5 ml-2 px-3 py-1.5 rounded-md text-xs font-medium transition-all flex-shrink-0 ${
+          className={`flex items-center gap-1.5 ml-auto px-3 py-1.5 rounded-md text-xs font-medium transition-all flex-shrink-0 ${
             isGenerating || !canGenerate
               ? 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
               : 'bg-white text-black hover:bg-zinc-200'
@@ -1597,6 +1633,8 @@ export function GenSpace() {
   const [mode, setMode] = useState<'image' | 'video' | 'retake'>('video')
   // Palette-style quick-mode toggle: armed here, applied behind the scenes at Generate.
   const [activeQuickMode, setActiveQuickMode] = useState<QuickModeKind | null>(null)
+  // Quick-mode field values, keyed `${mode}.${fieldKey}` (Character/Location).
+  const [quickFieldValues, setQuickFieldValues] = useState<Record<string, string>>({})
   const [prompt, setPrompt] = useState('')
   const [inputImage, setInputImage] = useState<string | null>(null)
   const [inputAudio, setInputAudio] = useState<string | null>(null)
@@ -2183,12 +2221,24 @@ export function GenSpace() {
         ...(editSourceImage ? [editSourceImage.path] : []),
         ...(settings.referenceImagePaths ?? []),
       ]
+      // Character/Location carry user-filled fields — substitute them into the
+      // recipe so the sheet reads real text, not "[DESCRIBE THE CHARACTER]".
+      let baseQuickPrompt = qm?.prompt ?? ''
+      if (qm?.fields?.length) {
+        const vals = Object.fromEntries(qm.fields.map((f) => [f.key, quickFieldValues[`${activeQuickMode}.${f.key}`] ?? '']))
+        const missing = missingQuickModeFields(qm.fields, vals)
+        if (missing.length) {
+          setLocalError(`Fill in: ${missing.map((m) => m.label).join(', ')}`)
+          return
+        }
+        baseQuickPrompt = applyQuickModeFields(qm.prompt, qm.fields, vals)
+      }
       const quickPrompt = qm
         ? (activeQuickMode === 'wardrobe'
             ? qm.prompt // Palette ignores the typed prompt in wardrobe mode
             : prompt.trim()
-              ? `${qm.prompt}\n\nADDITIONAL NOTES: ${prompt.trim()}`
-              : qm.prompt)
+              ? `${baseQuickPrompt}\n\nADDITIONAL NOTES: ${prompt.trim()}`
+              : baseQuickPrompt)
         : prompt
 
       // Full Palette prompt language (quick modes carry fixed prompts, so only
@@ -2801,6 +2851,8 @@ export function GenSpace() {
           mode={mode}
           onModeChange={setMode}
           activeQuickMode={activeQuickMode}
+          quickFieldValues={quickFieldValues}
+          onQuickFieldChange={(key, value) => setQuickFieldValues((prev) => ({ ...prev, [key]: value }))}
           onQuickModeToggle={setActiveQuickMode}
           prompt={prompt}
           onPromptChange={setPrompt}

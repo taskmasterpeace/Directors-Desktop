@@ -150,6 +150,19 @@ Row 3: An atmospheric indoor environment with props and lighting | A landscape o
 
 Every cell must feel like it belongs to the SAME visual world — consistent style language across all 9 cells, with no style drift.`
 
+/** An input the user fills before a quick-mode sheet generates. Its `marker`
+ *  is the literal placeholder in the prompt that the value replaces — so the
+ *  sheet reads real text instead of "[DESCRIBE THE CHARACTER]". */
+export interface QuickModeField {
+  key: string
+  label: string
+  /** The exact placeholder in `prompt` to substitute (all occurrences). */
+  marker: string
+  placeholder?: string
+  multiline?: boolean
+  required?: boolean
+}
+
 export interface QuickModeConfig {
   kind: QuickModeKind
   label: string
@@ -159,6 +172,9 @@ export interface QuickModeConfig {
   modelId: string
   aspectRatio: string
   prompt: string
+  /** User-filled fields (Character/Location). Absent/empty = fully automatic
+   *  (Wardrobe/Style: attach photo → click → generate). */
+  fields?: QuickModeField[]
   /** Extra per-model params sent as modelParams. */
   modelParams?: Record<string, unknown>
   /** Reference URL(s) prepended BEFORE the user's photos (order matters). */
@@ -168,6 +184,30 @@ export interface QuickModeConfig {
   maxPhotos: number
   /** File-picker title. */
   pickerTitle: string
+}
+
+/** Substitute a mode's field values into its prompt. A required field's marker
+ *  is replaced by its value; an empty optional field's marker becomes "none"
+ *  so the sentence still reads cleanly. */
+export function applyQuickModeFields(
+  prompt: string,
+  fields: QuickModeField[] | undefined,
+  values: Record<string, string>,
+): string {
+  let out = prompt
+  for (const f of fields ?? []) {
+    const v = (values[f.key] ?? '').trim()
+    out = out.split(f.marker).join(v || (f.required ? f.marker : 'none'))
+  }
+  return out
+}
+
+/** Required fields left blank — block generation until filled. */
+export function missingQuickModeFields(
+  fields: QuickModeField[] | undefined,
+  values: Record<string, string>,
+): QuickModeField[] {
+  return (fields ?? []).filter((f) => f.required && !(values[f.key] ?? '').trim())
 }
 
 export const QUICK_MODES: Record<QuickModeKind, QuickModeConfig> = {
@@ -188,10 +228,14 @@ export const QUICK_MODES: Record<QuickModeKind, QuickModeConfig> = {
   character: {
     kind: 'character',
     label: 'Character',
-    hint: 'Person photo → full character reference sheet',
+    hint: 'Person photo + name/description → full character reference sheet',
     modelId: 'dp-gpt-image-2',
     aspectRatio: '3:2',
     prompt: CHARACTER_SHEET_PROMPT,
+    fields: [
+      { key: 'name', label: 'Character name', marker: '[CHARACTER NAME]', required: true, placeholder: 'e.g. Maya' },
+      { key: 'description', label: 'Describe the character', marker: '[DESCRIBE THE CHARACTER]', required: true, multiline: true, placeholder: 'age, build, hair, distinctive features, typical clothing…' },
+    ],
     modelParams: { quality: 'medium' },
     minPhotos: 1,
     maxPhotos: 1,
@@ -200,10 +244,14 @@ export const QUICK_MODES: Record<QuickModeKind, QuickModeConfig> = {
   location: {
     kind: 'location',
     label: 'Location',
-    hint: '1-10 photos of one place → master location sheet',
+    hint: '1-10 photos of one place + name → master location sheet',
     modelId: 'dp-nano-banana-2',
     aspectRatio: '16:9',
     prompt: LOCATION_SHEET_PROMPT,
+    fields: [
+      { key: 'name', label: 'Location name', marker: '[LOCATION NAME]', required: true, placeholder: "e.g. Maya's kitchen" },
+      { key: 'notes', label: 'Notes (optional)', marker: '[OPTIONAL NOTES]', multiline: true, placeholder: "time of day, condition, anything the photos don't show…" },
+    ],
     minPhotos: 1,
     maxPhotos: 10,
     pickerTitle: 'Choose photos of the location (1-10)',
