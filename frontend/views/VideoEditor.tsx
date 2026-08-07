@@ -53,6 +53,7 @@ import { StoryCastPanel } from './editor/StoryCastPanel'
 import { useAgentActions } from './editor/useAgentActions'
 import { ReplacePersonModal } from './editor/ReplacePersonModal'
 import { DramatisTakeModal } from './editor/DramatisTakeModal'
+import { CropModal } from './editor/CropModal'
 import { requestDramatisTake, selectDramatisTake, takeRecordToAssetTake } from '../lib/dramatis-studio'
 import { captionsFromWords, wordPopCues } from '../lib/captions-from-transcript'
 import { generateFromPrompt } from '../lib/transcript-generate'
@@ -1852,6 +1853,10 @@ export function VideoEditor() {
   }, [extractCurrentFrame, setGenSpaceEditImageUrl, setGenSpaceEditMode, setCurrentTab])
   // Late-bound ref so handlers defined above persistFrame can still call it.
   const persistFrameRef = useRef<(u: string) => Promise<string | null>>(async () => null)
+  // Crop-before-sending: when set, the CropModal is open over this image and
+  // calls onDone with the cropped JPEG data URL ("crop the screenshot before
+  // sending it over").
+  const [cropRequest, setCropRequest] = useState<{ src: string; onDone: (dataUrl: string) => void } | null>(null)
 
   // "Use Clip as Video Reference" — the owner's marquee workflow: take a clip
   // already on the timeline, trim it to a locked model length (≤15s), and hand
@@ -1912,6 +1917,43 @@ export function VideoEditor() {
     }
   }, [])
   persistFrameRef.current = persistFrame
+
+  // Persist a base64 JPEG data URL (the CropModal's output) to the frames dir.
+  // Unlike persistFrame, the bytes are already in hand — no readLocalFile.
+  const persistDataUrl = useCallback(async (dataUrl: string): Promise<string | null> => {
+    try {
+      const base64 = dataUrl.split(',')[1] || ''
+      const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0))
+      const downloads = await window.electronAPI.getDownloadsPath()
+      const dir = `${downloads}/DirectorsDesktop/frames`
+      const ensured = await window.electronAPI.ensureDirectory(dir)
+      if (!ensured.success) throw new Error(ensured.error || 'Could not create frames folder')
+      const name = `crop_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.jpg`
+      const saved = await window.electronAPI.saveBinaryFile(`${dir}/${name}`, bytes.buffer)
+      if (!saved.success || !saved.path) throw new Error(saved.error || 'Failed to save crop')
+      return saved.path
+    } catch (err) {
+      logger.error(`Failed to persist crop: ${err}`)
+      return null
+    }
+  }, [])
+
+  // Crop a frame, then attach the crop as a Gen Space reference image.
+  const handleCropFrameToReference = useCallback(async (clip: TimelineClip) => {
+    const frameUrl = await extractCurrentFrame(clip)
+    if (!frameUrl) { setFrameActionMsg({ kind: 'error', text: 'Could not read a frame from this clip (media missing or unsupported).' }); return }
+    setCropRequest({
+      src: toImgSrc(frameUrl),
+      onDone: async (cropped) => {
+        setCropRequest(null)
+        const persisted = await persistDataUrl(cropped)
+        if (!persisted) { setFrameActionMsg({ kind: 'error', text: 'Could not save the crop.' }); return }
+        setPendingReferenceImage({ path: persisted })
+        setCurrentTab('gen-space')
+        setFrameActionMsg({ kind: 'ok', text: 'Cropped frame added as a reference image in Gen Space.' })
+      },
+    })
+  }, [extractCurrentFrame, persistDataUrl, setPendingReferenceImage, setCurrentTab])
 
   // Capture the current frame and attach it as a Seedance 2.0 reference image
   // in Gen Space (omni-reference @Image) — use a still from a video as a
@@ -4994,6 +5036,7 @@ export function VideoEditor() {
             setShowICLoraPanel={_setShowICLoraPanel}
             onCaptureFrameForVideo={handleCaptureFrameForVideo}
             onCaptureFrameAsReference={handleCaptureFrameAsReference}
+            onCropFrameToReference={handleCropFrameToReference}
             onCaptureFrameQuickMode={handleCaptureFrameQuickMode}
             onCaptureFrameToReferences={handleCaptureFrameToReferences}
             onCreateVideoFromAudio={handleCreateVideoFromAudio}
@@ -5042,6 +5085,15 @@ export function VideoEditor() {
           />
         ) : null
       })()}
+
+      {/* Crop-before-sending overlay */}
+      {cropRequest && (
+        <CropModal
+          src={cropRequest.src}
+          onConfirm={(dataUrl) => cropRequest.onDone(dataUrl)}
+          onCancel={() => setCropRequest(null)}
+        />
+      )}
 
       {/* Project Settings Modal */}
       {replacePersonClip && (

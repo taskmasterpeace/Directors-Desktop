@@ -5,7 +5,7 @@ import {
   FlipHorizontal2, FlipVertical2, Link2, Unlink2,
   ChevronLeft, ChevronRight, // IC-LORA HIDDEN: removed Sparkles
   Video, Camera, Image as ImageIcon, Library,
-  Shirt, UserRound, MapPin, Palette,
+  Shirt, UserRound, MapPin, Palette, Crop as CropIcon,
 } from 'lucide-react'
 import type { Asset, CastEntry, TimelineClip, Track, TextOverlayStyle } from '../../types/project'
 import { TEXT_PRESETS } from '../../types/project'
@@ -63,6 +63,7 @@ export interface ClipContextMenuProps {
   setShowICLoraPanel: (v: boolean) => void
   onCaptureFrameForVideo: (clip: TimelineClip) => void
   onCaptureFrameAsReference: (clip: TimelineClip) => void
+  onCropFrameToReference: (clip: TimelineClip) => void
   onCaptureFrameToReferences: (clip: TimelineClip) => void
   onCaptureFrameQuickMode: (clip: TimelineClip, kind: 'wardrobe' | 'character' | 'location' | 'style') => void
   onCreateVideoFromAudio: (clip: TimelineClip) => void
@@ -150,6 +151,7 @@ export function ClipContextMenu({
   setShowICLoraPanel, // IC-LORA HIDDEN: still passed to SingleClipMenu
   onCaptureFrameForVideo,
   onCaptureFrameAsReference,
+  onCropFrameToReference,
   onCaptureFrameToReferences,
   onCaptureFrameQuickMode,
   onCreateVideoFromAudio,
@@ -275,6 +277,7 @@ export function ClipContextMenu({
           setShowICLoraPanel={setShowICLoraPanel}
           onCaptureFrameForVideo={onCaptureFrameForVideo}
           onCaptureFrameAsReference={onCaptureFrameAsReference}
+          onCropFrameToReference={onCropFrameToReference}
           onCaptureFrameToReferences={onCaptureFrameToReferences}
           onCaptureFrameQuickMode={onCaptureFrameQuickMode}
           onCreateVideoFromAudio={onCreateVideoFromAudio}
@@ -310,6 +313,7 @@ function SingleClipMenu({
   setI2vClipId, setI2vPrompt, onRetakeClip, castEntries, onGenerateWithCastMember, onReplacePerson, onDramatisTake, onUseClipAsVideoReference, setIcLoraSourceClipId: _setIcLoraSourceClipId, setShowICLoraPanel: _setShowICLoraPanel, // IC-LORA HIDDEN
   onCaptureFrameForVideo,
   onCaptureFrameAsReference,
+  onCropFrameToReference,
   onCaptureFrameToReferences,
   onCaptureFrameQuickMode,
   onCreateVideoFromAudio,
@@ -352,6 +356,7 @@ function SingleClipMenu({
   setShowICLoraPanel: (v: boolean) => void
   onCaptureFrameForVideo: (clip: TimelineClip) => void
   onCaptureFrameAsReference: (clip: TimelineClip) => void
+  onCropFrameToReference: (clip: TimelineClip) => void
   onCaptureFrameToReferences: (clip: TimelineClip) => void
   onCaptureFrameQuickMode: (clip: TimelineClip, kind: 'wardrobe' | 'character' | 'location' | 'style') => void
   onCreateVideoFromAudio: (clip: TimelineClip) => void
@@ -608,6 +613,8 @@ function SingleClipMenu({
               <div className="absolute left-full top-0 ml-0.5 min-w-[220px] bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl py-1 z-[70] hidden group-hover/capture:block">
                 <MenuItem icon={ImageIcon} iconClass="text-amber-400" label="Reference Image (Gen Space)"
                   onClick={() => { onCaptureFrameAsReference(contextClip); close() }} />
+                <MenuItem icon={CropIcon} iconClass="text-cyan-400" label="Crop Frame → Reference…"
+                  onClick={() => { onCropFrameToReference(contextClip); close() }} />
                 <MenuItem icon={Library} iconClass="text-amber-400" label="Save to References Library"
                   onClick={() => { onCaptureFrameToReferences(contextClip); close() }} />
                 <MenuItem icon={Shirt} iconClass="text-amber-400" label="Wardrobe Sheet from Frame"
