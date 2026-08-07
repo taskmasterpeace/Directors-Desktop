@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, AlertCircle, Settings, FileText } from 'lucide-react'
+import { Loader2, AlertCircle, Settings, FileText, HelpCircle } from 'lucide-react'
 import { ProjectProvider, useProjects } from './contexts/ProjectContext'
 import { KeyboardShortcutsProvider } from './contexts/KeyboardShortcutsContext'
 import { AppSettingsProvider, useAppSettings } from './contexts/AppSettingsContext'
@@ -26,6 +26,7 @@ import { SettingsModal, type SettingsTabId } from './components/SettingsModal'
 import { PaletteAuthGate } from './components/PaletteAuthGate'
 import { LogViewer } from './components/LogViewer'
 import { ApiGatewayModal, type ApiGatewaySection } from './components/ApiGatewayModal'
+import { HelpCenter } from './components/HelpCenter'
 import { Button } from './components/ui/button'
 
 type SetupState = 'loading' | { needsSetup: boolean; needsLicense: boolean }
@@ -42,6 +43,8 @@ function AppContent() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [settingsInitialTab, setSettingsInitialTab] = useState<SettingsTabId | undefined>(undefined)
   const [isLogViewerOpen, setIsLogViewerOpen] = useState(false)
+  const [isHelpOpen, setIsHelpOpen] = useState(false)
+  const [helpSectionId, setHelpSectionId] = useState<string | undefined>(undefined)
   const [isFinalizingFirstRun, setIsFinalizingFirstRun] = useState(false)
   const [firstRunFinalizeError, setFirstRunFinalizeError] = useState<string | null>(null)
   const [requiredModelsGate, setRequiredModelsGate] = useState<RequiredModelsGateState>('checking')
@@ -80,6 +83,22 @@ function AppContent() {
     }
     window.addEventListener('open-settings', handler)
     return () => window.removeEventListener('open-settings', handler)
+  }, [])
+
+  // Help Center: openable from anywhere via the ? button, F1, or an `open-help`
+  // event (optionally deep-linking to a section id, e.g. from Director's Pal).
+  useEffect(() => {
+    const openHelp = (e: Event) => {
+      const detail = (e as CustomEvent).detail
+      setHelpSectionId(detail?.sectionId)
+      setIsHelpOpen(true)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'F1') { e.preventDefault(); setIsHelpOpen((v) => !v) }
+    }
+    window.addEventListener('open-help', openHelp)
+    window.addEventListener('keydown', onKey)
+    return () => { window.removeEventListener('open-help', openHelp); window.removeEventListener('keydown', onKey) }
   }, [])
 
   useEffect(() => {
@@ -538,6 +557,13 @@ function AppContent() {
       {showGlobalControls && (
         <div className="fixed top-[18px] right-3 z-50 flex items-center gap-1">
           <button
+            onClick={() => { setHelpSectionId(undefined); setIsHelpOpen(true) }}
+            className="h-8 w-8 flex items-center justify-center rounded-md text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+            title="Help (F1)"
+          >
+            <HelpCircle className="h-4 w-4" />
+          </button>
+          <button
             onClick={() => setIsLogViewerOpen(true)}
             className="h-8 w-8 flex items-center justify-center rounded-md text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
             title="View Backend Logs"
@@ -570,6 +596,11 @@ function AppContent() {
         title={apiGatewayRequest?.title ?? 'Connect API Keys'}
         description={apiGatewayRequest?.description ?? 'Add the required API keys to continue.'}
         sections={gatewaySections}
+      />
+      <HelpCenter
+        isOpen={isHelpOpen}
+        onClose={() => { setIsHelpOpen(false); setHelpSectionId(undefined) }}
+        initialSectionId={helpSectionId}
       />
 
       {shouldBlockUntilSettingsLoaded && (
