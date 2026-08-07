@@ -97,6 +97,7 @@ export function VideoEditor() {
     setActiveTimeline, updateTimeline, getActiveTimeline,
     setCurrentTab, setGenSpaceEditImageUrl, setGenSpaceEditMode, setGenSpaceAudioUrl,
     setGenSpaceRetakeSource, pendingRetakeUpdate, setPendingRetakeUpdate, setPendingReferenceImage,
+    setPendingReferenceVideo,
   } = useProjects()
   const confirm = useConfirm()
 
@@ -1851,6 +1852,45 @@ export function VideoEditor() {
   }, [extractCurrentFrame, setGenSpaceEditImageUrl, setGenSpaceEditMode, setCurrentTab])
   // Late-bound ref so handlers defined above persistFrame can still call it.
   const persistFrameRef = useRef<(u: string) => Promise<string | null>>(async () => null)
+
+  // "Use Clip as Video Reference" — the owner's marquee workflow: take a clip
+  // already on the timeline, trim it to a locked model length (≤15s), and hand
+  // the trimmed VIDEO to Gen Space as a Seedance 2.0 omni-reference — reference
+  // the motion, not just a still. Reuses the proven clipTrim + pending-reference
+  // rails; the clip's own trim window is the segment, capped at 15s.
+  const handleUseClipAsVideoReference = useCallback(async (clip: TimelineClip) => {
+    const liveAsset = clip.assetId ? assets.find((a) => a.id === clip.assetId) : clip.asset
+    const takeIdx = clip.takeIndex ?? liveAsset?.activeTakeIndex
+    let srcUrl = clip.importedUrl || liveAsset?.url || null
+    if (liveAsset?.takes && liveAsset.takes.length > 0 && takeIdx !== undefined) {
+      const take = liveAsset.takes[Math.max(0, Math.min(takeIdx, liveAsset.takes.length - 1))]
+      if (take?.url) srcUrl = take.url
+    }
+    if (!srcUrl) { setFrameActionMsg({ kind: 'error', text: 'This clip has no video source to reference.' }); return }
+    const speed = clip.speed || 1
+    const startSeconds = clip.trimStart
+    const lengthSeconds = Math.min(15, clip.duration * speed) // Seedance omni-ref cap
+    setFrameActionMsg({ kind: 'ok', text: `Trimming ${lengthSeconds.toFixed(1)}s for a video reference…` })
+    try {
+      const downloads = await window.electronAPI.getDownloadsPath()
+      const dir = `${downloads}/DirectorsDesktop/clips`
+      const ensured = await window.electronAPI.ensureDirectory(dir)
+      if (!ensured.success) throw new Error(ensured.error || 'Could not create the clips folder')
+      const name = `ref_${Date.now()}_${Math.round(lengthSeconds)}s.mp4`
+      const result = await window.electronAPI.clipTrim({
+        inputUrl: srcUrl,
+        startSeconds,
+        lengthSeconds,
+        outputPath: `${dir}/${name}`,
+      })
+      if (!result.success || !result.outputPath) throw new Error(result.error || 'Trim failed')
+      setPendingReferenceVideo({ path: result.outputPath, label: name })
+      setCurrentTab('gen-space')
+      setFrameActionMsg({ kind: 'ok', text: `Added a ${Math.round(lengthSeconds)}s video reference in Gen Space (Seedance 2.0).` })
+    } catch (err) {
+      setFrameActionMsg({ kind: 'error', text: err instanceof Error ? err.message : 'Trim failed' })
+    }
+  }, [assets, setPendingReferenceVideo, setCurrentTab])
 
   // Persist a just-extracted frame (which lives in a temp dir) to a stable
   // location so it survives as a reference. Returns the persisted absolute path.
@@ -4949,6 +4989,7 @@ export function VideoEditor() {
             onGenerateWithCastMember={handleGenerateWithCastMember}
             onReplacePerson={setReplacePersonClip}
             onDramatisTake={setDramatisTakeClip}
+            onUseClipAsVideoReference={handleUseClipAsVideoReference}
             setIcLoraSourceClipId={_setIcLoraSourceClipId}
             setShowICLoraPanel={_setShowICLoraPanel}
             onCaptureFrameForVideo={handleCaptureFrameForVideo}

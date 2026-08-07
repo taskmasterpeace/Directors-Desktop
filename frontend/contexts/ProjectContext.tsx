@@ -88,6 +88,9 @@ interface ProjectContextType {
   // attach as a Seedance 2.0 reference image.
   pendingReferenceImage: PendingReferenceImage | null
   setPendingReferenceImage: (img: PendingReferenceImage | null) => void
+  // A trimmed timeline clip handed to Gen Space as a video reference.
+  pendingReferenceVideo: PendingReferenceVideo | null
+  setPendingReferenceVideo: (v: PendingReferenceVideo | null) => void
 }
 
 export interface GenSpaceRetakeSource {
@@ -130,6 +133,13 @@ export interface PendingReferenceImage {
   /** When set, Gen Space arms this quick mode (image mode) with the frame attached
    *  instead of the default Seedance video-reference handoff. */
   quickMode?: 'wardrobe' | 'character' | 'location' | 'style'
+}
+
+/** A trimmed timeline clip (≤15s) handed to Gen Space as a Seedance 2.0 VIDEO
+ *  reference — "use this part of the timeline as a reference for what I generate." */
+export interface PendingReferenceVideo {
+  path: string
+  label?: string
 }
 
 const ProjectContext = createContext<ProjectContextType | null>(null)
@@ -225,6 +235,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
   const [pendingRemix, setPendingRemix] = useState<PendingRemix | null>(null)
   const [pendingDirectorAudio, setPendingDirectorAudio] = useState<string | null>(null)
   const [pendingReferenceImage, setPendingReferenceImage] = useState<PendingReferenceImage | null>(null)
+  const [pendingReferenceVideo, setPendingReferenceVideo] = useState<PendingReferenceVideo | null>(null)
   // Initialize with data from localStorage
   const [projects, setProjects] = useState<Project[]>(() => loadProjectsFromStorage())
   const isInitializedRef = useRef(false)
@@ -751,6 +762,8 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     setPendingAnimateImage,
     pendingReferenceImage,
     setPendingReferenceImage,
+    pendingReferenceVideo,
+    setPendingReferenceVideo,
   }), [
     currentView, currentProjectId, currentTab, projects, currentProject,
     createProject, deleteProject, renameProject, updateProject,
@@ -763,7 +776,7 @@ export function ProjectProvider({ children }: { children: React.ReactNode }) {
     openStoryStage, importDramatisChapter,
     genSpaceEditImageUrl, genSpaceEditMode, genSpaceAudioUrl,
     genSpaceRetakeSource, pendingRetakeUpdate, pendingClipReference, pendingAnimateImage, pendingRemix, pendingDirectorAudio,
-    pendingReferenceImage,
+    pendingReferenceImage, pendingReferenceVideo,
   ])
 
   return (

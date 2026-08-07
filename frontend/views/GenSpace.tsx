@@ -1591,7 +1591,7 @@ type GenSpaceSettings = typeof DEFAULT_VIDEO_SETTINGS & {
 }
 
 export function GenSpace() {
-  const { currentProject, currentProjectId, addAsset, addTakeToAsset, deleteAsset, updateAsset, toggleFavorite, genSpaceEditImageUrl, setGenSpaceEditImageUrl, genSpaceEditMode, setGenSpaceEditMode, genSpaceAudioUrl, setGenSpaceAudioUrl, genSpaceRetakeSource, setGenSpaceRetakeSource, setPendingRetakeUpdate, pendingReferenceImage, setPendingReferenceImage } = useProjects()
+  const { currentProject, currentProjectId, addAsset, addTakeToAsset, deleteAsset, updateAsset, toggleFavorite, genSpaceEditImageUrl, setGenSpaceEditImageUrl, genSpaceEditMode, setGenSpaceEditMode, genSpaceAudioUrl, setGenSpaceAudioUrl, genSpaceRetakeSource, setGenSpaceRetakeSource, setPendingRetakeUpdate, pendingReferenceImage, setPendingReferenceImage, pendingReferenceVideo, setPendingReferenceVideo } = useProjects()
   const confirm = useConfirm()
   const { shouldVideoGenerateWithLtxApi, forceApiGenerations, settings: appSettings, credits } = useAppSettings()
   const [mode, setMode] = useState<'image' | 'video' | 'retake'>('video')
@@ -1723,6 +1723,20 @@ export function GenSpace() {
       return { ...prev, model: 'seedance-2.0', referenceImagePaths: [...existing, path] }
     })
   }, [pendingReferenceImage, setPendingReferenceImage])
+
+  // Handle a trimmed timeline clip sent as a Seedance 2.0 VIDEO reference:
+  // attach it to videoReferencePaths, switch to video mode + the omni-ref model.
+  useEffect(() => {
+    if (!pendingReferenceVideo) return
+    const { path } = pendingReferenceVideo
+    setPendingReferenceVideo(null)
+    setMode('video')
+    setSettings((prev) => {
+      const existing = prev.videoReferencePaths ?? []
+      if (existing.includes(path)) return prev
+      return { ...prev, model: 'seedance-2.0', videoReferencePaths: [...existing, path] }
+    })
+  }, [pendingReferenceVideo, setPendingReferenceVideo])
 
   // Handle incoming audio from the Video Editor for A2V
   useEffect(() => {
