@@ -49,6 +49,7 @@ export interface AppSettings {
   lockedSeed: number
   hasCivitaiApiKey: boolean
   customVideoModelPath: string
+  cupcakeComfyUrl: string
   selectedVideoModel: string
 }
 
@@ -76,6 +77,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   lockedSeed: 42,
   hasCivitaiApiKey: false,
   customVideoModelPath: '',
+  cupcakeComfyUrl: '',
   selectedVideoModel: '',
 }
 
@@ -143,6 +145,7 @@ function normalizeAppSettings(data: Partial<AppSettings>): AppSettings {
     lockedSeed: data.lockedSeed ?? DEFAULT_APP_SETTINGS.lockedSeed,
     hasCivitaiApiKey: data.hasCivitaiApiKey ?? DEFAULT_APP_SETTINGS.hasCivitaiApiKey,
     customVideoModelPath: data.customVideoModelPath ?? DEFAULT_APP_SETTINGS.customVideoModelPath,
+    cupcakeComfyUrl: data.cupcakeComfyUrl ?? DEFAULT_APP_SETTINGS.cupcakeComfyUrl,
     selectedVideoModel: data.selectedVideoModel ?? DEFAULT_APP_SETTINGS.selectedVideoModel,
   }
 }

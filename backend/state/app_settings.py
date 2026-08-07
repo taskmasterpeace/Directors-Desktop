@@ -100,6 +100,9 @@ class AppSettings(SettingsBaseModel):
     auto_upload_to_r2: bool = False
     civitai_api_key: str = ""
     custom_video_model_path: str = ""
+    # Remote ComfyUI (the cupcake / GX10 box) for the cupcake-character image model.
+    # Empty = the local default (http://127.0.0.1:8188).
+    cupcake_comfy_url: str = ""
     vision_captioner_model: str = "qwen/qwen-2.5-vl-72b-instruct"
     selected_video_model: str = ""
 
@@ -193,6 +196,7 @@ class SettingsResponse(SettingsBaseModel):
     auto_upload_to_r2: bool = False
     has_civitai_api_key: bool = False
     custom_video_model_path: str = ""
+    cupcake_comfy_url: str = ""
     vision_captioner_model: str = "qwen/qwen-2.5-vl-72b-instruct"
     selected_video_model: str = ""
 

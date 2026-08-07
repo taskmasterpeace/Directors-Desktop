@@ -178,6 +178,22 @@ export const LOCAL_IMAGE_MODELS: ImageModelConfig[] = [
     badgeColor: 'text-zinc-400',
     estimatedSeconds: 34,
   },
+  {
+    id: 'cupcake-character',
+    displayName: 'Cupcake Character',
+    icon: '🧁',
+    provider: 'local',
+    description:
+      'On-model character in a new scene, on the cupcake box. Give a character/face reference (plus an optional style reference); keeps their face, hair, outfit and art-style. Set the box URL in Settings.',
+    outcome: 'Consistent character',
+    costPoints: null,
+    maxReferenceImages: 2,
+    requiresInputImage: true,
+    aspectRatios: LOCAL_ASPECTS,
+    badge: 'Likeness',
+    badgeColor: 'text-amber-400',
+    estimatedSeconds: 30,
+  },
 ]
 
 /** Direct-to-Replicate (needs the user's own Replicate key). */

@@ -123,6 +123,19 @@ class ImageGenerationHandler(StateHandlerBase):
                 model_params=req.modelParams,
             )
 
+        # Cupcake character pipeline: a remote-ComfyUI (GX10) character-likeness graph.
+        # It's a local-engine model (gpu slot) but runs over HTTP on the cupcake box, so it
+        # takes its own branch before the in-process diffusers path below.
+        if image_model == "cupcake-character":
+            return self._generate_via_cupcake(
+                prompt=req.prompt,
+                width=width,
+                height=height,
+                num_inference_steps=req.numSteps,
+                seed=seed,
+                reference_image_paths=req.referenceImagePaths,
+            )
+
         # Local GPU path only: one local generation at a time.
         if self._generation.is_generation_running():
             raise HTTPError(409, "Generation already in progress")
@@ -149,6 +162,57 @@ class ImageGenerationHandler(StateHandlerBase):
             self._generation.fail_generation(str(e))
             if "cancelled" in str(e).lower():
                 logger.info("Image generation cancelled by user")
+                return GenerateImageResponse(status="cancelled")
+            raise HTTPError(500, str(e)) from e
+
+    def _generate_via_cupcake(
+        self,
+        *,
+        prompt: str,
+        width: int,
+        height: int,
+        num_inference_steps: int,
+        seed: int,
+        reference_image_paths: list[str],
+    ) -> GenerateImageResponse:
+        """Render an on-model character image on the remote cupcake ComfyUI.
+
+        Needs at least one character reference (the identity+look image). A second reference,
+        if present, overrides the style/look branch. Shares the local one-at-a-time generation
+        guard so it doesn't collide with an in-process diffusers run.
+        """
+        from services.cupcake_character_client import CupcakeCharacterClientImpl
+
+        if not reference_image_paths:
+            raise HTTPError(400, "cupcake-character needs a character reference image")
+
+        settings = self.state.app_settings
+        base_url = settings.cupcake_comfy_url or "http://127.0.0.1:8188"
+        client = CupcakeCharacterClientImpl(base_url=base_url, outputs_dir=self._outputs_dir)
+
+        if self._generation.is_generation_running():
+            raise HTTPError(409, "Generation already in progress")
+
+        generation_id = uuid.uuid4().hex[:8]
+        try:
+            self._generation.start_generation(generation_id)
+            style_ref = reference_image_paths[1] if len(reference_image_paths) > 1 else None
+            path = client.generate_image(
+                prompt=prompt,
+                character_image_path=reference_image_paths[0],
+                style_image_path=style_ref,
+                width=width,
+                height=height,
+                seed=seed,
+                steps=max(1, num_inference_steps),
+                on_phase=lambda phase, pct: self._generation.update_progress(phase, pct, 0, 1),
+                should_cancel=self._generation.is_generation_cancelled,
+            )
+            self._generation.complete_generation([path])
+            return GenerateImageResponse(status="complete", image_paths=[path])
+        except Exception as e:
+            self._generation.fail_generation(str(e))
+            if "cancelled" in str(e).lower():
                 return GenerateImageResponse(status="cancelled")
             raise HTTPError(500, str(e)) from e
 
