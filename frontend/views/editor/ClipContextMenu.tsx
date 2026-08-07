@@ -59,6 +59,8 @@ export interface ClipContextMenuProps {
   onDramatisTake: (clip: TimelineClip) => void
   /** Trim this clip to ≤15s and use it as a Seedance video reference in Gen Space. */
   onUseClipAsVideoReference: (clip: TimelineClip) => void
+  /** Regenerate this clip following a reference (clip/frame/crop) → new take. */
+  onRegenerateWithReference: (clip: TimelineClip) => void
   setIcLoraSourceClipId: (v: string | null) => void
   setShowICLoraPanel: (v: boolean) => void
   onCaptureFrameForVideo: (clip: TimelineClip) => void
@@ -147,6 +149,7 @@ export function ClipContextMenu({
   onReplacePerson,
   onDramatisTake,
   onUseClipAsVideoReference,
+  onRegenerateWithReference,
   setIcLoraSourceClipId, // IC-LORA HIDDEN: still passed to SingleClipMenu
   setShowICLoraPanel, // IC-LORA HIDDEN: still passed to SingleClipMenu
   onCaptureFrameForVideo,
@@ -273,6 +276,7 @@ export function ClipContextMenu({
           onReplacePerson={onReplacePerson}
           onDramatisTake={onDramatisTake}
           onUseClipAsVideoReference={onUseClipAsVideoReference}
+          onRegenerateWithReference={onRegenerateWithReference}
           setIcLoraSourceClipId={setIcLoraSourceClipId}
           setShowICLoraPanel={setShowICLoraPanel}
           onCaptureFrameForVideo={onCaptureFrameForVideo}
@@ -310,7 +314,7 @@ function SingleClipMenu({
   duplicateClip, splitClipAtPlayhead, removeClip, updateClip,
   getLiveAsset, getMaxClipDuration,
   setAssetFilter, setSelectedBin, setTakesViewAssetId, setSelectedAssetIds,
-  setI2vClipId, setI2vPrompt, onRetakeClip, castEntries, onGenerateWithCastMember, onReplacePerson, onDramatisTake, onUseClipAsVideoReference, setIcLoraSourceClipId: _setIcLoraSourceClipId, setShowICLoraPanel: _setShowICLoraPanel, // IC-LORA HIDDEN
+  setI2vClipId, setI2vPrompt, onRetakeClip, castEntries, onGenerateWithCastMember, onReplacePerson, onDramatisTake, onUseClipAsVideoReference, onRegenerateWithReference, setIcLoraSourceClipId: _setIcLoraSourceClipId, setShowICLoraPanel: _setShowICLoraPanel, // IC-LORA HIDDEN
   onCaptureFrameForVideo,
   onCaptureFrameAsReference,
   onCropFrameToReference,
@@ -352,6 +356,8 @@ function SingleClipMenu({
   onDramatisTake: (clip: TimelineClip) => void
   /** Trim this clip to ≤15s and use it as a Seedance video reference in Gen Space. */
   onUseClipAsVideoReference: (clip: TimelineClip) => void
+  /** Regenerate this clip following a reference (clip/frame/crop) → new take. */
+  onRegenerateWithReference: (clip: TimelineClip) => void
   setIcLoraSourceClipId: (v: string | null) => void
   setShowICLoraPanel: (v: boolean) => void
   onCaptureFrameForVideo: (clip: TimelineClip) => void
@@ -587,6 +593,8 @@ function SingleClipMenu({
                 onClick={() => { onReplacePerson(contextClip); close() }} />
               <MenuItem icon={Film} iconClass="text-cyan-400" label="Use Clip as Video Reference…"
                 onClick={() => { onUseClipAsVideoReference(contextClip); close() }} />
+              <MenuItem icon={RefreshCw} iconClass="text-amber-400" label="Regenerate with Reference…"
+                onClick={() => { onRegenerateWithReference(contextClip); close() }} />
               {/* IC-LORA HIDDEN - IC-LoRA context menu item hidden because IC-LoRA is broken on server
               <MenuItem icon={Sparkles} iconClass="text-amber-400" label="IC-LoRA / Style Transfer"
                 onClick={() => { setIcLoraSourceClipId(contextClip.id); setShowICLoraPanel(true); close() }} />

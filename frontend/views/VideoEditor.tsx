@@ -54,6 +54,8 @@ import { useAgentActions } from './editor/useAgentActions'
 import { ReplacePersonModal } from './editor/ReplacePersonModal'
 import { DramatisTakeModal } from './editor/DramatisTakeModal'
 import { CropModal } from './editor/CropModal'
+import { RegenerateWithReferenceModal } from './editor/RegenerateWithReferenceModal'
+import { buildRegenWithRefRequest } from '../lib/regen-with-reference'
 import { requestDramatisTake, selectDramatisTake, takeRecordToAssetTake } from '../lib/dramatis-studio'
 import { captionsFromWords, wordPopCues } from '../lib/captions-from-transcript'
 import { generateFromPrompt } from '../lib/transcript-generate'
@@ -1987,7 +1989,10 @@ export function VideoEditor() {
   // character image. Runs as a cloud queue job; the finished video comes back
   // as a new TAKE on the clip's asset.
   const [replacePersonClip, setReplacePersonClip] = useState<TimelineClip | null>(null)
-  const [recastJobs, setRecastJobs] = useState<{ jobId: string; assetId: string; clipId: string }[]>([])
+  const [regenRefClip, setRegenRefClip] = useState<TimelineClip | null>(null)
+  // Tracks queue jobs whose result becomes a NEW TAKE on a clip's asset. Shared
+  // by Replace Person and Regenerate-with-reference; doneLabel varies the toast.
+  const [recastJobs, setRecastJobs] = useState<{ jobId: string; assetId: string; clipId: string; doneLabel?: string }[]>([])
 
   const handleReplacePersonSubmit = useCallback(async (
     clip: TimelineClip,
@@ -2029,6 +2034,41 @@ export function VideoEditor() {
     setFrameActionMsg({ kind: 'ok', text: 'Replacing person — the result lands as a new take on this clip.' })
   }, [assets])
 
+  // Regenerate with reference: re-render THIS clip following the attached
+  // reference(s) + note, at the clip's own length, landing as a new take.
+  const handleRegenerateWithReferenceSubmit = useCallback(async (
+    clip: TimelineClip,
+    r: { referenceImagePaths: string[]; videoReferencePaths: string[]; note: string },
+  ) => {
+    const liveAsset = clip.assetId ? assets.find((a) => a.id === clip.assetId) : clip.asset
+    if (!liveAsset) { setFrameActionMsg({ kind: 'error', text: 'This clip has no source asset to regenerate.' }); return }
+    setRegenRefClip(null)
+    const prompt = liveAsset.origin?.prompt || liveAsset.prompt || liveAsset.generationParams?.prompt || clip.importedName || ''
+    const req = buildRegenWithRefRequest({
+      clipDurationSeconds: clip.duration * (clip.speed || 1),
+      prompt,
+      note: r.note,
+      referenceImagePaths: r.referenceImagePaths,
+      videoReferencePaths: r.videoReferencePaths,
+      resolution: liveAsset.generationParams?.resolution,
+      aspectRatio: activeTimeline?.aspectRatio,
+    })
+    setClips((prev) => prev.map((c) => (c.id === clip.id ? { ...c, isRegenerating: true, generatingLabel: 'Regenerating…' } : c)))
+    try {
+      const base = await window.electronAPI.getBackendUrl()
+      const res = await fetch(`${base}/api/queue/submit`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req),
+      })
+      if (!res.ok) { const b = (await res.json().catch(() => ({}))) as { error?: string }; throw new Error(b.error || `Submit failed (${res.status})`) }
+      const data = (await res.json()) as { id: string }
+      setRecastJobs((prev) => [...prev, { jobId: data.id, assetId: liveAsset.id, clipId: clip.id, doneLabel: 'Regenerated — new take active on the clip (flip takes to compare).' }])
+      setFrameActionMsg({ kind: 'ok', text: 'Regenerating with reference — lands as a new take on this clip.' })
+    } catch (e) {
+      setClips((prev) => prev.map((c) => (c.id === clip.id ? { ...c, isRegenerating: false } : c)))
+      setFrameActionMsg({ kind: 'error', text: e instanceof Error ? e.message : 'Submit failed' })
+    }
+  }, [assets, activeTimeline])
+
   // Poll running recast jobs; on completion add the result as a take and
   // point the clip at it.
   useEffect(() => {
@@ -2055,10 +2095,11 @@ export function VideoEditor() {
             addTakeToAsset(currentProjectId, tracked.assetId, {
               url: finalUrl, path: finalPath, createdAt: Date.now(),
             })
-            setClips((prev) => prev.map((c) => (c.id === tracked.clipId ? { ...c, takeIndex: newTakeIndex } : c)))
-            setFrameActionMsg({ kind: 'ok', text: 'Person replaced — new take active on the clip (flip takes to compare).' })
+            setClips((prev) => prev.map((c) => (c.id === tracked.clipId ? { ...c, takeIndex: newTakeIndex, isRegenerating: false } : c)))
+            setFrameActionMsg({ kind: 'ok', text: tracked.doneLabel || 'Person replaced — new take active on the clip (flip takes to compare).' })
           } else if (job.status !== 'complete') {
-            setFrameActionMsg({ kind: 'error', text: `Replace person failed: ${job.error || job.status}` })
+            setClips((prev) => prev.map((c) => (c.id === tracked.clipId ? { ...c, isRegenerating: false } : c)))
+            setFrameActionMsg({ kind: 'error', text: `Generation failed: ${job.error || job.status}` })
           }
         }
       } catch {
@@ -5032,6 +5073,7 @@ export function VideoEditor() {
             onReplacePerson={setReplacePersonClip}
             onDramatisTake={setDramatisTakeClip}
             onUseClipAsVideoReference={handleUseClipAsVideoReference}
+            onRegenerateWithReference={setRegenRefClip}
             setIcLoraSourceClipId={_setIcLoraSourceClipId}
             setShowICLoraPanel={_setShowICLoraPanel}
             onCaptureFrameForVideo={handleCaptureFrameForVideo}
@@ -5094,6 +5136,20 @@ export function VideoEditor() {
           onCancel={() => setCropRequest(null)}
         />
       )}
+
+      {/* Regenerate this clip following a reference → new take */}
+      {regenRefClip && (() => {
+        const a = regenRefClip.assetId ? assets.find((x) => x.id === regenRefClip.assetId) : regenRefClip.asset
+        const label = a?.origin?.prompt || a?.prompt || regenRefClip.importedName || 'this clip'
+        return (
+          <RegenerateWithReferenceModal
+            clipDurationSeconds={regenRefClip.duration * (regenRefClip.speed || 1)}
+            clipLabel={label}
+            onClose={() => setRegenRefClip(null)}
+            onSubmit={(r) => { void handleRegenerateWithReferenceSubmit(regenRefClip, r) }}
+          />
+        )
+      })()}
 
       {/* Project Settings Modal */}
       {replacePersonClip && (
