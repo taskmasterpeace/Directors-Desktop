@@ -94,6 +94,45 @@ VERIFY  — re-read the fresh dd-elements, re-run REVIEW; if new findings and
   light up on dialogue; make the read-along view discoverable from Story Stage.
 - Investigate the log-panel error Robert saw (paper icon, top right).
 
+## Added by Robert (2026-08-07 session) — same workstream
+
+### The AI-visible timeline (the "table of contents" system)
+
+"Have the timeline be visible to [an AI], with metadata attached — the
+prompts. Same principle as a table of contents that tells you where things
+are." The agent bridge's `GET /api/project/current` already exposes
+everything, but a 300-clip production is too big to hand an LLM whole.
+Build `GET /api/project/toc` on the agent bridge: a COMPACT hierarchical
+index — chapters/markers → scenes/sections → per-range summaries (speakers
+present, clip counts per track, origins, prompt snippets, take counts) with
+stable ids to drill into via the existing full endpoints. Design principle:
+an agent should locate anything in one read costing ~1-2K tokens, then fetch
+detail surgically. (Prior art to steal from: llms.txt's index-then-drill
+convention; OpenTimelineIO for interchange naming.) This is also what the
+orchestrator's own review pass reads first.
+
+### Chapter markers + title-card slots
+
+Chaptered productions (audiobooks, AIOBR battle-rap shows: a speaker talking
+over shown material) need chapters ON the timeline: whole-book dramatis
+import places chapter RANGE markers (the director-import section-marker
+pattern), palette-mv imports emit markers from StoryFile.chapters, and each
+chapter start gets a placeholder TITLE CARD slot on V1 (empty image clip
+named "Ch. N — title card", origin-tagged) so the card has a home before it
+is generated (AIOBR title-card recipe exists Palette-side).
+
+### Library parity with Directors Palette (found live this session)
+
+Robert opened Gen Space to add an image using his characters — none existed.
+Root cause was two-sided: Palette never shipped
+`/api/desktop/library/characters` (404 since 2026-07-02, Switchboard #44),
+and DD's Characters view never had a Sync from Palette button (References
+and Recipes did). Both fixed 2026-08-07 (Palette `18713d83`, DD side this
+commit). STILL OPEN from the same 404 family: `/api/desktop/library/styles`,
+`/gallery`, `/library/loras`, `/prompt/enhance`, `/key` — build them
+Palette-side in the references-route pattern, then wire "@" autocomplete in
+Gen Space to read synced characters (verify it reads the local library).
+
 ## Phases
 
 1. Deterministic audits + `POST /api/orchestrator/review` + Story Stage

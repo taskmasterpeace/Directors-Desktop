@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, Plus, Pencil, Trash2, UserCircle, X } from 'lucide-react'
+import { ArrowLeft, Plus, Pencil, RefreshCw, Trash2, UserCircle, X } from 'lucide-react'
 import { useConfirm } from '../components/ConfirmDialog'
 import { useProjects } from '../contexts/ProjectContext'
 import { LtxLogo } from '../components/LtxLogo'
@@ -28,6 +28,60 @@ export function Characters() {
   const [formDescription, setFormDescription] = useState('')
   const [formImages, setFormImages] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [syncMsg, setSyncMsg] = useState<string | null>(null)
+
+  /** Pull the user's Palette character canonicals into the local library so
+   *  @character references resolve HERE with the same characters as the web
+   *  app. (This button did not exist — References and Recipes had one,
+   *  Characters didn't — which is exactly where Robert looked first.) */
+  const handleSyncFromPalette = async () => {
+    setSyncing(true)
+    setSyncMsg(null)
+    try {
+      const backendUrl = await window.electronAPI.getBackendUrl()
+      const res = await fetch(`${backendUrl}/api/sync/library/characters`)
+      if (!res.ok) throw new Error(`Palette sync failed: ${res.status}`)
+      const data = (await res.json()) as {
+        connected?: boolean
+        characters?: { id?: string; name?: string; type?: string; era?: string | null; image_path?: string | null }[]
+        error?: string
+      }
+      if (!data.connected) throw new Error(data.error || 'Not connected to Directors Palette — connect in Settings first')
+      const cloud = data.characters ?? []
+      const existingNames = new Set(characters.map((c) => c.name.toLowerCase()))
+      let added = 0
+      let skipped = 0
+      for (const c of cloud) {
+        if (!c.name || existingNames.has(c.name.toLowerCase())) { skipped++; continue }
+        try {
+          const post = await fetch(`${backendUrl}/api/library/characters`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              name: c.name,
+              role: c.type || 'character',
+              description: c.era ? `Palette canonical · ${c.era}` : 'Palette canonical',
+              reference_image_paths: c.image_path ? [c.image_path] : [],
+            }),
+          })
+          if (!post.ok) throw new Error(`save ${post.status}`)
+          added++
+        } catch (e) {
+          logger.warn(`Character sync: could not import "${c.name}": ${e}`)
+          skipped++
+        }
+      }
+      setSyncMsg(cloud.length === 0
+        ? 'Connected — no characters in your Palette library yet.'
+        : `Synced ${added} character${added === 1 ? '' : 's'} from Palette${skipped ? ` (${skipped} already here or skipped)` : ''}.`)
+      await fetchCharacters()
+    } catch (e) {
+      setSyncMsg(e instanceof Error ? e.message : 'Palette sync failed')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const fetchCharacters = useCallback(async () => {
     setLoading(true)
@@ -145,7 +199,18 @@ export function Characters() {
         <LtxLogo className="h-5 w-auto text-white" />
         <span className="text-zinc-500 text-sm">/</span>
         <h1 className="text-lg font-semibold text-white">Characters</h1>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          {syncMsg && <span className="text-xs text-zinc-400 max-w-[320px] truncate" title={syncMsg}>{syncMsg}</span>}
+          <Button
+            onClick={() => void handleSyncFromPalette()}
+            disabled={syncing}
+            variant="outline"
+            size="sm"
+            className="border-zinc-700 text-zinc-300"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Syncing…' : 'Sync from Palette'}
+          </Button>
           <Button onClick={openCreate} className="bg-amber-500 hover:bg-amber-400 text-zinc-950" size="sm">
             <Plus className="h-3.5 w-3.5 mr-1.5" />
             Add Character
