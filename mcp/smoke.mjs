@@ -120,6 +120,10 @@ async function main() {
     check('regenerate_clip POSTed a regenerate_with_reference action for the clip',
       hits.some((h) => h.url === '/api/project/actions' && h.method === 'POST' && h.body.includes('regenerate_with_reference') && h.body.includes('clip-a') && h.body.includes('/tmp/ref.jpg')))
 
+    await rpc.request('tools/call', { name: 'regenerate_clip', arguments: { clipId: 'clip-a', referenceFromClips: [{ clipId: 'clip-b', cropRect: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 }, as: 'image' }] } })
+    check('regenerate_clip forwards referenceFromClips (build-a-ref-from-another-clip)',
+      hits.some((h) => h.url === '/api/project/actions' && h.method === 'POST' && h.body.includes('referenceFromClips') && h.body.includes('clip-b') && h.body.includes('cropRect')))
+
     const bad = await rpc.request('tools/call', { name: 'no_such_tool', arguments: {} })
     check('unknown tool is a clean JSON-RPC error', !!bad.error && bad.error.code === -32602)
   } catch (e) {

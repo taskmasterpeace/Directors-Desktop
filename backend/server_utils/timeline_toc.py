@@ -271,8 +271,11 @@ _EDIT_HELP = """EDITING — POST /api/project/actions {"actions":[…]}, poll /a
   kinds: move_clip{clipId,startTime[,trackIndex]} · trim_clip{clipId,trimStart,trimEnd: ABSOLUTE
   source-media seconds} · delete_clip{clipId} · add_marker{time,title[,duration,color]} ·
   update_marker/delete_marker{markerId} · captions_from_transcript{} · generate_and_place{prompt,…} ·
-  regenerate_with_reference{clipId, referenceImagePaths?[], videoReferencePaths?[], note?}: re-render an
-  existing clip to match references — lands as a NEW TAKE (original retained), clip-length capped at 15s
+  regenerate_with_reference{clipId, referenceImagePaths?[], videoReferencePaths?[],
+    referenceFromClips?[{clipId,atSeconds?,cropRect?{x,y,w,h 0..1},as?:image|video}], note?}: re-render an
+    existing clip to match references — lands as a NEW TAKE (original retained), clip-length capped at 15s.
+    referenceFromClips builds a reference straight from ANOTHER clip (a frame or ≤15s window, optionally
+    cropped), e.g. "redo clip 12 to match a close crop of clip 8" — no pre-existing file needed
   Actions apply through the user's undo stack; linked A/V moves together; assets are never deleted."""
 
 

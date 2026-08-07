@@ -56,6 +56,35 @@ import { DramatisTakeModal } from './editor/DramatisTakeModal'
 import { CropModal } from './editor/CropModal'
 import { RegenerateWithReferenceModal } from './editor/RegenerateWithReferenceModal'
 import { buildRegenWithRefRequest, validateRegenWithRef } from '../lib/regen-with-reference'
+
+/** A clip-derived reference the agent can ask us to build: a still frame or a
+ *  video window from an existing timeline clip, optionally cropped. */
+type AgentRefFromClip = { clipId: string; atSeconds?: number; cropRect?: { x: number; y: number; w: number; h: number }; as?: 'image' | 'video' }
+/** Options for the agent-triggered Regenerate-with-reference. */
+type AgentRegenOpts = { note?: string; referenceImagePaths?: string[]; videoReferencePaths?: string[]; referenceFromClips?: AgentRefFromClip[] }
+
+/** Crop an image (any src the renderer can load) by a NORMALIZED rect (0..1 of
+ *  the source), returning a JPEG data URL — the agent's numeric equivalent of
+ *  what CropModal does when a human drags a box. */
+function cropImageUrlToDataUrl(src: string, rect: { x: number; y: number; w: number; h: number }): Promise<string | null> {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      const sx = Math.max(0, Math.round(rect.x * img.naturalWidth))
+      const sy = Math.max(0, Math.round(rect.y * img.naturalHeight))
+      const sw = Math.max(1, Math.min(img.naturalWidth - sx, Math.round(rect.w * img.naturalWidth)))
+      const sh = Math.max(1, Math.min(img.naturalHeight - sy, Math.round(rect.h * img.naturalHeight)))
+      const canvas = document.createElement('canvas')
+      canvas.width = sw; canvas.height = sh
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { resolve(null); return }
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh)
+      resolve(canvas.toDataURL('image/jpeg', 0.92))
+    }
+    img.onerror = () => resolve(null)
+    img.src = src
+  })
+}
 import { requestDramatisTake, selectDramatisTake, takeRecordToAssetTake } from '../lib/dramatis-studio'
 import { captionsFromWords, wordPopCues } from '../lib/captions-from-transcript'
 import { generateFromPrompt } from '../lib/transcript-generate'
@@ -914,11 +943,10 @@ export function VideoEditor() {
   // Late-bound: the agent regen handler is defined far below (needs the recast
   // pipeline), but the bridge is mounted here. A stable wrapper defers to it.
   const agentRegenerateWithReferenceRef = useRef<
-    (clipId: string, opts: { note?: string; referenceImagePaths?: string[]; videoReferencePaths?: string[] }) => Promise<{ ok: boolean; reason?: string }>
+    (clipId: string, opts: AgentRegenOpts) => Promise<{ ok: boolean; reason?: string }>
   >(async () => ({ ok: false, reason: 'editor not ready' }))
   const agentRegenerateWithReferenceStable = useCallback(
-    (clipId: string, opts: { note?: string; referenceImagePaths?: string[]; videoReferencePaths?: string[] }) =>
-      agentRegenerateWithReferenceRef.current(clipId, opts),
+    (clipId: string, opts: AgentRegenOpts) => agentRegenerateWithReferenceRef.current(clipId, opts),
     [],
   )
 
@@ -2130,22 +2158,108 @@ export function VideoEditor() {
     }
   }, [assets, activeTimeline])
 
+  // Let the agent BUILD references out of timeline clips (not just consume files
+  // it already has): "use a crop of clip 8's frame" / "use clip 3 as a video
+  // ref". Each spec resolves through the SAME primitives the right-click menu
+  // uses — extractVideoFrame + crop, or clipTrim(≤15s)+cropRect — so the AI can
+  // do everything a human can with the reference toolkit.
+  const resolveAgentReferences = useCallback(async (
+    specs: { clipId: string; atSeconds?: number; cropRect?: { x: number; y: number; w: number; h: number }; as?: 'image' | 'video' }[],
+  ): Promise<{ imagePaths: string[]; videoPaths: string[]; errors: string[] }> => {
+    const imagePaths: string[] = []
+    const videoPaths: string[] = []
+    const errors: string[] = []
+    // Active-take source URL, matching the human clip-reference handlers.
+    const clipSourceUrl = (clip: TimelineClip): string | null => {
+      const a = clip.assetId ? assets.find((x) => x.id === clip.assetId) : clip.asset
+      const takeIdx = clip.takeIndex ?? a?.activeTakeIndex
+      let src = clip.importedUrl || a?.url || null
+      if (a?.takes && a.takes.length > 0 && takeIdx !== undefined) {
+        const take = a.takes[Math.max(0, Math.min(takeIdx, a.takes.length - 1))]
+        if (take?.url) src = take.url
+      }
+      return src
+    }
+    for (const spec of specs) {
+      const clip = clips.find((c) => c.id === spec.clipId)
+      if (!clip) { errors.push(`unknown reference clipId: ${spec.clipId}`); continue }
+      const srcUrl = clipSourceUrl(clip)
+      if (!srcUrl) { errors.push(`reference clip ${spec.clipId} has no source media`); continue }
+      const speed = clip.speed || 1
+      const wantVideo = spec.as === 'video'
+      try {
+        if (wantVideo) {
+          if (clip.type !== 'video') { errors.push(`reference clip ${spec.clipId} is not a video (asked for a video reference)`); continue }
+          const startOff = Math.max(0, spec.atSeconds ?? 0)
+          const startSeconds = clip.trimStart + startOff * speed
+          const remaining = clip.duration * speed - startOff * speed
+          const lengthSeconds = Math.min(15, Math.max(0.1, remaining)) // Seedance omni-ref cap
+          const downloads = await window.electronAPI.getDownloadsPath()
+          const dir = `${downloads}/DirectorsDesktop/clips`
+          const ensured = await window.electronAPI.ensureDirectory(dir)
+          if (!ensured.success) throw new Error(ensured.error || 'Could not create the clips folder')
+          const name = `agentref_${Date.now()}_${Math.round(lengthSeconds)}s.mp4`
+          const result = await window.electronAPI.clipTrim({
+            inputUrl: srcUrl, startSeconds, lengthSeconds, outputPath: `${dir}/${name}`,
+            ...(spec.cropRect ? { cropRect: spec.cropRect } : {}),
+          })
+          if (!result.success || !result.outputPath) throw new Error(result.error || 'Trim failed')
+          videoPaths.push(result.outputPath)
+        } else {
+          // Still image: extract a frame at the requested time (default midpoint), optional crop.
+          let frameUrl = srcUrl
+          if (clip.type === 'video') {
+            const at = Math.max(0, spec.atSeconds ?? clip.duration / 2)
+            const seekTime = clip.trimStart + at * speed
+            const { url } = await extractVideoFrame(srcUrl, seekTime, 1024, 2)
+            frameUrl = url
+          }
+          let path: string | null
+          if (spec.cropRect) {
+            const dataUrl = await cropImageUrlToDataUrl(toImgSrc(frameUrl), spec.cropRect)
+            if (!dataUrl) throw new Error('crop failed')
+            path = await persistDataUrl(dataUrl)
+          } else {
+            path = await persistFrame(frameUrl)
+          }
+          if (!path) throw new Error('could not save the reference image')
+          imagePaths.push(path)
+        }
+      } catch (e) {
+        errors.push(`reference from clip ${spec.clipId}: ${e instanceof Error ? e.message : 'failed'}`)
+      }
+    }
+    return { imagePaths, videoPaths, errors }
+  }, [clips, assets, persistDataUrl, persistFrame])
+
   // The AGENT's version of Regenerate-with-reference: an external AI (via the
   // agent bridge) calls this with a clip id + references, and it runs the exact
   // same submit → new-take pipeline. Resolves when the take lands, so the agent
   // gets an honest applied/rejected instead of a fire-and-forget.
   const agentRegenerateWithReference = useCallback(async (
     clipId: string,
-    opts: { note?: string; referenceImagePaths?: string[]; videoReferencePaths?: string[] },
+    opts: AgentRegenOpts,
   ): Promise<{ ok: boolean; reason?: string }> => {
     const clip = clips.find((c) => c.id === clipId)
     if (!clip) return { ok: false, reason: `unknown clipId: ${clipId}` }
     if (clip.type !== 'video') return { ok: false, reason: 'regenerate_with_reference works on video clips only' }
     const liveAsset = clip.assetId ? assets.find((a) => a.id === clip.assetId) : clip.asset
     if (!liveAsset) return { ok: false, reason: 'this clip has no source asset to regenerate' }
-    const refs = { referenceImagePaths: opts.referenceImagePaths ?? [], videoReferencePaths: opts.videoReferencePaths ?? [] }
+    // Build any clip-derived references first (crops, frames, clip windows).
+    const fromClips = Array.isArray(opts.referenceFromClips) ? opts.referenceFromClips : []
+    let builtImg: string[] = []
+    let builtVid: string[] = []
+    let buildErrs: string[] = []
+    if (fromClips.length) {
+      const r = await resolveAgentReferences(fromClips)
+      builtImg = r.imagePaths; builtVid = r.videoPaths; buildErrs = r.errors
+    }
+    const refs = {
+      referenceImagePaths: [...(opts.referenceImagePaths ?? []), ...builtImg],
+      videoReferencePaths: [...(opts.videoReferencePaths ?? []), ...builtVid],
+    }
     const invalid = validateRegenWithRef(refs)
-    if (invalid.length) return { ok: false, reason: invalid[0] }
+    if (invalid.length) return { ok: false, reason: [invalid[0], ...buildErrs].join('; ') }
     const prompt = liveAsset.origin?.prompt || liveAsset.prompt || liveAsset.generationParams?.prompt || clip.importedName || ''
     const req = buildRegenWithRefRequest({
       clipDurationSeconds: clip.duration * (clip.speed || 1),

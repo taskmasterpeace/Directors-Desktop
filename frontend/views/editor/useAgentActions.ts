@@ -74,10 +74,16 @@ export function useAgentActions({
     prompt: string,
   ) => Promise<boolean>
   /** Re-render an EXISTING clip with image/video references; lands as a new take.
-   *  Resolves when the take is on the clip (or with a reason on failure). */
+   *  References may be literal file paths OR built from other timeline clips
+   *  (a frame, a crop, a clip window). Resolves when the take is on the clip. */
   regenerateWithReference: (
     clipId: string,
-    opts: { note?: string; referenceImagePaths?: string[]; videoReferencePaths?: string[] },
+    opts: {
+      note?: string
+      referenceImagePaths?: string[]
+      videoReferencePaths?: string[]
+      referenceFromClips?: { clipId: string; atSeconds?: number; cropRect?: { x: number; y: number; w: number; h: number }; as?: 'image' | 'video' }[]
+    },
   ) => Promise<{ ok: boolean; reason?: string }>
 }) {
   // Fresh-closure ref: the 1s interval calls whatever the latest render bound.
@@ -155,10 +161,33 @@ export function useAgentActions({
     if (!clipId) { void reportRef.current([{ id, status: 'rejected', reason: 'clipId is required' }]); return }
     const toStrs = (v: unknown): string[] =>
       Array.isArray(v) ? (v as unknown[]).filter((x): x is string => typeof x === 'string') : []
+    const num = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? v : undefined)
+    // Parse "build a reference from an existing clip" specs defensively — the
+    // renderer does the real work; here we just coerce the shape.
+    const toFromClips = (v: unknown) =>
+      Array.isArray(v)
+        ? (v as unknown[]).flatMap((raw) => {
+            if (typeof raw !== 'object' || raw === null) return []
+            const o = raw as Record<string, unknown>
+            const clipId = str(o.clipId)
+            if (!clipId) return []
+            const cr = (typeof o.cropRect === 'object' && o.cropRect !== null) ? (o.cropRect as Record<string, unknown>) : null
+            const cropRect = cr && [cr.x, cr.y, cr.w, cr.h].every((n) => typeof n === 'number')
+              ? { x: cr.x as number, y: cr.y as number, w: cr.w as number, h: cr.h as number }
+              : undefined
+            return [{
+              clipId,
+              ...(num(o.atSeconds) !== undefined ? { atSeconds: num(o.atSeconds) } : {}),
+              ...(cropRect ? { cropRect } : {}),
+              ...(o.as === 'video' ? { as: 'video' as const } : o.as === 'image' ? { as: 'image' as const } : {}),
+            }]
+          })
+        : []
     const opts = {
       note: str(action.note),
       referenceImagePaths: toStrs(action.referenceImagePaths),
       videoReferencePaths: toStrs(action.videoReferencePaths),
+      referenceFromClips: toFromClips(action.referenceFromClips),
     }
     void (async () => {
       try {
@@ -370,7 +399,8 @@ export function useAgentActions({
           if (!nextClips.some((c) => c.id === clipId)) { reject(`unknown clipId: ${clipId}`); break }
           const hasImg = Array.isArray(action.referenceImagePaths) && (action.referenceImagePaths as unknown[]).length > 0
           const hasVid = Array.isArray(action.videoReferencePaths) && (action.videoReferencePaths as unknown[]).length > 0
-          if (!hasImg && !hasVid) { reject('at least one referenceImagePaths or videoReferencePaths entry is required'); break }
+          const hasFromClips = Array.isArray(action.referenceFromClips) && (action.referenceFromClips as unknown[]).length > 0
+          if (!hasImg && !hasVid && !hasFromClips) { reject('give at least one reference: referenceImagePaths, videoReferencePaths, or referenceFromClips'); break }
           // Long-running: reuses the human recast pipeline; reports late once the
           // new take is on the clip.
           runRegenerateWithReference(id, action)

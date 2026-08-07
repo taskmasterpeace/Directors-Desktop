@@ -174,15 +174,17 @@ const TOOLS = [
       'Re-render an EXISTING clip using image and/or video references — the assistant-editor version of ' +
       '"redo this shot, but matching THIS." The result lands as a NEW TAKE on the clip (the original take ' +
       'is retained; the user can flip between them), at the clip\'s own length, capped at 15s. ' +
-      'Give at least one reference: referenceImagePaths (stills — a saved frame, a character sheet, a crop) ' +
-      'and/or videoReferencePaths (short clips — Seedance 2.0 omni-reference; each must already be ≤15s). ' +
-      'Paths must be absolute local files the app can read. An optional note steers the change ' +
-      '("keep the framing, warmer light"). Get clipId from get_timeline / get_chapter. Long-running: it ' +
-      'reports in_flight and the take appears when the render finishes.',
+      'Give at least one reference, from any mix of: (a) referenceImagePaths / videoReferencePaths — ' +
+      'absolute local files the app can read (a saved frame, a character sheet, a short ≤15s clip); or ' +
+      '(b) referenceFromClips — build a reference straight from ANOTHER clip on the timeline (no file needed): ' +
+      'the app extracts a frame or a ≤15s window from that clip, optionally cropped to a region. ' +
+      'This is how you say "redo clip 12 to match a close crop of clip 8\'s face." An optional note steers the ' +
+      'change ("keep the framing, warmer light"). Get clip ids from get_timeline / get_chapter. Long-running: ' +
+      'it reports in_flight and the take appears when the render finishes.',
     inputSchema: {
       type: 'object',
       properties: {
-        clipId: { type: 'string', description: 'Stable clip id from get_timeline (the parenthesized id).' },
+        clipId: { type: 'string', description: 'Stable clip id from get_timeline (the parenthesized id) — the clip to REGENERATE.' },
         referenceImagePaths: {
           type: 'array', items: { type: 'string' },
           description: 'Absolute paths to still references (frames, sheets, crops). Up to 9.',
@@ -190,6 +192,27 @@ const TOOLS = [
         videoReferencePaths: {
           type: 'array', items: { type: 'string' },
           description: 'Absolute paths to short video references, each already ≤15s. Up to 3.',
+        },
+        referenceFromClips: {
+          type: 'array',
+          description: 'Build references from OTHER timeline clips. Each entry: {clipId, atSeconds?, cropRect?, as?}.',
+          items: {
+            type: 'object',
+            properties: {
+              clipId: { type: 'string', description: 'The clip to take the reference FROM (its stable id).' },
+              atSeconds: { type: 'number', description: 'Seconds into that clip to sample (default: its midpoint for a frame, its start for a video window).' },
+              cropRect: {
+                type: 'object',
+                description: 'Optional normalized crop region (each 0..1 of the frame).',
+                properties: { x: { type: 'number' }, y: { type: 'number' }, w: { type: 'number' }, h: { type: 'number' } },
+                required: ['x', 'y', 'w', 'h'],
+                additionalProperties: false,
+              },
+              as: { type: 'string', enum: ['image', 'video'], description: 'image = a still frame (default); video = a ≤15s motion window (Seedance omni-ref).' },
+            },
+            required: ['clipId'],
+            additionalProperties: false,
+          },
         },
         note: { type: 'string', description: 'Optional direction for the regeneration.' },
       },
@@ -202,6 +225,7 @@ const TOOLS = [
         clipId: args.clipId,
         ...(Array.isArray(args.referenceImagePaths) ? { referenceImagePaths: args.referenceImagePaths } : {}),
         ...(Array.isArray(args.videoReferencePaths) ? { videoReferencePaths: args.videoReferencePaths } : {}),
+        ...(Array.isArray(args.referenceFromClips) ? { referenceFromClips: args.referenceFromClips } : {}),
         ...(typeof args.note === 'string' ? { note: args.note } : {}),
       }
       return JSON.stringify(await submitAndAwait([action]), null, 2)
