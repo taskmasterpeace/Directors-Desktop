@@ -152,21 +152,24 @@ export interface LoadedDramatisChapter {
   }
 }
 
-// DEFAULT_TRACKS-compatible: video 0-2, audio from 3 — plus the extra stems.
-export const DRAMATIS_TRACKS: Track[] = [
+// DEFAULT_TRACKS-compatible: video 0-2, audio from 3. Audio tracks are built
+// PER PRODUCTION: narrator first, then one lane per speaking character (order
+// of first line), then SFX / Ambience / Music. Robert's first real edit
+// session (2026-08-06): everything on one dialogue lane reads like a haystack;
+// per-character lanes read like a script.
+export const DRAMATIS_VIDEO_TRACKS: Track[] = [
   { id: 'track-v1', name: 'V1', muted: false, locked: false, sourcePatched: true, kind: 'video' },
   { id: 'track-v2', name: 'V2', muted: false, locked: false, sourcePatched: false, kind: 'video' },
   { id: 'track-v3', name: 'V3', muted: false, locked: false, sourcePatched: false, kind: 'video' },
-  { id: 'track-a1', name: 'A1 Dialogue', muted: false, locked: false, sourcePatched: true, kind: 'audio' },
-  { id: 'track-a2', name: 'A2 SFX', muted: false, locked: false, sourcePatched: false, kind: 'audio' },
-  { id: 'track-a3', name: 'A3 Ambience', muted: false, locked: false, sourcePatched: false, kind: 'audio' },
-  { id: 'track-a4', name: 'A4 Music', muted: false, locked: false, sourcePatched: false, kind: 'audio' },
 ]
 
-const TRACK_DIALOGUE = 3
-const TRACK_SFX = 4
-const TRACK_AMBIENCE = 5
-const TRACK_MUSIC = 6
+/** Calibration from the first human listen (2026-08-06, Robert): the manifest's
+ *  stemGains model dramatis's OWN mix — where stems are ducked under dialog and
+ *  the master adds makeup gain. The DD timeline performs neither, so applying
+ *  those offsets raw buried every cue ("the knocking… too low. I don't hear
+ *  anything"). This lift re-anchors non-dialog stems to be plainly audible
+ *  against the −20 LUFS levelled dialogue; clips stay user-trimmable. */
+export const NON_DIALOG_LIFT_DB = 9
 
 function pathToFileUrl(filePath: string): string {
   const normalized = filePath.replace(/\\/g, '/')
@@ -206,6 +209,30 @@ export function loadDramatisChapter(data: DramatisExport): LoadedDramatisChapter
   const subtitles: SubtitleClip[] = []
   const assets: Asset[] = []
   let missingMedia = 0
+
+  // One audio lane per speaker, narrator first, others in order of first line.
+  const seen = new Set<string>()
+  const speakers: string[] = []
+  for (const l of data.lines) {
+    if (!seen.has(l.entity)) { seen.add(l.entity); speakers.push(l.entity) }
+  }
+  speakers.sort((a, b) => (a === 'narrator' ? -1 : b === 'narrator' ? 1 : 0))
+  const trackForSpeaker = new Map<string, number>()
+  speakers.forEach((s, i) => trackForSpeaker.set(s, DRAMATIS_VIDEO_TRACKS.length + i))
+  const TRACK_SFX = DRAMATIS_VIDEO_TRACKS.length + speakers.length
+  const TRACK_AMBIENCE = TRACK_SFX + 1
+  const TRACK_MUSIC = TRACK_SFX + 2
+  const tracks: Track[] = [
+    ...DRAMATIS_VIDEO_TRACKS.map((t) => ({ ...t })),
+    ...speakers.map((s, i) => ({
+      id: `track-a-${s}`,
+      name: `A${i + 1} ${speakerName(s, data.entities)}`,
+      muted: false, locked: false, sourcePatched: i === 0, kind: 'audio' as const,
+    })),
+    { id: 'track-a-sfx', name: `A${speakers.length + 1} SFX`, muted: false, locked: false, sourcePatched: false, kind: 'audio' as const },
+    { id: 'track-a-ambience', name: `A${speakers.length + 2} Ambience`, muted: false, locked: false, sourcePatched: false, kind: 'audio' as const },
+    { id: 'track-a-music', name: `A${speakers.length + 3} Music`, muted: false, locked: false, sourcePatched: false, kind: 'audio' as const },
+  ]
 
   const flag = (missing: boolean | undefined, name: string): string => {
     if (!missing) return name
@@ -259,7 +286,7 @@ export function loadDramatisChapter(data: DramatisExport): LoadedDramatisChapter
         type: 'audio',
         startTime: line.start,
         duration: dur,
-        trackIndex: TRACK_DIALOGUE,
+        trackIndex: trackForSpeaker.get(line.entity) ?? DRAMATIS_VIDEO_TRACKS.length,
         importedUrl: pathToFileUrl(line.wav),
         importedName: flag(line.missing, `${who}: ${snippet(line.text)}`),
       }),
@@ -286,7 +313,7 @@ export function loadDramatisChapter(data: DramatisExport): LoadedDramatisChapter
         startTime: cue.at,
         duration: dur,
         trackIndex: TRACK_SFX,
-        volume: dbToLinear(cue.gainDb + data.stemGains.sfx),
+        volume: dbToLinear(cue.gainDb + data.stemGains.sfx + NON_DIALOG_LIFT_DB),
         importedUrl: pathToFileUrl(cue.file),
         importedName: flag(cue.missing, `SFX: ${cue.sfx}`),
       }),
@@ -306,7 +333,7 @@ export function loadDramatisChapter(data: DramatisExport): LoadedDramatisChapter
         startTime: bed.start,
         duration: dur,
         trackIndex: TRACK_AMBIENCE,
-        volume: dbToLinear(data.stemGains.ambience),
+        volume: dbToLinear(data.stemGains.ambience + NON_DIALOG_LIFT_DB),
         importedUrl: pathToFileUrl(bed.file),
         importedName: flag(bed.missing, `Ambience: ${bed.type} (${bed.sceneId})`),
       }),
@@ -326,7 +353,7 @@ export function loadDramatisChapter(data: DramatisExport): LoadedDramatisChapter
         startTime: mc.at,
         duration: dur,
         trackIndex: TRACK_MUSIC,
-        volume: dbToLinear(mc.gainDb + data.stemGains.music),
+        volume: dbToLinear(mc.gainDb + data.stemGains.music + NON_DIALOG_LIFT_DB),
         importedUrl: pathToFileUrl(mc.file),
         importedName: flag(mc.missing, `Score: ${snippet(mc.spec, 36)}`),
       }),
@@ -351,7 +378,7 @@ export function loadDramatisChapter(data: DramatisExport): LoadedDramatisChapter
     id: `timeline-dramatis-${data.book}-${Date.now()}`,
     name: data.chapter,
     createdAt: Date.now(),
-    tracks: DRAMATIS_TRACKS.map((t) => ({ ...t })),
+    tracks,
     clips,
     subtitles,
   }

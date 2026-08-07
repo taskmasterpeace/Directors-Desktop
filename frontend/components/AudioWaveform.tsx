@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { Music } from 'lucide-react'
 import { logger } from '../lib/logger'
+import { fileUrlToPath } from '../lib/url-to-path'
 
 interface AudioClipInfo {
   url: string
@@ -44,9 +45,22 @@ export async function computeWaveform(url: string, buckets: number = 800): Promi
   try {
     let arrayBuffer: ArrayBuffer
 
-    if (url.startsWith('file://') && (window as any).electronAPI?.readLocalFile) {
-      const { data } = await (window as any).electronAPI.readLocalFile(url)
-      arrayBuffer = base64ToArrayBuffer(data)
+    if (url.startsWith('file://')) {
+      // The streaming file:// protocol serves every clip the timeline can PLAY,
+      // so it can serve the waveform bytes too. The old path handed the raw URL
+      // to readLocalFile — which expects a filesystem PATH and root-validates it
+      // — so every imported clip failed the decode into a silent catch and drew
+      // NO waveform (found by Robert's first edit session, 2026-08-06).
+      try {
+        const response = await fetch(url)
+        if (!response.ok) throw new Error(`file protocol ${response.status}`)
+        arrayBuffer = await response.arrayBuffer()
+      } catch (protocolErr) {
+        const path = fileUrlToPath(url)
+        if (!path || !(window as any).electronAPI?.readLocalFile) throw protocolErr
+        const { data } = await (window as any).electronAPI.readLocalFile(path)
+        arrayBuffer = base64ToArrayBuffer(data)
+      }
     } else {
       const response = await fetch(url)
       arrayBuffer = await response.arrayBuffer()
@@ -321,7 +335,10 @@ export function ClipWaveform({ url, className = '', color = 'rgba(52, 211, 153, 
     let cancelled = false
     computeWaveform(url, 200).then(p => {
       if (!cancelled) setPeaks(p)
-    }).catch(() => {})
+    }).catch((e) => {
+      // A missing waveform must not be silent — that hid the file:// bug.
+      logger.warn(`ClipWaveform: decode failed for ${url}: ${e instanceof Error ? e.message : e}`)
+    })
     return () => { cancelled = true }
   }, [url])
 

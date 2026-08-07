@@ -4,7 +4,8 @@ import {
   loadDramatisChapter,
   dbToLinear,
   speakerName,
-  DRAMATIS_TRACKS,
+  DRAMATIS_VIDEO_TRACKS,
+  NON_DIALOG_LIFT_DB,
   type DramatisExport,
 } from './dramatis-loader'
 
@@ -39,14 +40,23 @@ function sampleExport(): DramatisExport {
 }
 
 describe('dramatis-loader', () => {
-  it('places every element type on its own track with true times', () => {
+  it('gives the narrator and each character their own lane, stems after', () => {
     const loaded = loadDramatisChapter(sampleExport())
     const byTrack = (n: number) => loaded.timeline.clips.filter((c) => c.trackIndex === n)
 
-    expect(byTrack(3)).toHaveLength(2) // dialogue
-    expect(byTrack(4)).toHaveLength(1) // sfx
-    expect(byTrack(5)).toHaveLength(1) // ambience
-    expect(byTrack(6)).toHaveLength(1) // music
+    // narrator=3, mr_white=4, then SFX=5 / Ambience=6 / Music=7
+    expect(byTrack(3)).toHaveLength(1) // narrator line
+    expect(byTrack(4)).toHaveLength(1) // mr_white line
+    expect(byTrack(5)).toHaveLength(1) // sfx
+    expect(byTrack(6)).toHaveLength(1) // ambience
+    expect(byTrack(7)).toHaveLength(1) // music
+
+    const tracks = loaded.timeline.tracks
+    expect(tracks[3].name).toBe('A1 Narrator')
+    expect(tracks[4].name).toBe('A2 Mr. White')
+    expect(tracks[5].name).toContain('SFX')
+    expect(tracks[6].name).toContain('Ambience')
+    expect(tracks[7].name).toContain('Music')
 
     const line0 = byTrack(3)[0]
     expect(line0.startTime).toBe(1)
@@ -54,17 +64,18 @@ describe('dramatis-loader', () => {
     expect(line0.type).toBe('audio')
     expect(line0.importedUrl).toBe('file:///D:/out/cache/a.wav')
 
-    const cue = byTrack(4)[0]
+    const cue = byTrack(5)[0]
     expect(cue.startTime).toBeCloseTo(7.82)
     expect(cue.importedName).toContain('fireplace')
   })
 
-  it('keeps DEFAULT_TRACKS compatibility: audio starts at trackIndex 3', () => {
-    expect(DRAMATIS_TRACKS[3].kind).toBe('audio')
-    expect(DRAMATIS_TRACKS.slice(0, 3).every((t) => t.kind === 'video')).toBe(true)
+  it('keeps DEFAULT_TRACKS compatibility: video 0-2, audio from 3', () => {
+    expect(DRAMATIS_VIDEO_TRACKS).toHaveLength(3)
+    expect(DRAMATIS_VIDEO_TRACKS.every((t) => t.kind === 'video')).toBe(true)
     // No clips ever land on the video tracks — that is the motion phase.
     const loaded = loadDramatisChapter(sampleExport())
     expect(loaded.timeline.clips.some((c) => c.trackIndex < 3)).toBe(false)
+    expect(loaded.timeline.tracks.slice(3).every((t) => t.kind === 'audio')).toBe(true)
   })
 
   it('speaker names come from entity names, else title-cased ids', () => {
@@ -91,15 +102,17 @@ describe('dramatis-loader', () => {
     expect(loaded.report.missingMedia).toBe(1)
   })
 
-  it('stem + cue gains become linear clip volume', () => {
+  it('stem + cue gains land LIFTED — the raw mix offsets buried every cue', () => {
     expect(dbToLinear(0)).toBe(1)
     expect(dbToLinear(-6)).toBeCloseTo(0.5012, 3)
     const loaded = loadDramatisChapter(sampleExport())
     const cue = loaded.timeline.clips.find((c) => c.id === 'dram-cue-p1-fire')!
-    // cue gain -15 dB + sfx stem -6 dB = -21 dB
-    expect(cue.volume).toBeCloseTo(dbToLinear(-21), 4)
+    // cue gain -15 + sfx stem -6 + calibration lift (DD has no duck/makeup)
+    expect(cue.volume).toBeCloseTo(dbToLinear(-21 + NON_DIALOG_LIFT_DB), 4)
     const music = loaded.timeline.clips.find((c) => c.id === 'dram-music-theme')!
-    expect(music.volume).toBeCloseTo(dbToLinear(-20), 4)
+    expect(music.volume).toBeCloseTo(dbToLinear(-20 + NON_DIALOG_LIFT_DB), 4)
+    const bed = loaded.timeline.clips.find((c) => c.id === 'dram-bed-p1-parlor')!
+    expect(bed.volume).toBeCloseTo(dbToLinear(-16 + NON_DIALOG_LIFT_DB), 4)
   })
 
   it('cast index counts lines per speaker and carries visuals', () => {
