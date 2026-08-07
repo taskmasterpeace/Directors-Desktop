@@ -2141,6 +2141,7 @@ export function VideoEditor() {
       videoReferencePaths: r.videoReferencePaths,
       resolution: liveAsset.generationParams?.resolution,
       aspectRatio: activeTimeline?.aspectRatio,
+      falAvailable: appSettings.hasFalApiKey,
     })
     setClips((prev) => prev.map((c) => (c.id === clip.id ? { ...c, isRegenerating: true, generatingLabel: 'Regenerating…' } : c)))
     try {
@@ -2156,7 +2157,7 @@ export function VideoEditor() {
       setClips((prev) => prev.map((c) => (c.id === clip.id ? { ...c, isRegenerating: false } : c)))
       setFrameActionMsg({ kind: 'error', text: e instanceof Error ? e.message : 'Submit failed' })
     }
-  }, [assets, activeTimeline])
+  }, [assets, activeTimeline, appSettings.hasFalApiKey])
 
   // Let the agent BUILD references out of timeline clips (not just consume files
   // it already has): "use a crop of clip 8's frame" / "use clip 3 as a video
@@ -2268,6 +2269,7 @@ export function VideoEditor() {
       videoReferencePaths: refs.videoReferencePaths,
       resolution: liveAsset.generationParams?.resolution,
       aspectRatio: activeTimeline?.aspectRatio,
+      falAvailable: appSettings.hasFalApiKey,
     })
     setClips((prev) => prev.map((c) => (c.id === clip.id ? { ...c, isRegenerating: true, generatingLabel: 'AI regenerating…' } : c)))
     try {
@@ -2282,7 +2284,7 @@ export function VideoEditor() {
       setClips((prev) => prev.map((c) => (c.id === clip.id ? { ...c, isRegenerating: false } : c)))
       return { ok: false, reason: e instanceof Error ? e.message : 'Submit failed' }
     }
-  }, [clips, assets, activeTimeline])
+  }, [clips, assets, activeTimeline, appSettings.hasFalApiKey])
   // Bind the late ref so the agent bridge (mounted far above) can invoke it.
   agentRegenerateWithReferenceRef.current = agentRegenerateWithReference
 
@@ -5367,6 +5369,7 @@ export function VideoEditor() {
           <RegenerateWithReferenceModal
             clipDurationSeconds={regenRefClip.duration * (regenRefClip.speed || 1)}
             clipLabel={label}
+            hasFalApiKey={appSettings.hasFalApiKey}
             onClose={() => setRegenRefClip(null)}
             onSubmit={(r) => { void handleRegenerateWithReferenceSubmit(regenRefClip, r) }}
           />

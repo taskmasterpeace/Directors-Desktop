@@ -1,17 +1,20 @@
 import { useState } from 'react'
 import { RefreshCw, X, ImagePlus, Film, Plus } from 'lucide-react'
 import { toImgSrc } from '../../lib/path-to-img-src'
-import { validateRegenWithRef, clampRegenDuration, REF_CAPS } from '../../lib/regen-with-reference'
+import { validateRegenWithRef, clampRegenDuration, chooseRegenTarget, REF_CAPS, SEEDANCE_MAX_SECONDS, SEEDANCE_15_MAX_SECONDS } from '../../lib/regen-with-reference'
 
 /**
  * "Regenerate with reference" — the approved agent-editor UX: this clip, redone
  * to follow a reference (a clip / a frame / a crop) with an optional note,
  * landing as a NEW TAKE so nothing else on the timeline moves. The panel
- * already knows the clip's length; the render matches it (≤15s, Seedance 2.0).
+ * already knows the clip's length; the render matches it. It renders on Seedance
+ * 2.0 (fal) omni-reference when a fal key is set; otherwise a still-image
+ * reference falls back to Replicate's Seedance 1.5 (reference → first frame).
  */
 export function RegenerateWithReferenceModal({
   clipDurationSeconds,
   clipLabel,
+  hasFalApiKey = false,
   initialImagePaths = [],
   initialVideoPaths = [],
   onSubmit,
@@ -19,6 +22,7 @@ export function RegenerateWithReferenceModal({
 }: {
   clipDurationSeconds: number
   clipLabel: string
+  hasFalApiKey?: boolean
   initialImagePaths?: string[]
   initialVideoPaths?: string[]
   onSubmit: (r: { referenceImagePaths: string[]; videoReferencePaths: string[]; note: string }) => void
@@ -27,7 +31,12 @@ export function RegenerateWithReferenceModal({
   const [images, setImages] = useState<string[]>(initialImagePaths)
   const [videos, setVideos] = useState<string[]>(initialVideoPaths)
   const [note, setNote] = useState('')
-  const renderSeconds = clampRegenDuration(clipDurationSeconds)
+  const target = chooseRegenTarget({ videoReferencePaths: videos, falAvailable: hasFalApiKey })
+  const cap = target.model === 'seedance-2.0' ? SEEDANCE_MAX_SECONDS : SEEDANCE_15_MAX_SECONDS
+  const renderSeconds = clampRegenDuration(clipDurationSeconds, cap)
+  const engineLabel = target.model === 'seedance-2.0'
+    ? 'Seedance 2.0 (fal · omni-reference)'
+    : 'Seedance 1.5 (Replicate · reference → first frame)'
   const errors = validateRegenWithRef({ referenceImagePaths: images, videoReferencePaths: videos })
 
   const addImage = async () => {
@@ -61,9 +70,15 @@ export function RegenerateWithReferenceModal({
 
         <div className="p-4 space-y-3">
           <p className="text-[11px] text-zinc-400">
-            Renders <span className="text-zinc-200 font-medium">{renderSeconds}s</span> (this clip's length) on Seedance 2.0,
-            following your reference. The result lands as a <span className="text-zinc-200">new take</span> — the old one stays.
+            Renders <span className="text-zinc-200 font-medium">{renderSeconds}s</span> (this clip's length) on{' '}
+            <span className="text-zinc-300">{engineLabel}</span>, following your reference. The result lands as a{' '}
+            <span className="text-zinc-200">new take</span> — the old one stays.
           </p>
+          {!hasFalApiKey && (
+            <p className="text-[10px] text-zinc-500">
+              No fal key set — using Replicate. Video-clip references need Seedance 2.0 (add a fal key in Settings); a frame or crop works here now.
+            </p>
+          )}
 
           {/* Reference tray */}
           <div className="rounded-md border border-zinc-700/60 bg-zinc-800/40 p-2.5 space-y-2">

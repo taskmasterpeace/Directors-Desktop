@@ -3,7 +3,9 @@ import {
   buildRegenWithRefRequest,
   validateRegenWithRef,
   clampRegenDuration,
+  chooseRegenTarget,
   SEEDANCE_MAX_SECONDS,
+  SEEDANCE_15_MAX_SECONDS,
   REF_CAPS,
 } from './regen-with-reference'
 
@@ -15,21 +17,37 @@ describe('regen-with-reference — the render request', () => {
     videoReferencePaths: [] as string[],
   }
 
-  it('renders at the clip length, rounded and clamped to 1..15s', () => {
+  it('rounds + clamps the render length to the chosen model cap', () => {
     expect(clampRegenDuration(5.2)).toBe(5)
     expect(clampRegenDuration(5.6)).toBe(6)
-    expect(clampRegenDuration(0.3)).toBe(1)          // floor at 1
-    expect(clampRegenDuration(42)).toBe(SEEDANCE_MAX_SECONDS) // cap at 15
-    expect(clampRegenDuration(NaN)).toBe(1)          // never NaN in the request
-    expect(buildRegenWithRefRequest(base).params.duration).toBe('5')
+    expect(clampRegenDuration(0.3)).toBe(1)                    // floor at 1
+    expect(clampRegenDuration(42)).toBe(SEEDANCE_MAX_SECONDS)  // fal cap 15
+    expect(clampRegenDuration(42, SEEDANCE_15_MAX_SECONDS)).toBe(SEEDANCE_15_MAX_SECONDS) // replicate cap 10
+    expect(clampRegenDuration(NaN)).toBe(1)                    // never NaN in the request
   })
 
-  it('always targets Seedance 2.0 (the omni-reference engine) with the refs attached', () => {
-    const req = buildRegenWithRefRequest({ ...base, videoReferencePaths: ['C:/clips/ref.mp4'] })
+  it('with a fal key, targets Seedance 2.0 omni-reference with the refs attached', () => {
+    const req = buildRegenWithRefRequest({ ...base, falAvailable: true, videoReferencePaths: ['C:/clips/ref.mp4'] })
     expect(req.type).toBe('video')
     expect(req.model).toBe('seedance-2.0')
+    if (req.model !== 'seedance-2.0') throw new Error('narrow')
     expect(req.params.referenceImagePaths).toEqual(['C:/frames/crop.jpg'])
     expect(req.params.videoReferencePaths).toEqual(['C:/clips/ref.mp4'])
+    expect(req.params.duration).toBe('5')
+  })
+
+  it('a VIDEO reference forces fal (Seedance 2.0) even with no fal-key flag', () => {
+    expect(chooseRegenTarget({ videoReferencePaths: ['v'], falAvailable: false }).model).toBe('seedance-2.0')
+    expect(chooseRegenTarget({ videoReferencePaths: [], falAvailable: false }).model).toBe('seedance-1.5-pro')
+    expect(chooseRegenTarget({ videoReferencePaths: [], falAvailable: true }).model).toBe('seedance-2.0')
+  })
+
+  it('an image reference with NO fal key falls back to Replicate seedance-1.5-pro (reference = first frame), capped at 10s', () => {
+    const req = buildRegenWithRefRequest({ ...base, clipDurationSeconds: 42, falAvailable: false })
+    expect(req.model).toBe('seedance-1.5-pro')
+    if (req.model !== 'seedance-1.5-pro') throw new Error('narrow')
+    expect(req.params.imagePath).toBe('C:/frames/crop.jpg')   // the reference drives the first frame
+    expect(req.params.duration).toBe(String(SEEDANCE_15_MAX_SECONDS)) // 10, not 15
   })
 
   it('appends the note to the base prompt, and survives an empty prompt', () => {
