@@ -2,7 +2,18 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends
+from fastapi.responses import PlainTextResponse
+
+from server_utils.timeline_toc import (
+    build_toc,
+    chapter_detail,
+    render_chapter_text,
+    render_toc_text,
+)
+from _routes._errors import HTTPError
 
 from api_types import (
     AgentActionReportRequest,
@@ -41,6 +52,41 @@ def route_current_project(
         publishedAt=published_at,
         editorLive=handler.project_bridge.is_editor_live(),
     )
+
+
+@router.get("/toc")
+def route_project_toc(
+    format: str = "json",
+    chapter: int | None = None,
+    handler: AppHandler = Depends(get_state_service),
+) -> Any:
+    """The AI-visible timeline: a compact table of contents over the open
+    production (chapters, cast, sections, detected transitions), with a
+    self-documenting text language for LLMs (`?format=text`) and per-chapter
+    drill-down (`?chapter=N`). Read the TOC first — it costs ~1-2K tokens on a
+    300-clip production — then fetch only the chapter you need."""
+    project, _published_at = handler.project_bridge.current()
+    if not project:
+        raise HTTPError(404, "no project published — open a project in the editor first")
+    if chapter is not None:
+        if format == "text":
+            text = render_chapter_text(project, chapter)
+            if text is None:
+                raise HTTPError(404, f"no chapter {chapter} on this timeline")
+            return PlainTextResponse(text)
+        events = chapter_detail(project, chapter)
+        if events is None:
+            raise HTTPError(404, f"no chapter {chapter} on this timeline")
+        return {"chapter": chapter, "events": events}
+    if format == "text":
+        text = render_toc_text(project)
+        if text is None:
+            raise HTTPError(404, "the project has no timeline")
+        return PlainTextResponse(text)
+    toc = build_toc(project)
+    if toc is None:
+        raise HTTPError(404, "the project has no timeline")
+    return toc
 
 
 @router.get("/transcript", response_model=ProjectTranscriptResponse)
