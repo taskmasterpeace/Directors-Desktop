@@ -33,8 +33,12 @@ export function Characters() {
 
   /** Pull the user's Palette character canonicals into the local library so
    *  @character references resolve HERE with the same characters as the web
-   *  app. (This button did not exist — References and Recipes had one,
-   *  Characters didn't — which is exactly where Robert looked first.) */
+   *  app. Two stages, because Robert wants to CHOOSE what syncs: fetch the
+   *  cloud list into a picker, then import only the checked ones. */
+  type CloudCharacter = { id?: string; name?: string; type?: string; era?: string | null; image_path?: string | null }
+  const [pickerItems, setPickerItems] = useState<CloudCharacter[] | null>(null)
+  const [pickerChecked, setPickerChecked] = useState<Set<string>>(new Set())
+
   const handleSyncFromPalette = async () => {
     setSyncing(true)
     setSyncMsg(null)
@@ -44,16 +48,36 @@ export function Characters() {
       if (!res.ok) throw new Error(`Palette sync failed: ${res.status}`)
       const data = (await res.json()) as {
         connected?: boolean
-        characters?: { id?: string; name?: string; type?: string; era?: string | null; image_path?: string | null }[]
+        characters?: CloudCharacter[]
         error?: string
       }
       if (!data.connected) throw new Error(data.error || 'Not connected to Directors Palette — connect in Settings first')
-      const cloud = data.characters ?? []
+      const cloud = (data.characters ?? []).filter((c) => c.name)
+      if (cloud.length === 0) {
+        setSyncMsg('Connected — no characters in your Palette library yet.')
+        return
+      }
+      // Pre-check only what isn't already here; already-imported names show unchecked.
       const existingNames = new Set(characters.map((c) => c.name.toLowerCase()))
+      setPickerChecked(new Set(cloud.filter((c) => !existingNames.has(c.name!.toLowerCase())).map((c) => c.name!)))
+      setPickerItems(cloud)
+    } catch (e) {
+      setSyncMsg(e instanceof Error ? e.message : 'Palette sync failed')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  const handleImportSelected = async () => {
+    if (!pickerItems) return
+    const chosen = pickerItems.filter((c) => c.name && pickerChecked.has(c.name))
+    setPickerItems(null)
+    setSyncing(true)
+    try {
+      const backendUrl = await window.electronAPI.getBackendUrl()
       let added = 0
-      let skipped = 0
-      for (const c of cloud) {
-        if (!c.name || existingNames.has(c.name.toLowerCase())) { skipped++; continue }
+      let failed = 0
+      for (const c of chosen) {
         try {
           const post = await fetch(`${backendUrl}/api/library/characters`, {
             method: 'POST',
@@ -69,15 +93,11 @@ export function Characters() {
           added++
         } catch (e) {
           logger.warn(`Character sync: could not import "${c.name}": ${e}`)
-          skipped++
+          failed++
         }
       }
-      setSyncMsg(cloud.length === 0
-        ? 'Connected — no characters in your Palette library yet.'
-        : `Synced ${added} character${added === 1 ? '' : 's'} from Palette${skipped ? ` (${skipped} already here or skipped)` : ''}.`)
+      setSyncMsg(`Imported ${added} character${added === 1 ? '' : 's'} from Palette${failed ? ` (${failed} failed)` : ''}.`)
       await fetchCharacters()
-    } catch (e) {
-      setSyncMsg(e instanceof Error ? e.message : 'Palette sync failed')
     } finally {
       setSyncing(false)
     }
@@ -299,6 +319,77 @@ export function Characters() {
           </div>
         )}
       </div>
+
+      {/* Palette sync picker — choose WHAT syncs, never everything blindly */}
+      {pickerItems && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onMouseDown={() => setPickerItems(null)}>
+          <div
+            className="w-[520px] max-h-[70vh] flex flex-col rounded-lg border border-zinc-700 bg-zinc-900 shadow-2xl"
+            onMouseDown={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
+              <h3 className="text-sm font-semibold text-white">Sync from Palette — choose characters</h3>
+              <button onClick={() => setPickerItems(null)} className="p-1 rounded hover:bg-zinc-700 text-zinc-400">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex items-center gap-3 px-4 py-2 border-b border-zinc-800/60 text-xs text-zinc-400">
+              <button
+                className="hover:text-white"
+                onClick={() => setPickerChecked(new Set(pickerItems.filter((c) => c.name).map((c) => c.name!)))}
+              >Select all</button>
+              <button className="hover:text-white" onClick={() => setPickerChecked(new Set())}>Select none</button>
+              <span className="ml-auto">{pickerChecked.size} of {pickerItems.length} selected</span>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2">
+              {pickerItems.map((c) => {
+                const already = characters.some((x) => x.name.toLowerCase() === (c.name || '').toLowerCase())
+                const checked = !!c.name && pickerChecked.has(c.name)
+                return (
+                  <label
+                    key={c.id || c.name}
+                    className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-zinc-800/60 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => {
+                        const next = new Set(pickerChecked)
+                        if (e.target.checked && c.name) next.add(c.name)
+                        else if (c.name) next.delete(c.name)
+                        setPickerChecked(next)
+                      }}
+                      className="accent-amber-500"
+                    />
+                    {c.image_path ? (
+                      <img src={c.image_path} alt="" className="h-9 w-9 rounded object-cover border border-zinc-700/60" />
+                    ) : (
+                      <div className="h-9 w-9 rounded bg-zinc-800 flex items-center justify-center">
+                        <UserCircle className="h-5 w-5 text-zinc-600" />
+                      </div>
+                    )}
+                    <span className="text-sm text-zinc-200">{c.name}</span>
+                    <span className="ml-auto text-[11px] text-zinc-500">
+                      {already ? 'already here' : c.type || 'character'}
+                    </span>
+                  </label>
+                )
+              })}
+            </div>
+            <div className="flex justify-end gap-2 px-4 py-3 border-t border-zinc-800">
+              <Button variant="outline" size="sm" className="border-zinc-700" onClick={() => setPickerItems(null)}>Cancel</Button>
+              <Button
+                size="sm"
+                disabled={pickerChecked.size === 0}
+                onClick={() => void handleImportSelected()}
+                className="bg-amber-500 hover:bg-amber-400 text-zinc-950"
+              >
+                Import {pickerChecked.size || ''}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create/Edit Modal */}
       {isModalOpen && (

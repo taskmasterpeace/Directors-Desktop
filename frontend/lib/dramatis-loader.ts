@@ -24,6 +24,7 @@ import {
   AssetOrigin,
   Timeline,
   TimelineClip,
+  TimelineMarker,
   SubtitleClip,
   Track,
 } from '../types/project'
@@ -171,6 +172,11 @@ export const DRAMATIS_VIDEO_TRACKS: Track[] = [
  *  against the −20 LUFS levelled dialogue; clips stay user-trimmable. */
 export const NON_DIALOG_LIFT_DB = 9
 
+/** Edge case Robert named: "what if we have thirty different cast members? We
+ *  don't need thirty different tracks." Narrator + the top speakers get their
+ *  own lanes; everyone else shares one Cast lane. */
+export const MAX_SPEAKER_LANES = 6
+
 function pathToFileUrl(filePath: string): string {
   const normalized = filePath.replace(/\\/g, '/')
   return normalized.startsWith('/') ? `file://${normalized}` : `file:///${normalized}`
@@ -210,29 +216,68 @@ export function loadDramatisChapter(data: DramatisExport): LoadedDramatisChapter
   const assets: Asset[] = []
   let missingMedia = 0
 
-  // One audio lane per speaker, narrator first, others in order of first line.
-  const seen = new Set<string>()
-  const speakers: string[] = []
-  for (const l of data.lines) {
-    if (!seen.has(l.entity)) { seen.add(l.entity); speakers.push(l.entity) }
-  }
-  speakers.sort((a, b) => (a === 'narrator' ? -1 : b === 'narrator' ? 1 : 0))
+  // One audio lane per speaker — narrator first, then by LINE COUNT so a large
+  // cast degrades gracefully: the top MAX_SPEAKER_LANES voices get lanes, the
+  // rest share one Cast lane (30 cast members must not mean 30 tracks).
+  const linesBySpeaker = new Map<string, number>()
+  for (const l of data.lines) linesBySpeaker.set(l.entity, (linesBySpeaker.get(l.entity) ?? 0) + 1)
+  const speakers = [...linesBySpeaker.keys()].sort((a, b) => {
+    if (a === 'narrator') return -1
+    if (b === 'narrator') return 1
+    return (linesBySpeaker.get(b) ?? 0) - (linesBySpeaker.get(a) ?? 0)
+  })
+  const laned = speakers.slice(0, MAX_SPEAKER_LANES)
+  const overflow = speakers.slice(MAX_SPEAKER_LANES)
   const trackForSpeaker = new Map<string, number>()
-  speakers.forEach((s, i) => trackForSpeaker.set(s, DRAMATIS_VIDEO_TRACKS.length + i))
-  const TRACK_SFX = DRAMATIS_VIDEO_TRACKS.length + speakers.length
+  laned.forEach((s, i) => trackForSpeaker.set(s, DRAMATIS_VIDEO_TRACKS.length + i))
+  const castLane = overflow.length > 0 ? DRAMATIS_VIDEO_TRACKS.length + laned.length : -1
+  for (const s of overflow) trackForSpeaker.set(s, castLane)
+  const audioLanes = laned.length + (overflow.length > 0 ? 1 : 0)
+  const TRACK_SFX = DRAMATIS_VIDEO_TRACKS.length + audioLanes
   const TRACK_AMBIENCE = TRACK_SFX + 1
   const TRACK_MUSIC = TRACK_SFX + 2
   const tracks: Track[] = [
     ...DRAMATIS_VIDEO_TRACKS.map((t) => ({ ...t })),
-    ...speakers.map((s, i) => ({
+    ...laned.map((s, i) => ({
       id: `track-a-${s}`,
       name: `A${i + 1} ${speakerName(s, data.entities)}`,
       muted: false, locked: false, sourcePatched: i === 0, kind: 'audio' as const,
     })),
-    { id: 'track-a-sfx', name: `A${speakers.length + 1} SFX`, muted: false, locked: false, sourcePatched: false, kind: 'audio' as const },
-    { id: 'track-a-ambience', name: `A${speakers.length + 2} Ambience`, muted: false, locked: false, sourcePatched: false, kind: 'audio' as const },
-    { id: 'track-a-music', name: `A${speakers.length + 3} Music`, muted: false, locked: false, sourcePatched: false, kind: 'audio' as const },
+    ...(overflow.length > 0
+      ? [{ id: 'track-a-cast', name: `A${laned.length + 1} Cast (${overflow.length} more)`, muted: false, locked: false, sourcePatched: false, kind: 'audio' as const }]
+      : []),
+    { id: 'track-a-sfx', name: `A${audioLanes + 1} SFX`, muted: false, locked: false, sourcePatched: false, kind: 'audio' as const },
+    { id: 'track-a-ambience', name: `A${audioLanes + 2} Ambience`, muted: false, locked: false, sourcePatched: false, kind: 'audio' as const },
+    { id: 'track-a-music', name: `A${audioLanes + 3} Music`, muted: false, locked: false, sourcePatched: false, kind: 'audio' as const },
   ]
+
+  // Chapter + scene structure lands as range markers, so the ruler (and the
+  // agent-bridge TOC, which detects chapters from exactly these) reads the
+  // production's shape without opening a single clip.
+  const markers: TimelineMarker[] = []
+  const chTitle = data.chapterNumber != null
+    ? `Chapter ${data.chapterNumber} — ${data.chapter}`
+    : `Chapter — ${data.chapter}`
+  markers.push({
+    id: `dram-chapter-${data.chapterNumber ?? 1}`,
+    time: 0,
+    duration: Math.max(0.01, data.durationSec),
+    title: chTitle,
+    color: 'amber',
+    author: 'agent',
+    createdAt: Date.now(),
+  })
+  for (const scene of data.scenes) {
+    markers.push({
+      id: `dram-scene-${scene.id}`,
+      time: scene.start,
+      duration: Math.max(0.01, scene.end - scene.start),
+      title: scene.visual ? `${scene.id} — ${snippet(scene.visual, 48)}` : scene.id,
+      color: 'blue',
+      author: 'agent',
+      createdAt: Date.now(),
+    })
+  }
 
   const flag = (missing: boolean | undefined, name: string): string => {
     if (!missing) return name
@@ -381,6 +426,7 @@ export function loadDramatisChapter(data: DramatisExport): LoadedDramatisChapter
     tracks,
     clips,
     subtitles,
+    markers,
   }
 
   return {

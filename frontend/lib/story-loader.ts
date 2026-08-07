@@ -276,6 +276,19 @@ export function loadStoryToTimeline(story: StoryFile, storyAbsPath: string): Loa
     )
   }
 
+  // Chapters become range markers ("Chapter N: title") — the ruler shows the
+  // structure and the agent-bridge TOC detects chapters from these; chapter
+  // heads are where title cards live in AIOBR-style productions.
+  const markers = (story.chapters ?? []).map((ch, i) => ({
+    id: `story-chapter-${ch.id ?? i}`,
+    time: ch.start_seconds ?? 0,
+    duration: Math.max(0.01, (ch.end_seconds ?? 0) - (ch.start_seconds ?? 0)),
+    title: `Chapter ${(ch.index ?? i) + 1}: ${ch.title || ch.id || i + 1}`,
+    color: 'amber' as const,
+    author: 'agent' as const,
+    createdAt: Date.now(),
+  }))
+
   const timeline: Timeline = {
     id: `story-${story.slug}`,
     name: story.title || story.slug,
@@ -283,6 +296,7 @@ export function loadStoryToTimeline(story: StoryFile, storyAbsPath: string): Loa
     tracks: DEFAULT_TRACKS.map((t) => ({ ...t })),
     clips,
     subtitles,
+    markers,
   }
 
   return { timeline, assets, beats: beatInfos, storyPath: storyAbsPath, repoRoot, durationSeconds: runtime, characters: cast }

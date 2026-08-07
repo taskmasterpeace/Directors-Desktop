@@ -5,6 +5,7 @@ import {
   dbToLinear,
   speakerName,
   DRAMATIS_VIDEO_TRACKS,
+  MAX_SPEAKER_LANES,
   NON_DIALOG_LIFT_DB,
   type DramatisExport,
 } from './dramatis-loader'
@@ -147,6 +148,44 @@ describe('dramatis-loader', () => {
     expect(line.origin!.engine).toBeUndefined()
     const cue = loaded.assets.find((a) => a.id === 'dram-asset-cue-p1-fire')!
     expect(cue.origin!.elementKind).toBe('cue')
+  })
+
+  it('a thirty-member cast collapses into capped lanes + one shared Cast lane', () => {
+    const data = sampleExport()
+    data.lines = []
+    for (let i = 0; i < 30; i++) {
+      // speaker i speaks i+1 lines: spk29 is the lead, spk0 barely speaks
+      for (let j = 0; j <= i; j++) {
+        data.lines.push({
+          id: `lin_${i}_${j}`, entity: `spk${i}`, start: i * 40 + j, dur: 1,
+          text: `line ${j}`, wav: `D:\\out\\c\\${i}-${j}.wav`,
+        })
+      }
+    }
+    const loaded = loadDramatisChapter(data)
+    const audioTracks = loaded.timeline.tracks.filter((t) => t.kind === 'audio')
+    // capped lanes + Cast + SFX/Ambience/Music — NOT 33 audio tracks
+    expect(audioTracks).toHaveLength(MAX_SPEAKER_LANES + 1 + 3)
+    const cast = loaded.timeline.tracks.find((t) => t.id === 'track-a-cast')!
+    expect(cast.name).toContain(`${30 - MAX_SPEAKER_LANES} more`)
+    // the lead speaker holds a lane; the quietest lands on the shared lane
+    const castIndex = loaded.timeline.tracks.indexOf(cast)
+    const lead = loaded.timeline.clips.find((c) => c.id === 'dram-line-lin_29_0')!
+    const quiet = loaded.timeline.clips.find((c) => c.id === 'dram-line-lin_0_0')!
+    expect(lead.trackIndex).toBeLessThan(castIndex)
+    expect(quiet.trackIndex).toBe(castIndex)
+  })
+
+  it('chapter + scenes land as range markers the ruler and the TOC can read', () => {
+    const loaded = loadDramatisChapter({ ...sampleExport(), chapterNumber: 2 })
+    const markers = loaded.timeline.markers!
+    const chapter = markers.find((m) => m.id === 'dram-chapter-2')!
+    expect(chapter.title).toBe('Chapter 2 — Part I')
+    expect(chapter.time).toBe(0)
+    expect(chapter.duration).toBeCloseTo(638.82)
+    const scene = markers.find((m) => m.id === 'dram-scene-p1-parlor')!
+    expect(scene.title).toContain('Snug parlour')
+    expect(scene.time).toBe(1)
   })
 
   it('a v2 manifest threads the generation record into origin', () => {

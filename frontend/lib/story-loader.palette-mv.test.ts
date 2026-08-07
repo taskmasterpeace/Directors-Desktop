@@ -75,6 +75,15 @@ describe('loadStoryToTimeline — Palette MV import', () => {
     expect(audio!.importedUrl).toBe('https://pub-xyz.r2.dev/song.mp3')
   })
 
+  it('story chapters land as chapter range markers (TOC-detectable, title-card homes)', () => {
+    const markers = loaded.timeline.markers!
+    expect(markers).toHaveLength(2)
+    expect(markers[0].title).toBe('Chapter 1: performance')
+    expect(markers[0].time).toBe(0)
+    expect(markers[0].duration).toBe(15)
+    expect(markers[1].title).toBe('Chapter 2: b-roll')
+  })
+
   it('every beat shot is a real Asset with origin + local regen params — takes work on MV imports', () => {
     expect(loaded.assets).toHaveLength(2)
     const videoClips = loaded.timeline.clips.filter((c) => c.type === 'video')
