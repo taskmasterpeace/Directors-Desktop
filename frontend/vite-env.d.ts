@@ -67,7 +67,7 @@ interface Window {
     removePythonSetupProgress: () => void
     onBackendHealthStatus: (cb: (data: BackendHealthStatus) => void) => (() => void)
     extractVideoFrame: (videoUrl: string, seekTime: number, width?: number, quality?: number) => Promise<{ path: string; url: string }>
-    clipTrim: (data: { inputUrl: string; startSeconds: number; lengthSeconds: number; outputPath: string }) => Promise<{ success: boolean; outputPath?: string; error?: string }>
+    clipTrim: (data: { inputUrl: string; startSeconds: number; lengthSeconds: number; outputPath: string; cropRect?: { x: number; y: number; w: number; h: number } }) => Promise<{ success: boolean; outputPath?: string; error?: string }>
     writeLog: (level: string, message: string) => Promise<void>
     getAnalyticsState: () => Promise<{ analyticsEnabled: boolean; installationId: string }>
     setAnalyticsEnabled: (enabled: boolean) => Promise<void>

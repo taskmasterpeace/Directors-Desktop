@@ -1855,10 +1855,15 @@ export function VideoEditor() {
   }, [extractCurrentFrame, setGenSpaceEditImageUrl, setGenSpaceEditMode, setCurrentTab])
   // Late-bound ref so handlers defined above persistFrame can still call it.
   const persistFrameRef = useRef<(u: string) => Promise<string | null>>(async () => null)
-  // Crop-before-sending: when set, the CropModal is open over this image and
-  // calls onDone with the cropped JPEG data URL ("crop the screenshot before
-  // sending it over").
-  const [cropRequest, setCropRequest] = useState<{ src: string; onDone: (dataUrl: string) => void } | null>(null)
+  // Crop-before-sending: the CropModal is open over `src`. onDone gets a cropped
+  // image (frame → reference); onRect gets a normalized rect (clip → video ref,
+  // applied to the whole clip via ffmpeg).
+  const [cropRequest, setCropRequest] = useState<{
+    src: string
+    title?: string
+    onDone?: (dataUrl: string) => void
+    onRect?: (rect: { x: number; y: number; w: number; h: number }) => void
+  } | null>(null)
 
   // "Use Clip as Video Reference" — the owner's marquee workflow: take a clip
   // already on the timeline, trim it to a locked model length (≤15s), and hand
@@ -1956,6 +1961,48 @@ export function VideoEditor() {
       },
     })
   }, [extractCurrentFrame, persistDataUrl, setPendingReferenceImage, setCurrentTab])
+
+  // Crop a REGION of a clip (spatial) + trim to ≤15s → Seedance video reference.
+  // The crop box is drawn on the clip's current frame and applied to the whole
+  // trimmed segment via ffmpeg.
+  const handleCropClipAsVideoReference = useCallback(async (clip: TimelineClip) => {
+    const liveAsset = clip.assetId ? assets.find((a) => a.id === clip.assetId) : clip.asset
+    const takeIdx = clip.takeIndex ?? liveAsset?.activeTakeIndex
+    let srcUrl = clip.importedUrl || liveAsset?.url || null
+    if (liveAsset?.takes && liveAsset.takes.length > 0 && takeIdx !== undefined) {
+      const take = liveAsset.takes[Math.max(0, Math.min(takeIdx, liveAsset.takes.length - 1))]
+      if (take?.url) srcUrl = take.url
+    }
+    if (!srcUrl) { setFrameActionMsg({ kind: 'error', text: 'This clip has no video source to reference.' }); return }
+    const frameUrl = await extractCurrentFrame(clip)
+    if (!frameUrl) { setFrameActionMsg({ kind: 'error', text: 'Could not read a frame to crop.' }); return }
+    const lengthSeconds = Math.min(15, clip.duration * (clip.speed || 1))
+    const startSeconds = clip.trimStart
+    setCropRequest({
+      src: toImgSrc(frameUrl),
+      title: 'Crop clip → video reference',
+      onRect: async (rect) => {
+        setCropRequest(null)
+        setFrameActionMsg({ kind: 'ok', text: 'Cropping clip for reference…' })
+        try {
+          const downloads = await window.electronAPI.getDownloadsPath()
+          const dir = `${downloads}/DirectorsDesktop/clips`
+          const ensured = await window.electronAPI.ensureDirectory(dir)
+          if (!ensured.success) throw new Error(ensured.error || 'Could not create the clips folder')
+          const name = `refcrop_${Date.now()}_${Math.round(lengthSeconds)}s.mp4`
+          const result = await window.electronAPI.clipTrim({
+            inputUrl: srcUrl!, startSeconds, lengthSeconds, outputPath: `${dir}/${name}`, cropRect: rect,
+          })
+          if (!result.success || !result.outputPath) throw new Error(result.error || 'Crop failed')
+          setPendingReferenceVideo({ path: result.outputPath, label: name })
+          setCurrentTab('gen-space')
+          setFrameActionMsg({ kind: 'ok', text: `Cropped ${Math.round(lengthSeconds)}s clip added as a video reference (Seedance 2.0).` })
+        } catch (err) {
+          setFrameActionMsg({ kind: 'error', text: err instanceof Error ? err.message : 'Crop failed' })
+        }
+      },
+    })
+  }, [assets, extractCurrentFrame, setPendingReferenceVideo, setCurrentTab])
 
   // Capture the current frame and attach it as a Seedance 2.0 reference image
   // in Gen Space (omni-reference @Image) — use a still from a video as a
@@ -5073,6 +5120,7 @@ export function VideoEditor() {
             onReplacePerson={setReplacePersonClip}
             onDramatisTake={setDramatisTakeClip}
             onUseClipAsVideoReference={handleUseClipAsVideoReference}
+            onCropClipAsVideoReference={handleCropClipAsVideoReference}
             onRegenerateWithReference={setRegenRefClip}
             setIcLoraSourceClipId={_setIcLoraSourceClipId}
             setShowICLoraPanel={_setShowICLoraPanel}
@@ -5128,11 +5176,13 @@ export function VideoEditor() {
         ) : null
       })()}
 
-      {/* Crop-before-sending overlay */}
+      {/* Crop-before-sending overlay (image crop or clip-region crop) */}
       {cropRequest && (
         <CropModal
           src={cropRequest.src}
-          onConfirm={(dataUrl) => cropRequest.onDone(dataUrl)}
+          title={cropRequest.title}
+          onConfirm={cropRequest.onDone ? (dataUrl) => cropRequest.onDone!(dataUrl) : undefined}
+          onConfirmRect={cropRequest.onRect ? (rect) => cropRequest.onRect!(rect) : undefined}
           onCancel={() => setCropRequest(null)}
         />
       )}

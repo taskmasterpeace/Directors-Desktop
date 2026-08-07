@@ -22,9 +22,15 @@ const ASPECTS: { label: string; ratio: number | null }[] = [
 
 interface Box { x: number; y: number; w: number; h: number } // rendered px, relative to the image
 
-export function CropModal({ src, onConfirm, onCancel }: {
+export function CropModal({ src, onConfirm, onConfirmRect, title = 'Crop reference', onCancel }: {
   src: string
-  onConfirm: (croppedDataUrl: string) => void
+  /** Image-crop callers get the cropped JPEG data URL. */
+  onConfirm?: (croppedDataUrl: string) => void
+  /** Video-crop callers get the normalized rect (0..1 of the source frame) to
+   *  hand to ffmpeg — the crop box is drawn on a representative frame but
+   *  applied to the whole clip. */
+  onConfirmRect?: (rect: { x: number; y: number; w: number; h: number }) => void
+  title?: string
   onCancel: () => void
 }) {
   const imgRef = useRef<HTMLImageElement>(null)
@@ -105,6 +111,14 @@ export function CropModal({ src, onConfirm, onCancel }: {
   const confirm = () => {
     const el = imgRef.current
     if (!el || !box || !rendered) return
+    // Video-crop path: hand back the normalized rect for ffmpeg.
+    if (onConfirmRect) {
+      onConfirmRect({
+        x: box.x / rendered.w, y: box.y / rendered.h,
+        w: box.w / rendered.w, h: box.h / rendered.h,
+      })
+      return
+    }
     const scale = el.naturalWidth / rendered.w // rendered px → source px (uniform, object-contain fit)
     const canvas = document.createElement('canvas')
     canvas.width = Math.max(1, Math.round(box.w * scale))
@@ -112,7 +126,7 @@ export function CropModal({ src, onConfirm, onCancel }: {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
     ctx.drawImage(el, box.x * scale, box.y * scale, box.w * scale, box.h * scale, 0, 0, canvas.width, canvas.height)
-    onConfirm(canvas.toDataURL('image/jpeg', 0.92))
+    onConfirm?.(canvas.toDataURL('image/jpeg', 0.92))
   }
 
   return (
@@ -121,7 +135,7 @@ export function CropModal({ src, onConfirm, onCancel }: {
         <div className="flex items-center justify-between px-4 py-3 border-b border-zinc-800">
           <div className="flex items-center gap-2">
             <CropIcon className="h-4 w-4 text-cyan-400" />
-            <span className="text-sm font-semibold text-white">Crop reference</span>
+            <span className="text-sm font-semibold text-white">{title}</span>
           </div>
           <button onClick={onCancel} className="p-1 rounded hover:bg-zinc-700 text-zinc-400"><X className="h-4 w-4" /></button>
         </div>

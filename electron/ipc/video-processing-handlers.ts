@@ -75,7 +75,12 @@ export function registerVideoProcessingHandlers(): void {
     'clip-trim',
     async (
       _event,
-      data: { inputUrl: string; startSeconds: number; lengthSeconds: number; outputPath: string },
+      data: {
+        inputUrl: string; startSeconds: number; lengthSeconds: number; outputPath: string
+        // Optional spatial crop, normalized 0..1 of the source frame — crop a
+        // REGION of the clip (used by "Crop Clip → Video Reference").
+        cropRect?: { x: number; y: number; w: number; h: number }
+      },
     ): Promise<{ success: boolean; outputPath?: string; error?: string }> => {
       const ffmpeg = findFfmpegPath()
       if (!ffmpeg) return { success: false, error: 'FFmpeg not found' }
@@ -97,6 +102,19 @@ export function registerVideoProcessingHandlers(): void {
       const length = Number(data.lengthSeconds) || 0
       if (length <= 0) return { success: false, error: 'Invalid clip length' }
 
+      // Build an optional crop filter from the normalized rect. iw/ih are
+      // ffmpeg's input dimensions, so this is resolution-independent; clamp to
+      // [0,1] and floor to even pixels (yuv420p needs even width/height).
+      const cropFilter = (() => {
+        const c = data.cropRect
+        if (!c) return null
+        const clamp = (n: number) => Math.min(1, Math.max(0, Number(n) || 0))
+        const x = clamp(c.x), y = clamp(c.y)
+        const w = Math.min(1 - x, clamp(c.w)), h = Math.min(1 - y, clamp(c.h))
+        if (w <= 0.01 || h <= 0.01) return null
+        return `crop=floor(iw*${w}/2)*2:floor(ih*${h}/2)*2:floor(iw*${x}):floor(ih*${y})`
+      })()
+
       const hasAudio = fileHasAudio(ffmpeg, inputPath)
       const args: string[] = [
         '-y',
@@ -104,6 +122,7 @@ export function registerVideoProcessingHandlers(): void {
         '-ss', String(start),
         '-i', inputPath,
         '-t', String(length),
+        ...(cropFilter ? ['-vf', cropFilter] : []),
         '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p',
         '-movflags', '+faststart',
         ...(hasAudio ? ['-c:a', 'aac', '-b:a', '192k'] : ['-an']),
