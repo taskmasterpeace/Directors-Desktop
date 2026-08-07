@@ -32,6 +32,7 @@ export function ReferencePicker({ model, referenceImagePaths, audioReferencePath
   const [open, setOpen] = useState(false)
   const [library, setLibrary] = useState<LibraryImage[]>([])
   const [loading, setLoading] = useState(false)
+  const [videoRefError, setVideoRefError] = useState<string | null>(null)
   const audioInputRef = useRef<HTMLInputElement>(null)
 
   const loadLibrary = useCallback(async () => {
@@ -90,8 +91,28 @@ export function ReferencePicker({ model, referenceImagePaths, audioReferencePath
   }
   const removeAudio = (path: string) =>
     emit({ audioReferencePaths: audioReferencePaths.filter((p) => p !== path) })
-  const addVideo = (path: string) => {
+  // Video references cap at 15s (Seedance omni-ref). Probe the clip client-side
+  // and reject an over-length one HERE with a clear message, instead of letting
+  // the user write a prompt, wait through the upload, and hit a late server 400.
+  const probeDuration = (path: string): Promise<number> =>
+    new Promise((resolve) => {
+      const v = document.createElement('video')
+      v.preload = 'metadata'
+      v.muted = true
+      const done = (d: number) => { try { v.src = '' } catch { /* ignore */ } resolve(d) }
+      v.onloadedmetadata = () => done(Number.isFinite(v.duration) ? v.duration : 0)
+      v.onerror = () => done(0) // unknown → let the backend be the final gate
+      v.src = /^(file|https?):/i.test(path) ? path : toImgSrc(path)
+      setTimeout(() => done(0), 8000)
+    })
+  const addVideo = async (path: string) => {
     if (videoReferencePaths.includes(path) || videoReferencePaths.length >= CAPS.video) return
+    setVideoRefError(null)
+    const dur = await probeDuration(path)
+    if (dur > 15.2) {
+      setVideoRefError(`That clip is ${dur.toFixed(1)}s — video references must be 15s or shorter. Trim it first (right-click a timeline clip → Use as Video Reference).`)
+      return
+    }
     emit({ videoReferencePaths: [...videoReferencePaths, path] })
   }
   const removeVideo = (path: string) =>
@@ -149,6 +170,13 @@ export function ReferencePicker({ model, referenceImagePaths, audioReferencePath
           <input ref={audioInputRef} type="file" accept="audio/*" className="hidden" onChange={onAudioFile} />
         </div>
       </div>
+
+      {videoRefError && (
+        <div className="flex items-start gap-1.5 mb-2 px-2 py-1.5 rounded-md" style={{ background: 'oklch(0.2 0.06 30)', border: '1px solid oklch(0.4 0.1 30)' }}>
+          <AlertTriangle className="h-3 w-3 mt-0.5 flex-shrink-0" style={{ color: 'oklch(0.7 0.15 40)' }} />
+          <span className="text-[10px]" style={{ color: 'oklch(0.85 0.08 40)' }}>{videoRefError}</span>
+        </div>
+      )}
 
       {(referenceImagePaths.length > 0 || audioReferencePaths.length > 0 || videoReferencePaths.length > 0) && (
         <div className="flex flex-wrap gap-2">

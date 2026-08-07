@@ -58,6 +58,7 @@ import { captionsFromWords, wordPopCues } from '../lib/captions-from-transcript'
 import { generateFromPrompt } from '../lib/transcript-generate'
 import { copyToAssetFolder } from '../lib/asset-copy'
 import { migrateImageModelId } from '../lib/image-models'
+import { toImgSrc } from '../lib/path-to-img-src'
 import type { TranscriptWord } from '../lib/transcript-api'
 import { SubtitlePropertiesPanel } from './editor/SubtitlePropertiesPanel'
 import { SourceMonitor } from './editor/SourceMonitor'
@@ -1837,11 +1838,19 @@ export function VideoEditor() {
   // Capture a frame and send to Gen Space for video generation (I2V)
   const handleCaptureFrameForVideo = useCallback(async (clip: TimelineClip) => {
     const dataUrl = await extractCurrentFrame(clip)
-    if (!dataUrl) return
+    // Silent no-op on failure was a real bug (the click did nothing). Explain it.
+    if (!dataUrl) { setFrameActionMsg({ kind: 'error', text: 'Could not read a frame from this clip (media missing or unsupported).' }); return }
+    // persistFrame is defined below; call it via ref so this handler can stay
+    // above it without a temporal-dead-zone hazard, and the I2V start image
+    // survives temp-dir cleanup like the reference paths do.
+    const persisted = await persistFrameRef.current(dataUrl)
     setGenSpaceEditMode('video')
-    setGenSpaceEditImageUrl(dataUrl)
+    setGenSpaceEditImageUrl(persisted ? toImgSrc(persisted) : dataUrl)
     setCurrentTab('gen-space')
+    setFrameActionMsg({ kind: 'ok', text: 'Frame sent to Gen Space — generate a video from it.' })
   }, [extractCurrentFrame, setGenSpaceEditImageUrl, setGenSpaceEditMode, setCurrentTab])
+  // Late-bound ref so handlers defined above persistFrame can still call it.
+  const persistFrameRef = useRef<(u: string) => Promise<string | null>>(async () => null)
 
   // Persist a just-extracted frame (which lives in a temp dir) to a stable
   // location so it survives as a reference. Returns the persisted absolute path.
@@ -1862,17 +1871,19 @@ export function VideoEditor() {
       return null
     }
   }, [])
+  persistFrameRef.current = persistFrame
 
   // Capture the current frame and attach it as a Seedance 2.0 reference image
   // in Gen Space (omni-reference @Image) — use a still from a video as a
   // reference for the next generation.
   const handleCaptureFrameAsReference = useCallback(async (clip: TimelineClip) => {
     const frameUrl = await extractCurrentFrame(clip)
-    if (!frameUrl) return
+    if (!frameUrl) { setFrameActionMsg({ kind: 'error', text: 'Could not read a frame from this clip (media missing or unsupported).' }); return }
     const persisted = await persistFrame(frameUrl)
     if (!persisted) { setFrameActionMsg({ kind: 'error', text: 'Could not capture the frame.' }); return }
     setPendingReferenceImage({ path: persisted })
     setCurrentTab('gen-space')
+    setFrameActionMsg({ kind: 'ok', text: 'Frame added as a reference image in Gen Space.' })
   }, [extractCurrentFrame, persistFrame, setPendingReferenceImage, setCurrentTab])
 
   // Frame → quick mode: grab the playhead frame, arm the chosen quick mode in Gen
@@ -1883,7 +1894,7 @@ export function VideoEditor() {
     kind: 'wardrobe' | 'character' | 'location' | 'style',
   ) => {
     const frameUrl = await extractCurrentFrame(clip)
-    if (!frameUrl) return
+    if (!frameUrl) { setFrameActionMsg({ kind: 'error', text: 'Could not read a frame from this clip (media missing or unsupported).' }); return }
     const persisted = await persistFrame(frameUrl)
     if (!persisted) { setFrameActionMsg({ kind: 'error', text: 'Could not capture the frame.' }); return }
     setPendingReferenceImage({ path: persisted, quickMode: kind })
@@ -2110,7 +2121,7 @@ export function VideoEditor() {
   // reusable reference everywhere (ReferencePicker, @-mentions, future Shot Creator).
   const handleCaptureFrameToReferences = useCallback(async (clip: TimelineClip) => {
     const frameUrl = await extractCurrentFrame(clip)
-    if (!frameUrl) return
+    if (!frameUrl) { setFrameActionMsg({ kind: 'error', text: 'Could not read a frame from this clip (media missing or unsupported).' }); return }
     const persisted = await persistFrame(frameUrl)
     if (!persisted) { setFrameActionMsg({ kind: 'error', text: 'Could not capture the frame.' }); return }
     try {

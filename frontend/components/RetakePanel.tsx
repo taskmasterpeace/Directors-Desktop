@@ -21,7 +21,12 @@ interface RetakePanelProps {
   }) => void
 }
 
-const MIN_DURATION = 2
+const MIN_DURATION = 1
+// The video models accept a fixed set of clip lengths (Seedance caps at 15s);
+// snapping the selection to one of these means the trimmed segment is always a
+// length the model will actually take, instead of an arbitrary 12.4s that fails
+// server-side. 15 first = the max/most-common.
+const LOCKED_DURATIONS = [15, 10, 5, 3, 1] as const
 
 function formatTimecode(seconds: number): string {
   const m = Math.floor(seconds / 60)
@@ -308,6 +313,19 @@ export function RetakePanel({
     }
   }, [draggingHandle, videoDuration])
 
+  // Snap the selection to a locked model duration, keeping the in-point where
+  // possible; if it would overrun the end, slide the window back so the full
+  // length still fits.
+  const snapDuration = useCallback((n: number) => {
+    if (videoDuration <= 0) return
+    const dur = Math.min(n, videoDuration)
+    let start = selStartRef.current
+    let end = start + dur
+    if (end > videoDuration) { end = videoDuration; start = Math.max(0, end - dur) }
+    setSelStart(start)
+    setSelEnd(end)
+  }, [videoDuration])
+
   const handleFilmstripClick = useCallback((e: React.MouseEvent) => {
     if (draggingHandle) return
     const strip = filmstripRef.current
@@ -593,6 +611,32 @@ export function RetakePanel({
                 <span className="text-[10px] font-mono text-amber-400">{formatTimecode(selStart)}</span>
                 <span className="text-[10px] font-mono text-zinc-500">Duration: {formatTimecode(selDuration)}</span>
                 <span className="text-[10px] font-mono text-amber-400">{formatTimecode(selEnd)}</span>
+              </div>
+
+              {/* Locked model durations — snap the trim to a length the model takes */}
+              <div className="flex items-center gap-1.5 mt-2">
+                <span className="text-[10px] text-zinc-500 mr-0.5">Snap:</span>
+                {LOCKED_DURATIONS.map((n) => {
+                  const active = Math.abs(selDuration - Math.min(n, videoDuration)) < 0.05
+                  const tooLong = n > videoDuration + 0.05
+                  return (
+                    <button
+                      key={n}
+                      onClick={() => snapDuration(n)}
+                      disabled={tooLong}
+                      title={tooLong ? `Clip is shorter than ${n}s` : `Snap selection to ${n}s`}
+                      className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors ${
+                        active
+                          ? 'bg-amber-500 text-zinc-950 font-semibold'
+                          : tooLong
+                            ? 'text-zinc-700 cursor-not-allowed'
+                            : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                      }`}
+                    >
+                      {n}s
+                    </button>
+                  )
+                })}
               </div>
             </div>
 
