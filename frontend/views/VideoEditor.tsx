@@ -55,7 +55,7 @@ import { ReplacePersonModal } from './editor/ReplacePersonModal'
 import { DramatisTakeModal } from './editor/DramatisTakeModal'
 import { CropModal } from './editor/CropModal'
 import { RegenerateWithReferenceModal } from './editor/RegenerateWithReferenceModal'
-import { buildRegenWithRefRequest } from '../lib/regen-with-reference'
+import { buildRegenWithRefRequest, validateRegenWithRef } from '../lib/regen-with-reference'
 import { requestDramatisTake, selectDramatisTake, takeRecordToAssetTake } from '../lib/dramatis-studio'
 import { captionsFromWords, wordPopCues } from '../lib/captions-from-transcript'
 import { generateFromPrompt } from '../lib/transcript-generate'
@@ -911,12 +911,24 @@ export function VideoEditor() {
     return asset?.duration ?? clip.asset?.duration ?? undefined
   }, [assets])
 
+  // Late-bound: the agent regen handler is defined far below (needs the recast
+  // pipeline), but the bridge is mounted here. A stable wrapper defers to it.
+  const agentRegenerateWithReferenceRef = useRef<
+    (clipId: string, opts: { note?: string; referenceImagePaths?: string[]; videoReferencePaths?: string[] }) => Promise<{ ok: boolean; reason?: string }>
+  >(async () => ({ ok: false, reason: 'editor not ready' }))
+  const agentRegenerateWithReferenceStable = useCallback(
+    (clipId: string, opts: { note?: string; referenceImagePaths?: string[]; videoReferencePaths?: string[] }) =>
+      agentRegenerateWithReferenceRef.current(clipId, opts),
+    [],
+  )
+
   useAgentActions({
     clips, tracks, markers, setClips, setMarkers, pushUndo, pushTrackUndo,
     makeCaptions: handleMakeCaptions,
     getAssetDuration: getAssetDurationForClip,
     imageModel: migrateImageModelId(appSettings.imageModel),
     placeGenerated,
+    regenerateWithReference: agentRegenerateWithReferenceStable,
   })
 
   // Story-aware generate chain: prompt → image → (for video) video-from-image. Results land
@@ -2038,8 +2050,10 @@ export function VideoEditor() {
   const [replacePersonClip, setReplacePersonClip] = useState<TimelineClip | null>(null)
   const [regenRefClip, setRegenRefClip] = useState<TimelineClip | null>(null)
   // Tracks queue jobs whose result becomes a NEW TAKE on a clip's asset. Shared
-  // by Replace Person and Regenerate-with-reference; doneLabel varies the toast.
-  const [recastJobs, setRecastJobs] = useState<{ jobId: string; assetId: string; clipId: string; doneLabel?: string }[]>([])
+  // by Replace Person, Regenerate-with-reference, and the AGENT regen action;
+  // doneLabel varies the toast, resolve lets an awaiting caller (the agent
+  // bridge) learn the outcome.
+  const [recastJobs, setRecastJobs] = useState<{ jobId: string; assetId: string; clipId: string; doneLabel?: string; resolve?: (r: { ok: boolean; reason?: string }) => void }[]>([])
 
   const handleReplacePersonSubmit = useCallback(async (
     clip: TimelineClip,
@@ -2116,6 +2130,48 @@ export function VideoEditor() {
     }
   }, [assets, activeTimeline])
 
+  // The AGENT's version of Regenerate-with-reference: an external AI (via the
+  // agent bridge) calls this with a clip id + references, and it runs the exact
+  // same submit → new-take pipeline. Resolves when the take lands, so the agent
+  // gets an honest applied/rejected instead of a fire-and-forget.
+  const agentRegenerateWithReference = useCallback(async (
+    clipId: string,
+    opts: { note?: string; referenceImagePaths?: string[]; videoReferencePaths?: string[] },
+  ): Promise<{ ok: boolean; reason?: string }> => {
+    const clip = clips.find((c) => c.id === clipId)
+    if (!clip) return { ok: false, reason: `unknown clipId: ${clipId}` }
+    if (clip.type !== 'video') return { ok: false, reason: 'regenerate_with_reference works on video clips only' }
+    const liveAsset = clip.assetId ? assets.find((a) => a.id === clip.assetId) : clip.asset
+    if (!liveAsset) return { ok: false, reason: 'this clip has no source asset to regenerate' }
+    const refs = { referenceImagePaths: opts.referenceImagePaths ?? [], videoReferencePaths: opts.videoReferencePaths ?? [] }
+    const invalid = validateRegenWithRef(refs)
+    if (invalid.length) return { ok: false, reason: invalid[0] }
+    const prompt = liveAsset.origin?.prompt || liveAsset.prompt || liveAsset.generationParams?.prompt || clip.importedName || ''
+    const req = buildRegenWithRefRequest({
+      clipDurationSeconds: clip.duration * (clip.speed || 1),
+      prompt, note: opts.note,
+      referenceImagePaths: refs.referenceImagePaths,
+      videoReferencePaths: refs.videoReferencePaths,
+      resolution: liveAsset.generationParams?.resolution,
+      aspectRatio: activeTimeline?.aspectRatio,
+    })
+    setClips((prev) => prev.map((c) => (c.id === clip.id ? { ...c, isRegenerating: true, generatingLabel: 'AI regenerating…' } : c)))
+    try {
+      const base = await window.electronAPI.getBackendUrl()
+      const res = await fetch(`${base}/api/queue/submit`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req) })
+      if (!res.ok) { const b = (await res.json().catch(() => ({}))) as { error?: string }; throw new Error(b.error || `Submit failed (${res.status})`) }
+      const data = (await res.json()) as { id: string }
+      return await new Promise<{ ok: boolean; reason?: string }>((resolve) => {
+        setRecastJobs((prev) => [...prev, { jobId: data.id, assetId: liveAsset.id, clipId: clip.id, doneLabel: 'AI regenerated this clip — new take active (flip takes to compare).', resolve }])
+      })
+    } catch (e) {
+      setClips((prev) => prev.map((c) => (c.id === clip.id ? { ...c, isRegenerating: false } : c)))
+      return { ok: false, reason: e instanceof Error ? e.message : 'Submit failed' }
+    }
+  }, [clips, assets, activeTimeline])
+  // Bind the late ref so the agent bridge (mounted far above) can invoke it.
+  agentRegenerateWithReferenceRef.current = agentRegenerateWithReference
+
   // Poll running recast jobs; on completion add the result as a take and
   // point the clip at it.
   useEffect(() => {
@@ -2144,9 +2200,11 @@ export function VideoEditor() {
             })
             setClips((prev) => prev.map((c) => (c.id === tracked.clipId ? { ...c, takeIndex: newTakeIndex, isRegenerating: false } : c)))
             setFrameActionMsg({ kind: 'ok', text: tracked.doneLabel || 'Person replaced — new take active on the clip (flip takes to compare).' })
+            tracked.resolve?.({ ok: true })
           } else if (job.status !== 'complete') {
             setClips((prev) => prev.map((c) => (c.id === tracked.clipId ? { ...c, isRegenerating: false } : c)))
             setFrameActionMsg({ kind: 'error', text: `Generation failed: ${job.error || job.status}` })
+            tracked.resolve?.({ ok: false, reason: job.error || job.status })
           }
         }
       } catch {

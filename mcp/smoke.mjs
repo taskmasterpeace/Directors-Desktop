@@ -94,7 +94,7 @@ async function main() {
     const list = await rpc.request('tools/list', {})
     const names = (list.result?.tools ?? []).map((t) => t.name)
     check('tools/list exposes the editor tools',
-      ['get_timeline', 'get_chapter', 'get_project_json', 'edit_timeline'].every((n) => names.includes(n)),
+      ['get_timeline', 'get_chapter', 'get_project_json', 'edit_timeline', 'regenerate_clip'].every((n) => names.includes(n)),
       names.join(','))
     check('every tool is self-describing (teaches the grammar)',
       (list.result?.tools ?? []).every((t) => (t.description || '').length > 40))
@@ -113,6 +113,12 @@ async function main() {
       editText.includes('applied') && editText.includes('act-1'), editText.replace(/\s+/g, ' ').slice(0, 80))
     check('edit_timeline POSTed the actions to the bridge',
       hits.some((h) => h.url === '/api/project/actions' && h.method === 'POST' && h.body.includes('add_marker')))
+
+    const regen = await rpc.request('tools/call', { name: 'regenerate_clip', arguments: { clipId: 'clip-a', referenceImagePaths: ['/tmp/ref.jpg'], note: 'warmer light' } })
+    const regenText = regen.result?.content?.[0]?.text || ''
+    check('regenerate_clip submits and reports the result', regenText.includes('applied') && regenText.includes('act-1'), regenText.replace(/\s+/g, ' ').slice(0, 80))
+    check('regenerate_clip POSTed a regenerate_with_reference action for the clip',
+      hits.some((h) => h.url === '/api/project/actions' && h.method === 'POST' && h.body.includes('regenerate_with_reference') && h.body.includes('clip-a') && h.body.includes('/tmp/ref.jpg')))
 
     const bad = await rpc.request('tools/call', { name: 'no_such_tool', arguments: {} })
     check('unknown tool is a clean JSON-RPC error', !!bad.error && bad.error.code === -32602)

@@ -51,6 +51,7 @@ export function useAgentActions({
   getAssetDuration,
   imageModel,
   placeGenerated,
+  regenerateWithReference,
 }: {
   clips: TimelineClip[]
   tracks: Track[]
@@ -72,11 +73,19 @@ export function useAgentActions({
     at: { trackIndex: number; startTime: number },
     prompt: string,
   ) => Promise<boolean>
+  /** Re-render an EXISTING clip with image/video references; lands as a new take.
+   *  Resolves when the take is on the clip (or with a reason on failure). */
+  regenerateWithReference: (
+    clipId: string,
+    opts: { note?: string; referenceImagePaths?: string[]; videoReferencePaths?: string[] },
+  ) => Promise<{ ok: boolean; reason?: string }>
 }) {
   // Fresh-closure ref: the 1s interval calls whatever the latest render bound.
   const applyRef = useRef<(pending: PendingAction[]) => ActionResult[]>(() => [])
   const placeGeneratedRef = useRef(placeGenerated)
   placeGeneratedRef.current = placeGenerated
+  const regenerateWithReferenceRef = useRef(regenerateWithReference)
+  regenerateWithReferenceRef.current = regenerateWithReference
   const imageModelRef = useRef(imageModel)
   imageModelRef.current = imageModel
   // False once the editor unmounts: a generation finishing after that must
@@ -135,6 +144,34 @@ export function useAgentActions({
         await reportRef.current([
           { id, status: 'rejected', reason: `generation failed: ${e instanceof Error ? e.message : 'error'}` },
         ])
+      }
+    })()
+  }
+
+  /** Long-running: re-render an existing clip with references; lands as a new
+   *  take on that clip. Reports its own result late (after the take is on it). */
+  const runRegenerateWithReference = (id: string, action: ActionRecord) => {
+    const clipId = str(action.clipId)
+    if (!clipId) { void reportRef.current([{ id, status: 'rejected', reason: 'clipId is required' }]); return }
+    const toStrs = (v: unknown): string[] =>
+      Array.isArray(v) ? (v as unknown[]).filter((x): x is string => typeof x === 'string') : []
+    const opts = {
+      note: str(action.note),
+      referenceImagePaths: toStrs(action.referenceImagePaths),
+      videoReferencePaths: toStrs(action.videoReferencePaths),
+    }
+    void (async () => {
+      try {
+        const r = await regenerateWithReferenceRef.current(clipId, opts)
+        if (!mountedRef.current) {
+          await reportRef.current([{ id, status: 'rejected', reason: 'editor closed during regeneration — the render is saved in the Gallery' }])
+          return
+        }
+        await reportRef.current([
+          r.ok ? { id, status: 'applied' } : { id, status: 'rejected', reason: r.reason ?? 'regeneration failed' },
+        ])
+      } catch (e) {
+        await reportRef.current([{ id, status: 'rejected', reason: `regeneration failed: ${e instanceof Error ? e.message : 'error'}` }])
       }
     })()
   }
@@ -325,6 +362,18 @@ export function useAgentActions({
           // Long-running: no immediate result — stays 'delivered' until the
           // generation lands (or fails), then reports on its own.
           runGenerateAndPlace(id, action)
+          break
+        }
+        case 'regenerate_with_reference': {
+          const clipId = str(action.clipId)
+          if (!clipId) { reject('clipId is required'); break }
+          if (!nextClips.some((c) => c.id === clipId)) { reject(`unknown clipId: ${clipId}`); break }
+          const hasImg = Array.isArray(action.referenceImagePaths) && (action.referenceImagePaths as unknown[]).length > 0
+          const hasVid = Array.isArray(action.videoReferencePaths) && (action.videoReferencePaths as unknown[]).length > 0
+          if (!hasImg && !hasVid) { reject('at least one referenceImagePaths or videoReferencePaths entry is required'); break }
+          // Long-running: reuses the human recast pipeline; reports late once the
+          // new take is on the clip.
+          runRegenerateWithReference(id, action)
           break
         }
         default:

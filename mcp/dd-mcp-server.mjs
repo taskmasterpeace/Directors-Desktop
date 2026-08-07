@@ -75,6 +75,38 @@ async function bridgeFetch(pathAndQuery, init = {}) {
   return text
 }
 
+/**
+ * Submit bounded editor actions and poll until each resolves (or the wait caps).
+ * Long-running kinds (generate_and_place, regenerate_with_reference) report late,
+ * so unresolved ids come back as `in_flight` rather than a false "done".
+ */
+async function submitAndAwait(actions) {
+  const submit = JSON.parse(
+    await bridgeFetch('/api/project/actions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ actions }),
+    }),
+  )
+  const ids = new Set(submit.ids ?? [])
+  if (ids.size === 0) return { note: 'no actions accepted', submit }
+  const deadline = Date.now() + 20_000
+  let statuses = []
+  for (let i = 0; i < 25; i++) {
+    const data = JSON.parse(await bridgeFetch('/api/project/actions/status'))
+    statuses = (data.actions ?? []).filter((a) => ids.has(a.id))
+    const resolved = statuses.filter((a) => a.status === 'applied' || a.status === 'rejected')
+    if (resolved.length === ids.size) break
+    if (Date.now() > deadline) break
+    await sleep(800)
+  }
+  const seen = new Set(statuses.map((s) => s.id))
+  for (const id of ids) {
+    if (!seen.has(id)) statuses.push({ id, status: 'in_flight', reason: 'still rendering — check back with get_timeline (a new take lands on the clip when done)' })
+  }
+  return { results: statuses }
+}
+
 // ── tools ────────────────────────────────────────────────────────────────────
 const TOOLS = [
   {
@@ -134,34 +166,45 @@ const TOOLS = [
       required: ['actions'],
       additionalProperties: false,
     },
+    run: async (args) => JSON.stringify(await submitAndAwait(args.actions), null, 2),
+  },
+  {
+    name: 'regenerate_clip',
+    description:
+      'Re-render an EXISTING clip using image and/or video references — the assistant-editor version of ' +
+      '"redo this shot, but matching THIS." The result lands as a NEW TAKE on the clip (the original take ' +
+      'is retained; the user can flip between them), at the clip\'s own length, capped at 15s. ' +
+      'Give at least one reference: referenceImagePaths (stills — a saved frame, a character sheet, a crop) ' +
+      'and/or videoReferencePaths (short clips — Seedance 2.0 omni-reference; each must already be ≤15s). ' +
+      'Paths must be absolute local files the app can read. An optional note steers the change ' +
+      '("keep the framing, warmer light"). Get clipId from get_timeline / get_chapter. Long-running: it ' +
+      'reports in_flight and the take appears when the render finishes.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        clipId: { type: 'string', description: 'Stable clip id from get_timeline (the parenthesized id).' },
+        referenceImagePaths: {
+          type: 'array', items: { type: 'string' },
+          description: 'Absolute paths to still references (frames, sheets, crops). Up to 9.',
+        },
+        videoReferencePaths: {
+          type: 'array', items: { type: 'string' },
+          description: 'Absolute paths to short video references, each already ≤15s. Up to 3.',
+        },
+        note: { type: 'string', description: 'Optional direction for the regeneration.' },
+      },
+      required: ['clipId'],
+      additionalProperties: false,
+    },
     run: async (args) => {
-      const submit = JSON.parse(
-        await bridgeFetch('/api/project/actions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ actions: args.actions }),
-        }),
-      )
-      const ids = new Set(submit.ids ?? [])
-      if (ids.size === 0) return JSON.stringify({ note: 'no actions accepted', submit })
-      // Poll status until every submitted id resolves, or the editor stays
-      // unreachable. Long-running actions (generate_and_place) report late —
-      // surface their in-flight state honestly instead of pretending done.
-      const deadline = Date.now() + 20_000 // cap the wait; long generations report late
-      let statuses = []
-      for (let i = 0; i < 25; i++) {
-        const data = JSON.parse(await bridgeFetch('/api/project/actions/status'))
-        statuses = (data.actions ?? []).filter((a) => ids.has(a.id))
-        const resolved = statuses.filter((a) => a.status === 'applied' || a.status === 'rejected')
-        if (resolved.length === ids.size) break
-        if (Date.now() > deadline) break
-        await sleep(800)
+      const action = {
+        kind: 'regenerate_with_reference',
+        clipId: args.clipId,
+        ...(Array.isArray(args.referenceImagePaths) ? { referenceImagePaths: args.referenceImagePaths } : {}),
+        ...(Array.isArray(args.videoReferencePaths) ? { videoReferencePaths: args.videoReferencePaths } : {}),
+        ...(typeof args.note === 'string' ? { note: args.note } : {}),
       }
-      const seen = new Set(statuses.map((s) => s.id))
-      for (const id of ids) {
-        if (!seen.has(id)) statuses.push({ id, status: 'in_flight', reason: 'still running (e.g. a generation) — check back with get_timeline' })
-      }
-      return JSON.stringify({ results: statuses }, null, 2)
+      return JSON.stringify(await submitAndAwait([action]), null, 2)
     },
   },
 ]

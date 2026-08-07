@@ -270,7 +270,9 @@ def chapter_detail(project: dict[str, Any], index: int) -> list[dict[str, Any]] 
 _EDIT_HELP = """EDITING — POST /api/project/actions {"actions":[…]}, poll /api/project/actions/status
   kinds: move_clip{clipId,startTime[,trackIndex]} · trim_clip{clipId,trimStart,trimEnd: ABSOLUTE
   source-media seconds} · delete_clip{clipId} · add_marker{time,title[,duration,color]} ·
-  update_marker/delete_marker{markerId} · captions_from_transcript{} · generate_and_place{prompt,…}
+  update_marker/delete_marker{markerId} · captions_from_transcript{} · generate_and_place{prompt,…} ·
+  regenerate_with_reference{clipId, referenceImagePaths?[], videoReferencePaths?[], note?}: re-render an
+  existing clip to match references — lands as a NEW TAKE (original retained), clip-length capped at 15s
   Actions apply through the user's undo stack; linked A/V moves together; assets are never deleted."""
 
 
