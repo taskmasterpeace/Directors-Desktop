@@ -26,6 +26,7 @@ from handlers.library_handler import LibraryHandler
 from runtime_config.runtime_config import RuntimeConfig
 from handlers.contact_sheet_handler import ContactSheetHandler
 from handlers.enhance_prompt_handler import EnhancePromptHandler
+from handlers.assistant_handler import AssistantHandler
 from handlers.dramatis_handler import DramatisHandler
 from handlers.transcription_handler import TranscriptionHandler
 from handlers.prompt_handler import PromptHandler
@@ -250,6 +251,12 @@ class AppHandler:
         )
 
         self.enhance_prompt = EnhancePromptHandler(
+            state=self.state,
+            lock=self._lock,
+            http=http,
+        )
+
+        self.assistant = AssistantHandler(
             state=self.state,
             lock=self._lock,
             http=http,

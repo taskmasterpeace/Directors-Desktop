@@ -20,6 +20,7 @@ from _routes.ic_lora import router as ic_lora_router
 from _routes.image_gen import router as image_gen_router
 from _routes.models import router as models_router
 from _routes.enhance_prompt import router as enhance_prompt_router
+from _routes.assistant import router as assistant_router
 from _routes.dramatis import router as dramatis_router
 from _routes.suggest_gap_prompt import router as suggest_gap_prompt_router
 from _routes.project_bridge import router as project_bridge_router
@@ -132,6 +133,7 @@ def create_app(
     app.include_router(image_gen_router)
     app.include_router(suggest_gap_prompt_router)
     app.include_router(enhance_prompt_router)
+    app.include_router(assistant_router)
     app.include_router(dramatis_router)
     app.include_router(retake_router)
     app.include_router(ic_lora_router)

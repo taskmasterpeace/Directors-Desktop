@@ -27,6 +27,7 @@ import { PaletteAuthGate } from './components/PaletteAuthGate'
 import { LogViewer } from './components/LogViewer'
 import { ApiGatewayModal, type ApiGatewaySection } from './components/ApiGatewayModal'
 import { HelpCenter } from './components/HelpCenter'
+import { DirectorsPal } from './components/DirectorsPal'
 import { Button } from './components/ui/button'
 
 type SetupState = 'loading' | { needsSetup: boolean; needsLicense: boolean }
@@ -602,6 +603,8 @@ function AppContent() {
         onClose={() => { setIsHelpOpen(false); setHelpSectionId(undefined) }}
         initialSectionId={helpSectionId}
       />
+      {/* Director's Pal — reachable from every view (its own floating bubble). */}
+      <DirectorsPal />
 
       {shouldBlockUntilSettingsLoaded && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 backdrop-blur-sm">
