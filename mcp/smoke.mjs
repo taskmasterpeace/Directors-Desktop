@@ -23,6 +23,7 @@ function check(name, ok, detail = '') {
 
 // ── fake bridge ──────────────────────────────────────────────────────────────
 const hits = []
+let jobCounter = 0
 const server = http.createServer((req, res) => {
   let body = ''
   req.on('data', (c) => (body += c))
@@ -37,6 +38,10 @@ const server = http.createServer((req, res) => {
     if (req.url === '/api/project/current') return send(200, JSON.stringify({ project: { name: 'Test' } }), 'application/json')
     if (req.url === '/api/project/actions' && req.method === 'POST') return send(200, JSON.stringify({ ids: ['act-1'] }), 'application/json')
     if (req.url === '/api/project/actions/status') return send(200, JSON.stringify({ actions: [{ id: 'act-1', status: 'applied' }] }), 'application/json')
+    // Director's-Pal-parity surfaces (queue submit/status + perception).
+    if (req.url === '/api/queue/submit' && req.method === 'POST') return send(200, JSON.stringify({ id: `job-${++jobCounter}`, status: 'queued' }), 'application/json')
+    if (req.url === '/api/queue/status') return send(200, JSON.stringify({ jobs: [{ status: 'running', model: 'x' }, { status: 'complete', model: 'y' }, { status: 'queued', model: 'z' }] }), 'application/json')
+    if (req.url === '/api/project/look-at-clip' && req.method === 'POST') return send(200, JSON.stringify({ caption: 'a red car on a rain-slicked street at night' }), 'application/json')
     send(404, JSON.stringify({ detail: `no route: ${req.url}` }), 'application/json')
   })
 })
@@ -96,6 +101,9 @@ async function main() {
     check('tools/list exposes the editor tools',
       ['get_timeline', 'get_chapter', 'get_project_json', 'edit_timeline', 'regenerate_clip'].every((n) => names.includes(n)),
       names.join(','))
+    check('tools/list exposes the Director\'s-Pal-parity tools (generate/queue/perception)',
+      ['generate_images', 'generate_video', 'queue_status', 'look_at_clip'].every((n) => names.includes(n)),
+      names.join(','))
     check('every tool is self-describing (teaches the grammar)',
       (list.result?.tools ?? []).every((t) => (t.description || '').length > 40))
 
@@ -123,6 +131,39 @@ async function main() {
     await rpc.request('tools/call', { name: 'regenerate_clip', arguments: { clipId: 'clip-a', referenceFromClips: [{ clipId: 'clip-b', cropRect: { x: 0.1, y: 0.1, w: 0.5, h: 0.5 }, as: 'image' }] } })
     check('regenerate_clip forwards referenceFromClips (build-a-ref-from-another-clip)',
       hits.some((h) => h.url === '/api/project/actions' && h.method === 'POST' && h.body.includes('referenceFromClips') && h.body.includes('clip-b') && h.body.includes('cropRect')))
+
+    // ── generate_images: one queue job per image, and reaches the bridge ──────
+    const gi = await rpc.request('tools/call', { name: 'generate_images', arguments: { prompt: 'a neon skyline', count: 3, aspectRatio: '9:16' } })
+    const giText = gi.result?.content?.[0]?.text || ''
+    check('generate_images queues one job per image and reports the ids', /Queued 3 image job/.test(giText), giText.slice(0, 80))
+    const imgSubmits = hits.filter((h) => h.url === '/api/queue/submit' && h.method === 'POST' && h.body.includes('"type":"image"'))
+    check('generate_images POSTed image jobs to /api/queue/submit (one per image)',
+      imgSubmits.length === 3 && imgSubmits.every((h) => h.body.includes('a neon skyline') && h.body.includes('9:16') && h.auth === 'Bearer smoke-token'))
+
+    const beforeCap = hits.filter((h) => h.url === '/api/queue/submit' && h.method === 'POST').length
+    await rpc.request('tools/call', { name: 'generate_images', arguments: { prompt: 'cap check', count: 20 } })
+    const afterCap = hits.filter((h) => h.url === '/api/queue/submit' && h.method === 'POST').length
+    check('generate_images caps the batch at 8 jobs', afterCap - beforeCap === 8, `submitted ${afterCap - beforeCap}`)
+
+    // ── generate_video: type video reaches the bridge ─────────────────────────
+    const gv = await rpc.request('tools/call', { name: 'generate_video', arguments: { prompt: 'camera pushes in', imagePath: '/tmp/first.jpg', durationSeconds: 5 } })
+    const gvText = gv.result?.content?.[0]?.text || ''
+    check('generate_video queues a video job and returns its id', gvText.includes('video job') && gvText.includes('job-'), gvText.slice(0, 80))
+    check('generate_video POSTed a video job to /api/queue/submit',
+      hits.some((h) => h.url === '/api/queue/submit' && h.method === 'POST' && h.body.includes('"type":"video"') && h.body.includes('camera pushes in') && h.body.includes('first.jpg')))
+
+    // ── queue_status: summarizes the queue from the bridge ────────────────────
+    const qs = await rpc.request('tools/call', { name: 'queue_status', arguments: {} })
+    const qsText = qs.result?.content?.[0]?.text || ''
+    check('queue_status summarizes the render queue', qsText.includes('running') && qsText.includes('complete'), qsText.slice(0, 80))
+    check('queue_status GET /api/queue/status from the bridge', hits.at(-1)?.url === '/api/queue/status' && hits.at(-1)?.method === 'GET')
+
+    // ── look_at_clip: perception endpoint returns a caption ───────────────────
+    const look = await rpc.request('tools/call', { name: 'look_at_clip', arguments: { clipId: 'clip-a' } })
+    const lookText = look.result?.content?.[0]?.text || ''
+    check('look_at_clip returns the caption (perception)', lookText.includes('red car'), lookText.slice(0, 80))
+    check('look_at_clip POSTed the clipId to /api/project/look-at-clip',
+      hits.some((h) => h.url === '/api/project/look-at-clip' && h.method === 'POST' && h.body.includes('clip-a') && h.auth === 'Bearer smoke-token'))
 
     const bad = await rpc.request('tools/call', { name: 'no_such_tool', arguments: {} })
     check('unknown tool is a clean JSON-RPC error', !!bad.error && bad.error.code === -32602)

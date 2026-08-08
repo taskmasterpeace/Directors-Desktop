@@ -424,7 +424,10 @@ class GenerateImageRequest(BaseModel):
 
 class QueueSubmitRequest(BaseModel):
     type: Literal["video", "image", "long_video"]
-    model: str
+    # Optional: "" → the user's default model (image executor falls back to the
+    # settings model via `job.model or None`; video falls to the local engine).
+    # Lets an assistant "generate an image" without naming a model.
+    model: str = ""
     params: dict[str, object] = {}
     # Ownership labels, e.g. ["project:<id>"] from Gen Space or ["playground"].
     # Lets surfaces adopt completed jobs after navigation and lets the Gallery

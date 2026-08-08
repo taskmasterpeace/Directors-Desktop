@@ -13,11 +13,15 @@ import copy
 import json
 import logging
 import os
+import subprocess
+import tempfile
 import threading
 import time
 import uuid
 from pathlib import Path
 from typing import cast
+
+from _routes._errors import HTTPError
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +56,45 @@ def _num(value: object, default: float = 0.0) -> float:
 
 def _str_or_none(value: object) -> str | None:
     return value if isinstance(value, str) else None
+
+
+def _to_local_path(src_url: str) -> str | None:
+    """A filesystem path for a ``file://`` URL or a plain local path; ``None``
+    for a remote http(s) source. Mirrors the renderer's ``fileUrlToPath``."""
+    if src_url.startswith("file://"):
+        from urllib.parse import unquote
+
+        p = unquote(src_url[7:])  # file:///Users/x -> /Users/x
+        if len(p) >= 3 and p[0] == "/" and p[1].isalpha() and p[2] == ":":
+            p = p[1:]  # Windows: /C:/x -> C:/x
+        return p
+    if src_url.startswith(("http://", "https://")):
+        return None
+    return src_url
+
+
+def _ffmpeg_exe() -> str | None:
+    """Path to an ffmpeg binary: the bundled imageio-ffmpeg build first (reliable
+    inside the packaged app), otherwise whatever is on PATH; ``None`` if neither
+    exists so the caller can degrade gracefully."""
+    try:
+        import imageio_ffmpeg
+
+        exe = imageio_ffmpeg.get_ffmpeg_exe()
+        if exe:
+            return exe
+    except Exception:
+        pass
+    import shutil
+
+    return shutil.which("ffmpeg")
+
+
+def _safe_remove(path: str) -> None:
+    try:
+        os.remove(path)
+    except OSError:
+        pass
 
 
 class ProjectBridgeHandler:
@@ -193,6 +236,94 @@ class ProjectBridgeHandler:
                     entry["clipId"] = clip_id
                 out.append(entry)
         return out
+
+    # ── Perception (look at a clip) ───────────────────────────────────────
+
+    def resolve_clip_frame(self, clip_id: str) -> tuple[str, bool]:
+        """Resolve a clip id to a LOCAL image path so a caption model can SEE it.
+
+        Mirrors the renderer's resolve logic (``clip.importedUrl || asset.url``;
+        strip ``file://`` to a filesystem path). A still image already on disk is
+        used directly; a video (or a remote source) has one representative frame
+        extracted server-side with ffmpeg.
+
+        Returns ``(path, is_temp)`` — when ``is_temp`` is True the caller must
+        delete the file after use. Raises :class:`HTTPError` with a clear,
+        user-facing message on any failure (no project, unknown clip, no source,
+        or extraction impossible).
+        """
+        snapshot, _ = self.current()
+        if snapshot is None:
+            raise HTTPError(404, "no project published — open a project in the editor first")
+
+        timelines = _dicts(snapshot.get("timelines"))
+        active_id = snapshot.get("activeTimelineId")
+        timeline = next((t for t in timelines if t.get("id") == active_id), None)
+        if timeline is None and timelines:
+            timeline = timelines[0]
+        if timeline is None:
+            raise HTTPError(404, "the project has no timeline")
+
+        clip = next(
+            (c for c in _dicts(timeline.get("clips")) if _str_or_none(c.get("id")) == clip_id),
+            None,
+        )
+        if clip is None:
+            raise HTTPError(404, f"no clip {clip_id} on the active timeline")
+
+        asset: dict[str, object] | None = None
+        asset_id = _str_or_none(clip.get("assetId"))
+        if asset_id is not None:
+            asset = next(
+                (a for a in _dicts(snapshot.get("assets")) if _str_or_none(a.get("id")) == asset_id),
+                None,
+            )
+        else:
+            embedded = clip.get("asset")
+            if isinstance(embedded, dict):
+                asset = cast(dict[str, object], embedded)
+
+        src_url = _str_or_none(clip.get("importedUrl"))
+        if src_url is None and asset is not None:
+            src_url = _str_or_none(asset.get("url"))
+        if not src_url:
+            raise HTTPError(422, f"clip {clip_id} has no source media to look at")
+
+        local_path = _to_local_path(src_url)
+        is_video = _str_or_none(clip.get("type")) == "video"
+
+        # A still image already on disk needs no extraction — caption it as-is.
+        if not is_video and local_path and os.path.isfile(local_path):
+            return local_path, False
+
+        # Otherwise extract one frame with ffmpeg (covers video and remote sources).
+        ffmpeg = _ffmpeg_exe()
+        if ffmpeg is None:
+            raise HTTPError(
+                422,
+                "can't extract a frame to look at — ffmpeg is not available on this machine",
+            )
+
+        if is_video:
+            trim_start = _num(clip.get("trimStart"))
+            duration = _num(clip.get("duration"), 2.0)
+            seek = trim_start + min(1.0, duration / 2)
+        else:
+            seek = 0.0
+
+        source = local_path or src_url
+        fd, out_path = tempfile.mkstemp(prefix="dd_lookat_", suffix=".jpg")
+        os.close(fd)
+        cmd = [ffmpeg, "-y", "-ss", str(seek), "-i", source, "-frames:v", "1", "-q:v", "3", out_path]
+        try:
+            result = subprocess.run(cmd, capture_output=True, timeout=90)
+        except Exception as exc:  # timeout, OS error, ffmpeg vanished mid-run
+            _safe_remove(out_path)
+            raise HTTPError(422, f"couldn't extract a frame from clip {clip_id}: {exc}") from exc
+        if result.returncode != 0 or not (os.path.isfile(out_path) and os.path.getsize(out_path) > 0):
+            _safe_remove(out_path)
+            raise HTTPError(422, f"couldn't extract a frame from clip {clip_id} (media unreadable?)")
+        return out_path, True
 
     # ── Action queue ──────────────────────────────────────────────────────
 

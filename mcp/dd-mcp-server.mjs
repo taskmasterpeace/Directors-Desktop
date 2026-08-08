@@ -107,6 +107,26 @@ async function submitAndAwait(actions) {
   return { results: statuses }
 }
 
+// ── small helpers (mirror frontend/lib/directors-pal/tools.ts) ────────────────
+const MAX_IMAGES = 8
+
+function asText(value) {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+function asInt(value) {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.round(value) : undefined
+}
+/** POST JSON to the bridge and return the parsed body. */
+async function bridgePostJson(pathAndQuery, body) {
+  return JSON.parse(
+    await bridgeFetch(pathAndQuery, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  )
+}
+
 // ── tools ────────────────────────────────────────────────────────────────────
 const TOOLS = [
   {
@@ -229,6 +249,118 @@ const TOOLS = [
         ...(typeof args.note === 'string' ? { note: args.note } : {}),
       }
       return JSON.stringify(await submitAndAwait([action]), null, 2)
+    },
+  },
+  {
+    name: 'generate_images',
+    description:
+      'Generate one or more images from a text prompt by putting jobs in the render queue — the same power the ' +
+      'in-app Director\'s Pal has. Use count>1 to make a batch (one queue job per image, capped at 8). The results ' +
+      'land in the Gallery / Gen Space as they finish; this returns the queued job ids. Poll queue_status to watch ' +
+      'them, or read the timeline once they land.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        prompt: { type: 'string', description: 'What to generate.' },
+        count: { type: 'integer', minimum: 1, maximum: MAX_IMAGES, description: `How many images (1–${MAX_IMAGES}).` },
+        aspectRatio: { type: 'string', description: 'e.g. "16:9", "9:16", "1:1". Defaults to 16:9.' },
+        model: { type: 'string', description: 'Optional image-model id; omit to use the user\'s default.' },
+      },
+      required: ['prompt'],
+      additionalProperties: false,
+    },
+    run: async (args) => {
+      const prompt = asText(args.prompt)
+      if (!prompt) throw new Error('A prompt is required.')
+      const count = Math.min(MAX_IMAGES, Math.max(1, asInt(args.count) ?? 1))
+      const aspectRatio = asText(args.aspectRatio) ?? '16:9'
+      const model = asText(args.model)
+      const ids = []
+      for (let i = 0; i < count; i++) {
+        const body = {
+          type: 'image',
+          ...(model ? { model } : {}),
+          params: { prompt, aspectRatio },
+          tags: ['directors-pal'],
+          ...(count > 1 ? { batch_index: i } : {}),
+        }
+        const res = await bridgePostJson('/api/queue/submit', body)
+        if (res && res.id) ids.push(res.id)
+      }
+      return ids.length
+        ? `Queued ${ids.length} image job(s): ${ids.join(', ')}. They will appear in the Gallery as they finish.`
+        : 'No image jobs were accepted.'
+    },
+  },
+  {
+    name: 'generate_video',
+    description:
+      'Generate a video from a text prompt (and optionally a first-frame image path to animate from) by queueing a ' +
+      'render job — the in-app Director\'s Pal\'s video power. Returns the queued job id; poll queue_status for progress.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        prompt: { type: 'string', description: 'What should happen in the shot.' },
+        imagePath: { type: 'string', description: 'Optional absolute image path to animate from (image-to-video).' },
+        durationSeconds: { type: 'integer', description: 'Clip length in seconds.' },
+        model: { type: 'string', description: 'Optional video-model id; omit to use the user\'s default.' },
+      },
+      required: ['prompt'],
+      additionalProperties: false,
+    },
+    run: async (args) => {
+      const prompt = asText(args.prompt)
+      if (!prompt) throw new Error('A prompt is required.')
+      const imagePath = asText(args.imagePath)
+      const duration = asInt(args.durationSeconds)
+      const model = asText(args.model)
+      const body = {
+        type: 'video',
+        ...(model ? { model } : {}),
+        params: {
+          prompt,
+          ...(imagePath ? { imagePath } : {}),
+          ...(duration ? { duration: String(duration) } : {}),
+        },
+        tags: ['directors-pal'],
+      }
+      const res = await bridgePostJson('/api/queue/submit', body)
+      return res && res.id
+        ? `Queued video job ${res.id}. Watch the queue with queue_status.`
+        : 'The video job was not accepted.'
+    },
+  },
+  {
+    name: 'queue_status',
+    description:
+      'Check the render queue — how many jobs are queued / running / complete / failed right now. Use this to watch ' +
+      'images or video you started with generate_images / generate_video.',
+    inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    run: async () => {
+      const data = JSON.parse(await bridgeFetch('/api/queue/status'))
+      const jobs = Array.isArray(data.jobs) ? data.jobs : []
+      const by = (s) => jobs.filter((j) => j && j.status === s).length
+      return `Queue: ${by('running')} running, ${by('queued')} queued, ${by('complete')} complete, ${by('error')} failed (of ${jobs.length}).`
+    },
+  },
+  {
+    name: 'look_at_clip',
+    description:
+      'SEE what a clip actually shows: the app grabs a representative frame from the clip (server-side) and captions ' +
+      'it, so you can understand a video or image the user dropped on the timeline before answering or editing. ' +
+      'Get the clip id from get_timeline / get_chapter. This is the in-app Director\'s Pal\'s PERCEPTION power.',
+    inputSchema: {
+      type: 'object',
+      properties: { clipId: { type: 'string', description: 'Stable clip id from get_timeline / get_chapter.' } },
+      required: ['clipId'],
+      additionalProperties: false,
+    },
+    run: async (args) => {
+      const clipId = asText(args.clipId)
+      if (!clipId) throw new Error('A clipId is required.')
+      const data = await bridgePostJson('/api/project/look-at-clip', { clipId })
+      const caption = asText(data && data.caption)
+      return caption ? `Clip ${clipId} shows: ${caption}` : `Looked at clip ${clipId} but no caption came back.`
     },
   },
 ]

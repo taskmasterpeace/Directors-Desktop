@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import PlainTextResponse
+from pydantic import BaseModel
 
 from server_utils.timeline_toc import (
     build_toc,
@@ -134,3 +136,36 @@ def route_action_statuses(
     handler: AppHandler = Depends(get_state_service),
 ) -> AgentActionStatusResponse:
     return AgentActionStatusResponse(actions=handler.project_bridge.action_statuses())
+
+
+class LookAtClipRequest(BaseModel):
+    clipId: str
+
+
+class LookAtClipResponse(BaseModel):
+    caption: str
+
+
+@router.post("/look-at-clip", response_model=LookAtClipResponse)
+def route_look_at_clip(
+    request: LookAtClipRequest,
+    handler: AppHandler = Depends(get_state_service),
+) -> LookAtClipResponse:
+    """PERCEPTION: extract a representative frame from the clip (server-side) and
+    caption it, so an agent can SEE what a dropped video/image shows before
+    answering or editing. Mirrors the in-app Director's Pal ``look_at_clip``:
+    resolve the clip's source, grab a frame, then run the existing caption path.
+    """
+    frame_path, is_temp = handler.project_bridge.resolve_clip_frame(request.clipId)
+    try:
+        caption = handler.enhance_prompt.caption_image_for_video(
+            image_path=frame_path,
+            target_model="ltx-fast",
+        )
+    finally:
+        if is_temp:
+            try:
+                os.remove(frame_path)
+            except OSError:
+                pass
+    return LookAtClipResponse(caption=caption)
