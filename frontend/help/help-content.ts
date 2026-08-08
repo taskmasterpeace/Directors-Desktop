@@ -13,6 +13,13 @@
  * link is dangling, guarding against drift as features are added.
  */
 
+// Cropped screenshots — imported (not /public) so vite fingerprints them and
+// they resolve under Electron's file:// base './' in packaged builds too.
+import homeShot from './shots/home.jpg'
+import genSpaceShot from './shots/gen-space.jpg'
+import timelineShot from './shots/timeline.jpg'
+import directorsPalShot from './shots/directors-pal.jpg'
+
 /** A single control (button/icon) on a surface — shown as an icon chip. */
 export interface HelpControl {
   /** lucide-react icon name (PascalCase), resolved by the renderer's icon map. */
@@ -78,6 +85,7 @@ export const HELP_SECTIONS: HelpSection[] = [
     icon: 'Clapperboard',
     blurb: 'Turn ideas into finished video: generate images and clips, arrange them on a real editing timeline, and let AI help at every step.',
     reach: 'This is the Home screen — the sidebar on the left moves you around.',
+    screenshot: homeShot,
     steps: [
       'Pick a Create tool (Music Video, Playground, or Story Stage), or open a project under Edit.',
       'Generate media; results land in your Gallery and the project.',
@@ -135,6 +143,7 @@ export const HELP_SECTIONS: HelpSection[] = [
     icon: 'Sparkles',
     blurb: 'A single-shot generation workspace: type a prompt, generate, and every result lands in a per-project asset grid you can favorite, foldr, edit, animate, and retake.',
     reach: 'Playground in the sidebar, or the Gen Space tab inside a project.',
+    screenshot: genSpaceShot,
     steps: [
       'Pick a mode (Image / Video / Retake) from the MODE dropdown, bottom-left.',
       'Type a prompt (use @ to drop in a character or reference).',
@@ -354,6 +363,7 @@ export const HELP_SECTIONS: HelpSection[] = [
     icon: 'Clapperboard',
     blurb: 'A real non-linear editor: a menu bar, a left tool rail, a program monitor, a ruler + tracks, and a properties panel. Drag media in, cut it, arrange it, and export.',
     reach: 'Open any project from Home (Edit) or "Open in editor" from a build.',
+    screenshot: timelineShot,
     controls: [
       { icon: 'MousePointer2', label: 'Tool rail', desc: 'Select, Blade, Trim tools, Snap, Markers.' },
       { icon: 'Clapperboard', label: 'Program monitor', desc: 'Preview + transport + In/Out.' },
@@ -778,6 +788,7 @@ export const HELP_SECTIONS: HelpSection[] = [
     icon: 'Bot',
     blurb: 'A chat assistant you can open anywhere. Ask it how to use the app, or tell it what to make — it can actually do the work, not just describe it.',
     reach: 'Click the Director’s Pal bubble (bottom-right) from any screen.',
+    screenshot: directorsPalShot,
     steps: [
       'Ask a question ("how do I add captions?") → it answers from this Help.',
       'Give it a task ("generate 4 rooftop shots") → it queues the work.',
